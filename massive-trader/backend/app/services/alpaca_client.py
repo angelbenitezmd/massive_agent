@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 
-from app.core.config import get_settings
+from app.core.config_simple import get_settings
 from app.core.http_client import AsyncHTTPClient
 from app.core.errors import AlpacaAPIError
 from app.models.trading import (

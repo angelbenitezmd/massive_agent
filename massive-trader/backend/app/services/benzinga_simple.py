@@ -59,10 +59,10 @@ class BenzingaClient:
         Returns:
             News response dict
         """
+        # Massive Benzinga news endpoint currently rejects published.gte; send minimal filters
         params = self._build_params(
             tickers=tickers,
             channels=channels,
-            published_gte=published_gte,
             limit=limit,
             sort=sort
         )

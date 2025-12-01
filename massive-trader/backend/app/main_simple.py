@@ -14,6 +14,7 @@ import os
 from app.core.config_simple import get_settings
 from app.services.benzinga_simple import BenzingaClient
 from app.services.alpaca_trader import alpaca_trader
+from app.services.dashboard_service import DashboardService
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -47,6 +48,10 @@ async def lifespan(app: FastAPI):
         logger.info("✅ Benzinga client initialized")
     else:
         logger.warning("⚠️ Benzinga API key not configured")
+
+    # Start position monitoring background task
+    asyncio.create_task(auto_monitor_positions())
+    logger.info("✅ Position monitoring started")
 
     logger.info("="*60)
 
@@ -151,16 +156,17 @@ async def get_news(
 @app.get("/api/earnings")
 async def get_earnings(
     ticker: Optional[str] = Query(None, description="Stock ticker"),
-    days_ahead: int = Query(7, description="Days to look ahead"),
+    days_back: int = Query(90, description="Days to look back for past earnings"),
+    days_ahead: int = Query(30, description="Days to look ahead for upcoming earnings"),
     importance_min: int = Query(0, description="Minimum importance (0-5)"),
     limit: int = Query(20, description="Maximum results")
 ):
-    """Get earnings calendar from Benzinga."""
+    """Get earnings calendar from Benzinga (both past and upcoming)."""
     if not benzinga_client:
         raise HTTPException(status_code=503, detail="Benzinga client not configured")
 
-    # Date range
-    date_gte = datetime.utcnow().strftime("%Y-%m-%d")
+    # Date range - look back for recent earnings AND ahead for upcoming
+    date_gte = (datetime.utcnow() - timedelta(days=days_back)).strftime("%Y-%m-%d")
     date_lte = (datetime.utcnow() + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
 
     result = await benzinga_client.get_earnings(
@@ -231,6 +237,17 @@ async def get_consensus(ticker: str):
     return result
 
 
+@app.get("/api/dashboard/{ticker}")
+async def get_dashboard(ticker: str):
+    """Aggregate market, agent, and risk data for a ticker."""
+    service = DashboardService()
+    try:
+        return await service.get_dashboard_state(ticker)
+    except Exception as exc:  # noqa: BLE001
+        logger.error(f"Failed to build dashboard for {ticker}: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to build dashboard payload") from exc
+
+
 # ============= REAL-TIME PRICE ENDPOINT =============
 
 @app.get("/api/quote/{ticker}")
@@ -274,6 +291,46 @@ async def get_quote(ticker: str):
             "source": "simulated",
             "note": "Unknown ticker - generated random quote"
         }
+
+# ============= BARS/CHART DATA ENDPOINT =============
+
+@app.get("/api/bars/{ticker}")
+async def get_bars(
+    ticker: str,
+    timeframe: str = Query("1Min", description="Bar timeframe"),
+    limit: int = Query(100, description="Number of bars")
+):
+    """Get simulated price bars for charting."""
+    ticker = ticker.upper()
+
+    # Get base price from quote
+    quote_data = await get_quote(ticker)
+    base_price = quote_data.get("price", 100)
+
+    # Generate simulated bars
+    bars = []
+    current_price = base_price * 0.98  # Start slightly lower
+
+    for i in range(limit):
+        # Random walk with slight upward bias
+        change_pct = random.uniform(-0.003, 0.0035)
+        current_price = current_price * (1 + change_pct)
+
+        high = current_price * (1 + random.uniform(0, 0.002))
+        low = current_price * (1 - random.uniform(0, 0.002))
+        open_price = current_price * (1 + random.uniform(-0.001, 0.001))
+
+        bars.append({
+            "time": i,
+            "open": round(open_price, 2),
+            "high": round(high, 2),
+            "low": round(low, 2),
+            "close": round(current_price, 2),
+            "volume": random.randint(10000, 500000)
+        })
+
+    return bars
+
 
 # ============= MARKET SENTIMENT ENDPOINT =============
 
@@ -684,12 +741,7 @@ async def auto_monitor_positions():
             logger.error(f"Error in position monitoring: {e}")
             await asyncio.sleep(30)
 
-# Start position monitoring on startup
-@app.on_event("startup")
-async def start_position_monitoring():
-    """Start the background position monitoring task."""
-    asyncio.create_task(auto_monitor_positions())
-    logger.info("✅ Position monitoring started")
+# Start position monitoring on startup (integrated into lifespan)
 
 # ============= MOMENTUM TRADING & FLASH SIGNALS =============
 
@@ -1451,6 +1503,12 @@ def get_market_status():
         return "after_hours"
     else:
         return "closed"
+
+
+def is_market_open() -> bool:
+    """Check if the market is currently open."""
+    status = get_market_status()
+    return status == "open"
 
 @app.websocket("/ws/signals")
 async def websocket_signals(websocket: WebSocket):

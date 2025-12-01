@@ -6,6 +6,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.api import dashboard
 from app.core.config import get_settings
 from app.core.logging_config import setup_logging
 
@@ -186,10 +187,8 @@ async def websocket_status(websocket: WebSocket):
         manager.disconnect(websocket)
 
 
-# Include routers (when created)
-# app.include_router(benzinga_news.router, prefix="/api")
-# app.include_router(benzinga_earnings.router, prefix="/api")
-# ... etc
+# Include routers
+app.include_router(dashboard.router)
 
 
 # Global exception handler
