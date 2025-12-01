@@ -1,0 +1,8 @@
+# Minimal requirements for Python 3.14 compatibility
+fastapi
+uvicorn[standard]
+python-dotenv
+httpx
+aiofiles
+websockets
+python-dateutil

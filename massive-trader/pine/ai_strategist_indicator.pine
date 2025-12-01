@@ -1,0 +1,208 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © AI Trading Strategist System
+
+//@version=6
+indicator("AI Strategist Signal System", shorttitle="AI Signals", overlay=true)
+
+// ============================================================================
+// INPUT PARAMETERS
+// ============================================================================
+
+// Agent Weight Inputs (must sum to approximately 1.0)
+newsWeight = input.float(0.40, "News Agent Weight", minval=0, maxval=1, step=0.05, group="Agent Weights")
+earningsWeight = input.float(0.25, "Earnings Agent Weight", minval=0, maxval=1, step=0.05, group="Agent Weights")
+consensusWeight = input.float(0.20, "Consensus Agent Weight", minval=0, maxval=1, step=0.05, group="Agent Weights")
+guidanceWeight = input.float(0.10, "Guidance Agent Weight", minval=0, maxval=1, step=0.05, group="Agent Weights")
+riskWeight = input.float(0.15, "Risk Agent Weight (negative)", minval=0, maxval=1, step=0.05, group="Agent Weights")
+
+// Fast Reaction Mode
+fastReactionMode = input.bool(false, "Fast Reaction Mode", group="Trading Mode")
+urgencyThreshold = input.float(0.8, "Urgency Threshold", minval=0, maxval=1, step=0.1, group="Trading Mode")
+
+// Signal Thresholds
+strongBuyThreshold = input.float(85, "Strong Buy Threshold", minval=70, maxval=100, step=5, group="Signal Thresholds")
+buyThreshold = input.float(70, "Buy Threshold", minval=60, maxval=85, step=5, group="Signal Thresholds")
+sellThreshold = input.float(50, "Sell Threshold", minval=30, maxval=60, step=5, group="Signal Thresholds")
+strongSellThreshold = input.float(30, "Strong Sell Threshold", minval=0, maxval=40, step=5, group="Signal Thresholds")
+
+// Simulation Parameters (for demonstration)
+simulateNews = input.bool(true, "Simulate News Sentiment", group="Simulation")
+simulateEarnings = input.bool(true, "Simulate Earnings Surprises", group="Simulation")
+simulateRatings = input.bool(true, "Simulate Analyst Ratings", group="Simulation")
+
+// Display Options
+showImpactScore = input.bool(true, "Show Impact Score", group="Display")
+showBackgroundColors = input.bool(true, "Show Background Colors", group="Display")
+showLabels = input.bool(true, "Show Signal Labels", group="Display")
+
+// ============================================================================
+// SIMULATED AI AGENT SCORES (In production, these come from Python backend)
+// ============================================================================
+
+// Simulate News Agent Score (momentum-based proxy)
+rsi = ta.rsi(close, 14)
+newsScore = simulateNews ? rsi : 50
+newsSentiment = (newsScore - 50) / 50  // Convert to -1 to 1
+
+// Simulate Earnings Agent Score (volume and volatility-based)
+volumeRatio = volume / ta.sma(volume, 20)
+priceChange = (close - close[1]) / close[1] * 100
+earningsScore = simulateEarnings ? 50 + (volumeRatio > 1.5 ? priceChange * 5 : 0) : 50
+
+// Simulate Consensus Rating Score (trend-based)
+sma50 = ta.sma(close, 50)
+sma200 = ta.sma(close, 200)
+consensusScore = simulateRatings ?
+    (
+        close > sma50 and sma50 > sma200 ? 75 :
+        close > sma50 ? 60 :
+        close < sma50 and sma50 < sma200 ? 25 : 40
+    ) :
+    50
+// Simulate Guidance Score (momentum change)
+momentumChange = ta.mom(close, 10) - ta.mom(close[10], 10)
+guidanceScore = 50 + math.min(math.max(momentumChange * 2, -30), 30)
+
+// Simulate Risk Score (volatility-based)
+atr = ta.atr(14)
+atrRatio = atr / close
+riskScore = 50 + (atrRatio > 0.03 ? 30 : atrRatio > 0.02 ? 15 : 0)
+
+// Simulate Urgency (based on volume and volatility spikes)
+volumeSpike = volumeRatio > 2
+volatilitySpike = atrRatio > 0.04
+urgency = (volumeSpike or volatilitySpike) ? 0.9 : 0.3
+
+// ============================================================================
+// AI STRATEGIST CALCULATION (Matches Python logic)
+// ============================================================================
+
+// Calculate weighted impact score
+impactScore = newsScore * newsWeight +
+              earningsScore * earningsWeight +
+              consensusScore * consensusWeight +
+              guidanceScore * guidanceWeight -
+              riskScore * riskWeight
+
+// Apply fast reaction mode adjustments
+finalScore = fastReactionMode and urgency > urgencyThreshold ?
+    impactScore * 0.8 : impactScore  // More conservative in fast mode
+
+// Determine signal action
+isStrongBuy = finalScore >= strongBuyThreshold
+isBuy = finalScore >= buyThreshold and not isStrongBuy
+isSell = finalScore <= sellThreshold and finalScore > strongSellThreshold
+isStrongSell = finalScore <= strongSellThreshold
+isHold = not isStrongBuy and not isBuy and not isSell and not isStrongSell
+
+// ============================================================================
+// VISUAL SIGNALS
+// ============================================================================
+
+// Plot buy/sell markers
+plotshape(isStrongBuy, title="Strong Buy", location=location.belowbar,
+         color=color.new(color.green, 0), style=shape.triangleup, size=size.large,
+         text="STRONG\nBUY")
+
+plotshape(isBuy, title="Buy", location=location.belowbar,
+         color=color.new(color.green, 30), style=shape.triangleup, size=size.normal,
+         text="BUY")
+
+plotshape(isSell, title="Sell", location=location.abovebar,
+         color=color.new(color.red, 30), style=shape.triangledown, size=size.normal,
+         text="SELL")
+
+plotshape(isStrongSell, title="Strong Sell", location=location.abovebar,
+         color=color.new(color.red, 0), style=shape.triangledown, size=size.large,
+         text="STRONG\nSELL")
+
+// Background colors based on sentiment
+bgColor = showBackgroundColors ?
+    (isStrongBuy ? color.new(color.green, 90) :
+     isBuy ? color.new(color.green, 95) :
+     isSell ? color.new(color.red, 95) :
+     isStrongSell ? color.new(color.red, 90) :
+     color.new(color.gray, 98)) : na
+
+bgcolor(bgColor, title="Sentiment Background")
+
+// ============================================================================
+// IMPACT SCORE SUBPLOT
+// ============================================================================
+
+// Plot impact score as a histogram in a separate pane if enabled
+plot(showImpactScore ? finalScore : na, title="AI Impact Score",
+     color=finalScore > 70 ? color.green : finalScore < 30 ? color.red : color.gray,
+     style=plot.style_histogram, linewidth=2)
+
+// Add reference lines
+hline(showImpactScore ? strongBuyThreshold : na, "Strong Buy Level", color=color.green, linestyle=hline.style_dotted)
+hline(showImpactScore ? buyThreshold : na, "Buy Level", color=color.new(color.green, 50), linestyle=hline.style_dotted)
+hline(showImpactScore ? 50 : na, "Neutral", color=color.gray, linestyle=hline.style_solid)
+hline(showImpactScore ? sellThreshold : na, "Sell Level", color=color.new(color.red, 50), linestyle=hline.style_dotted)
+hline(showImpactScore ? strongSellThreshold : na, "Strong Sell Level", color=color.red, linestyle=hline.style_dotted)
+
+// ============================================================================
+// INFO LABELS
+// ============================================================================
+
+if showLabels and barstate.islast
+    var label infoLabel = label.new(bar_index, high, "", style=label.style_label_left)
+
+    labelText = "AI SIGNAL ANALYSIS\n" +
+                "━━━━━━━━━━━━━━\n" +
+                "Impact Score: " + str.tostring(finalScore, "#.#") + "\n" +
+                "News: " + str.tostring(newsScore, "#.#") + "\n" +
+                "Earnings: " + str.tostring(earningsScore, "#.#") + "\n" +
+                "Consensus: " + str.tostring(consensusScore, "#.#") + "\n" +
+                "Guidance: " + str.tostring(guidanceScore, "#.#") + "\n" +
+                "Risk: " + str.tostring(riskScore, "#.#") + "\n" +
+                "Urgency: " + str.tostring(urgency * 100, "#") + "%\n" +
+                "━━━━━━━━━━━━━━\n" +
+                "Signal: " + (isStrongBuy ? "STRONG BUY" :
+                            isBuy ? "BUY" :
+                            isSell ? "SELL" :
+                            isStrongSell ? "STRONG SELL" : "HOLD")
+
+    label.set_xy(infoLabel, bar_index + 5, high)
+    label.set_text(infoLabel, labelText)
+    label.set_color(infoLabel, isStrongBuy or isBuy ? color.green :
+                              isSell or isStrongSell ? color.red : color.gray)
+    label.set_textcolor(infoLabel, color.white)
+
+// ============================================================================
+// ALERTS
+// ============================================================================
+
+// Alert conditions for webhook integration
+alertcondition(isStrongBuy, title="AI Strong Buy Signal",
+               message='{"action": "STRONG_BUY", "ticker": "{{ticker}}", "price": "{{close}}", "score": "' + str.tostring(finalScore) + '"}')
+
+alertcondition(isBuy, title="AI Buy Signal",
+               message='{"action": "BUY", "ticker": "{{ticker}}", "price": "{{close}}", "score": "' + str.tostring(finalScore) + '"}')
+
+alertcondition(isSell, title="AI Sell Signal",
+               message='{"action": "SELL", "ticker": "{{ticker}}", "price": "{{close}}", "score": "' + str.tostring(finalScore) + '"}')
+
+alertcondition(isStrongSell, title="AI Strong Sell Signal",
+               message='{"action": "STRONG_SELL", "ticker": "{{ticker}}", "price": "{{close}}", "score": "' + str.tostring(finalScore) + '"}')
+
+// ============================================================================
+// WEBHOOK INTEGRATION NOTES
+// ============================================================================
+// To connect this indicator to your Python backend:
+// 1. Create a TradingView alert on any of the alert conditions above
+// 2. Set the webhook URL to: https://your-domain.com/api/webhook/tradingview
+// 3. The alert will send JSON payload with action, ticker, price, and score
+// 4. Your backend can process these signals and execute trades via Alpaca
+//
+// Example webhook endpoint in FastAPI:
+// @app.post("/api/webhook/tradingview")
+// async def handle_tradingview_webhook(data: dict):
+//     action = data.get("action")
+//     ticker = data.get("ticker")
+//     price = float(data.get("price"))
+//     score = float(data.get("score"))
+//     # Process signal and potentially execute trade
+//
+// ============================================================================

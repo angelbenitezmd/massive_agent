@@ -1,0 +1,4 @@
+streamlit
+httpx
+websocket-client
+streamlit-autorefresh
