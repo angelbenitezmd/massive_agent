@@ -74,13 +74,18 @@ export default function DashboardPage() {
     }
   }, [analysisResult?.decision, executeTradeMutation]);
 
+  // Run analysis on mount and ticker change
+  useEffect(() => {
+    runAnalysis();
+  }, [selectedTicker]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-refresh effect
   useEffect(() => {
     if (!autoRefresh) return;
 
     const interval = setInterval(() => {
       runAnalysis();
-    }, 60000); // Every minute
+    }, 30000); // Every 30 seconds when auto-refresh is on
 
     return () => clearInterval(interval);
   }, [autoRefresh, runAnalysis]);

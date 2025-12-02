@@ -93,9 +93,9 @@ export function NewsPanel({ news, isLoading }: NewsPanelProps) {
                         {item.source}
                       </span>
                       {getSentimentBadge(item.sentiment)}
-                      {item.tags?.slice(0, 2).map((tag) => (
+                      {item.tags?.slice(0, 2).map((tag, tagIndex) => (
                         <Badge
-                          key={tag}
+                          key={`${item.id || index}-tag-${tagIndex}`}
                           variant="outline"
                           className="text-xs"
                         >

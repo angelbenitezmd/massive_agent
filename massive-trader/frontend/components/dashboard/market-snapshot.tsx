@@ -99,7 +99,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
     <div className="bg-popover border border-border rounded-lg p-3 shadow-lg">
       <div className="flex items-center gap-2 mb-2">
         <Clock className="h-3 w-3 text-muted-foreground" />
-        <span className="text-xs text-muted-foreground">Bar {data.time + 1}</span>
+        <span className="text-xs text-muted-foreground">{data.t || `Bar ${data.time + 1}`}</span>
       </div>
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
         <div className="flex justify-between">
@@ -169,6 +169,8 @@ export function MarketSnapshot({
 
       return {
         time: index,
+        timestamp: bar.timestamp,
+        t: bar.t || (bar.timestamp ? new Date(bar.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : `${index}`),
         open: bar.open || bar.o,
         high: bar.high || bar.h,
         low: bar.low || bar.l,
@@ -357,12 +359,12 @@ export function MarketSnapshot({
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <XAxis
-                  dataKey="time"
+                  dataKey="t"
                   axisLine={false}
                   tickLine={false}
                   tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                  tickFormatter={(value) => `${value + 1}`}
-                  interval="preserveStartEnd"
+                  interval={Math.floor(chartData.length / 6)}
+                  minTickGap={30}
                 />
                 <YAxis
                   yAxisId="price"

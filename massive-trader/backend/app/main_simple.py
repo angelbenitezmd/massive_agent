@@ -250,21 +250,93 @@ async def get_dashboard(ticker: str):
 
 # ============= REAL-TIME PRICE ENDPOINT =============
 
+# Alpaca data client for real quotes
+_alpaca_data_client = None
+
+def get_alpaca_data_client():
+    """Get or create Alpaca data client for quotes."""
+    global _alpaca_data_client
+    if _alpaca_data_client is None:
+        from alpaca.data.historical import StockHistoricalDataClient
+        api_key = settings.ALPACA_API_KEY_ID
+        secret_key = settings.ALPACA_API_SECRET_KEY
+        if api_key and secret_key:
+            _alpaca_data_client = StockHistoricalDataClient(api_key, secret_key)
+    return _alpaca_data_client
+
 @app.get("/api/quote/{ticker}")
 async def get_quote(ticker: str):
-    """Get real-time or simulated quote for a ticker."""
-    # Convert ticker to uppercase
+    """Get real-time quote for a ticker from Alpaca."""
     ticker = ticker.upper()
 
-    # Simulated quotes with realistic prices (Nov 2024)
+    # Try to get real quote from Alpaca
+    try:
+        client = get_alpaca_data_client()
+        if client:
+            from alpaca.data.requests import StockLatestQuoteRequest, StockLatestTradeRequest
+
+            # First try to get latest trade (more accurate for after hours)
+            try:
+                trade_request = StockLatestTradeRequest(symbol_or_symbols=[ticker])
+                trades = client.get_stock_latest_trade(trade_request)
+                if ticker in trades:
+                    trade = trades[ticker]
+                    trade_price = float(trade.price) if trade.price else 0
+                    if trade_price > 0:
+                        return {
+                            "ticker": ticker,
+                            "price": round(trade_price, 2),
+                            "change": 0,
+                            "change_percent": 0,
+                            "volume": int(trade.size) if trade.size else 0,
+                            "timestamp": datetime.utcnow().isoformat(),
+                            "source": "alpaca_trade"
+                        }
+            except Exception as e:
+                logger.debug(f"Failed to get latest trade for {ticker}: {e}")
+
+            # Fallback to quote
+            request = StockLatestQuoteRequest(symbol_or_symbols=[ticker])
+            quotes = client.get_stock_latest_quote(request)
+
+            if ticker in quotes:
+                quote = quotes[ticker]
+                bid = float(quote.bid_price) if quote.bid_price else 0
+                ask = float(quote.ask_price) if quote.ask_price else 0
+                # Use mid price, or just bid/ask if one is missing (after hours)
+                if bid > 0 and ask > 0:
+                    price = (bid + ask) / 2
+                elif bid > 0:
+                    price = bid
+                elif ask > 0:
+                    price = ask
+                else:
+                    price = 0
+
+                if price > 0:
+                    return {
+                        "ticker": ticker,
+                        "price": round(price, 2),
+                        "bid": bid,
+                        "ask": ask,
+                        "change": 0,
+                        "change_percent": 0,
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "source": "alpaca_quote"
+                    }
+    except Exception as e:
+        logger.warning(f"Failed to get Alpaca quote for {ticker}: {e}")
+
+    # Fallback to simulated quotes (updated Dec 2024 prices)
     simulated_quotes = {
-        "AAPL": {"price": 225.50, "change": 2.30, "change_pct": 1.03},
-        "MSFT": {"price": 492.01, "change": 6.51, "change_pct": 1.34},
-        "GOOGL": {"price": 175.25, "change": -1.20, "change_pct": -0.68},
-        "TSLA": {"price": 350.75, "change": 8.90, "change_pct": 2.60},
-        "NVDA": {"price": 145.30, "change": 3.45, "change_pct": 2.43},
-        "META": {"price": 570.20, "change": -4.30, "change_pct": -0.75},
-        "AMZN": {"price": 215.60, "change": 1.80, "change_pct": 0.84},
+        "AAPL": {"price": 237.33, "change": 2.30, "change_pct": 0.98},
+        "MSFT": {"price": 423.46, "change": 6.51, "change_pct": 1.56},
+        "GOOGL": {"price": 171.04, "change": -1.20, "change_pct": -0.70},
+        "TSLA": {"price": 352.56, "change": 8.90, "change_pct": 2.59},
+        "NVDA": {"price": 179.92, "change": 2.94, "change_pct": 1.66},
+        "META": {"price": 569.19, "change": -4.30, "change_pct": -0.75},
+        "AMZN": {"price": 207.89, "change": 1.80, "change_pct": 0.87},
+        "AMD": {"price": 138.35, "change": 1.20, "change_pct": 0.88},
     }
 
     if ticker in simulated_quotes:
@@ -275,11 +347,9 @@ async def get_quote(ticker: str):
             "change": quote["change"],
             "change_percent": quote["change_pct"],
             "timestamp": datetime.utcnow().isoformat(),
-            "source": "simulated",
-            "note": "Connect to real market data provider for live quotes"
+            "source": "simulated"
         }
     else:
-        # For unknown tickers, generate a random realistic price
         base_price = random.uniform(50, 300)
         change = random.uniform(-5, 5)
         return {
@@ -288,8 +358,7 @@ async def get_quote(ticker: str):
             "change": round(change, 2),
             "change_percent": round((change / base_price) * 100, 2),
             "timestamp": datetime.utcnow().isoformat(),
-            "source": "simulated",
-            "note": "Unknown ticker - generated random quote"
+            "source": "simulated"
         }
 
 # ============= BARS/CHART DATA ENDPOINT =============
@@ -300,19 +369,103 @@ async def get_bars(
     timeframe: str = Query("1Min", description="Bar timeframe"),
     limit: int = Query(100, description="Number of bars")
 ):
-    """Get simulated price bars for charting."""
+    """Get real historical price bars from Alpaca."""
     ticker = ticker.upper()
 
-    # Get base price from quote
+    # Try to get real bars from Alpaca
+    try:
+        client = get_alpaca_data_client()
+        if client:
+            from alpaca.data.requests import StockBarsRequest
+            from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
+
+            # Map timeframe string to Alpaca TimeFrame
+            timeframe_map = {
+                "1Min": TimeFrame.Minute,
+                "5Min": TimeFrame(5, TimeFrameUnit.Minute),
+                "15Min": TimeFrame(15, TimeFrameUnit.Minute),
+                "30Min": TimeFrame(30, TimeFrameUnit.Minute),
+                "1H": TimeFrame.Hour,
+                "1Hour": TimeFrame.Hour,
+                "1D": TimeFrame.Day,
+                "1Day": TimeFrame.Day,
+            }
+
+            tf = timeframe_map.get(timeframe, TimeFrame.Minute)
+
+            # Calculate start time based on timeframe and limit
+            now = datetime.utcnow()
+            if timeframe in ["1D", "1Day"]:
+                start = now - timedelta(days=limit + 5)
+            elif timeframe in ["1H", "1Hour"]:
+                start = now - timedelta(hours=limit + 10)
+            else:
+                # For minute bars, go back enough trading hours
+                start = now - timedelta(days=3)  # Get last 3 days of minute data
+
+            request = StockBarsRequest(
+                symbol_or_symbols=[ticker],
+                timeframe=tf,
+                start=start,
+                limit=limit
+            )
+
+            bars_data = client.get_stock_bars(request)
+
+            # Access bars from the BarSet object
+            if hasattr(bars_data, 'data') and ticker in bars_data.data:
+                bars_list = bars_data.data[ticker]
+            elif ticker in bars_data:
+                bars_list = list(bars_data[ticker])
+            else:
+                bars_list = None
+
+            if bars_list:
+                result = []
+                for i, bar in enumerate(bars_list[-limit:]):  # Get last N bars
+                    bar_time = bar.timestamp
+                    # Format time based on timeframe
+                    if timeframe in ["1D", "1Day"]:
+                        t_str = bar_time.strftime("%m/%d")
+                    else:
+                        t_str = bar_time.strftime("%H:%M")
+
+                    result.append({
+                        "time": i,
+                        "timestamp": bar_time.isoformat(),
+                        "t": t_str,
+                        "open": float(bar.open),
+                        "high": float(bar.high),
+                        "low": float(bar.low),
+                        "close": float(bar.close),
+                        "volume": int(bar.volume),
+                        "vwap": float(bar.vwap) if bar.vwap else None,
+                        "trade_count": int(bar.trade_count) if bar.trade_count else None
+                    })
+
+                if result:
+                    logger.info(f"Fetched {len(result)} real bars for {ticker}")
+                    return result
+
+    except Exception as e:
+        logger.warning(f"Failed to get Alpaca bars for {ticker}: {e}")
+
+    # Fallback to simulated bars if Alpaca fails
+    logger.info(f"Using simulated bars for {ticker}")
     quote_data = await get_quote(ticker)
     base_price = quote_data.get("price", 100)
 
-    # Generate simulated bars
+    interval_minutes = {
+        "1Min": 1, "5Min": 5, "15Min": 15, "30Min": 30,
+        "1H": 60, "1Hour": 60, "1D": 1440, "1Day": 1440
+    }.get(timeframe, 1)
+
     bars = []
-    current_price = base_price * 0.98  # Start slightly lower
+    current_price = base_price * 0.98
+    now = datetime.utcnow()
 
     for i in range(limit):
-        # Random walk with slight upward bias
+        bar_time = now - timedelta(minutes=interval_minutes * (limit - 1 - i))
         change_pct = random.uniform(-0.003, 0.0035)
         current_price = current_price * (1 + change_pct)
 
@@ -320,8 +473,15 @@ async def get_bars(
         low = current_price * (1 - random.uniform(0, 0.002))
         open_price = current_price * (1 + random.uniform(-0.001, 0.001))
 
+        if timeframe in ["1D", "1Day"]:
+            t_str = bar_time.strftime("%m/%d")
+        else:
+            t_str = bar_time.strftime("%H:%M")
+
         bars.append({
             "time": i,
+            "timestamp": bar_time.isoformat(),
+            "t": t_str,
             "open": round(open_price, 2),
             "high": round(high, 2),
             "low": round(low, 2),

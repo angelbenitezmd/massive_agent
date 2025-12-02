@@ -7,10 +7,11 @@ from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import (
     MarketOrderRequest,
     LimitOrderRequest,
+    StopOrderRequest,
     StopLossRequest,
     TakeProfitRequest
 )
-from alpaca.trading.enums import OrderSide, TimeInForce, OrderType
+from alpaca.trading.enums import OrderSide, TimeInForce, OrderType, OrderClass
 from alpaca.data.live import StockDataStream
 from alpaca.data.requests import StockLatestQuoteRequest
 
@@ -120,38 +121,28 @@ class AlpacaTrader:
                     "message": f"No action needed: {action}"
                 }
 
-            # Create market order with bracket (stop loss + take profit)
-            order_request = MarketOrderRequest(
-                symbol=ticker,
-                qty=quantity,
-                side=side,
-                time_in_force=TimeInForce.GTC
-            )
+            # Create bracket order with stop loss + take profit
+            if side == OrderSide.BUY and stop_loss and take_profit:
+                order_request = MarketOrderRequest(
+                    symbol=ticker,
+                    qty=quantity,
+                    side=side,
+                    time_in_force=TimeInForce.GTC,
+                    order_class=OrderClass.BRACKET,
+                    stop_loss=StopLossRequest(stop_price=round(stop_loss, 2)),
+                    take_profit=TakeProfitRequest(limit_price=round(take_profit, 2))
+                )
+            else:
+                # Simple market order
+                order_request = MarketOrderRequest(
+                    symbol=ticker,
+                    qty=quantity,
+                    side=side,
+                    time_in_force=TimeInForce.GTC
+                )
 
             # Submit order
             order = self.client.submit_order(order_data=order_request)
-
-            # Add stop loss and take profit as separate orders
-            if side == OrderSide.BUY and stop_loss and take_profit:
-                # Stop loss order
-                stop_request = StopLossRequest(
-                    symbol=ticker,
-                    qty=quantity,
-                    side=OrderSide.SELL,
-                    time_in_force=TimeInForce.GTC,
-                    stop_price=stop_loss
-                )
-                self.client.submit_order(order_data=stop_request)
-
-                # Take profit order
-                tp_request = LimitOrderRequest(
-                    symbol=ticker,
-                    qty=quantity,
-                    side=OrderSide.SELL,
-                    time_in_force=TimeInForce.GTC,
-                    limit_price=take_profit
-                )
-                self.client.submit_order(order_data=tp_request)
 
             return {
                 "status": "executed",
