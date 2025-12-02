@@ -39,11 +39,18 @@ export function formatVolume(value: number): string {
   return value.toString();
 }
 
-export function formatRelativeTime(date: Date | string): string {
+export function formatRelativeTime(date: Date | string | undefined | null): string {
+  if (!date) return "Unknown";
+
   const now = new Date();
   const then = new Date(date);
+
+  // Check for invalid date
+  if (isNaN(then.getTime())) return "Unknown";
+
   const seconds = Math.floor((now.getTime() - then.getTime()) / 1000);
 
+  if (seconds < 0) return "just now"; // Future dates
   if (seconds < 60) return "just now";
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;

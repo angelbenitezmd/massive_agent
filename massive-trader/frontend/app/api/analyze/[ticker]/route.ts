@@ -207,7 +207,7 @@ function generateNewsAgentSignal(news: any, sentiment: any) {
     let bullishCount = 0;
     let bearishCount = 0;
 
-    recentNews.forEach((item) => {
+    recentNews.forEach((item: { headline?: string; title?: string }) => {
       const headline = (item.headline || item.title || "").toLowerCase();
       bullishKeywords.forEach((kw) => {
         if (headline.includes(kw)) bullishCount++;

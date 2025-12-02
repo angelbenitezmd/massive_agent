@@ -91,7 +91,7 @@ export async function getNews(ticker: string): Promise<NewsItem[]> {
     author: item.author,
     source: item.source || "Benzinga",
     url: item.url,
-    publishedAt: item.created || item.published_at || item.updated,
+    publishedAt: item.published || item.created || item.published_at || item.updated || item.last_updated,
     symbols: item.stocks?.map((s: any) => s.name) || item.symbols || [ticker],
     tags: item.channels?.map((c: any) => c.name) || item.tags || [],
     sentiment: item.sentiment,
