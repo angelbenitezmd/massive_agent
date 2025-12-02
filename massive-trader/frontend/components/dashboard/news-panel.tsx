@@ -66,7 +66,7 @@ export function NewsPanel({ news, isLoading }: NewsPanelProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[350px] pr-4">
+        <ScrollArea className="h-[500px] pr-4">
           {news && news.length > 0 ? (
             <div className="space-y-4">
               {news.map((item, index) => (

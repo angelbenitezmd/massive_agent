@@ -84,175 +84,227 @@ export function RiskPanel({
           <Shield className="h-5 w-5 text-primary" />
           Risk & Account
         </CardTitle>
-        <CardDescription>Portfolio status and risk controls</CardDescription>
+        <CardDescription>Portfolio status, risk controls, and positions</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Circuit Breaker Status */}
-        {riskStatus && (
-          <div className="p-4 rounded-lg bg-secondary/30 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5" />
-                <span className="font-medium">Circuit Breaker</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div
-                  className={cn(
-                    "w-3 h-3 rounded-full animate-pulse",
-                    getCircuitBreakerColor(riskStatus.circuitBreaker)
-                  )}
-                />
-                <Badge
-                  variant={
-                    riskStatus.circuitBreaker === "GREEN"
-                      ? "success"
-                      : riskStatus.circuitBreaker === "RED"
-                      ? "destructive"
-                      : "warning"
-                  }
-                >
-                  {riskStatus.circuitBreaker}
-                </Badge>
-              </div>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {getCircuitBreakerLabel(riskStatus.circuitBreaker)}
-            </p>
-
-            {/* Daily P&L */}
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Daily P&L</span>
-              <span
-                className={cn(
-                  "font-medium",
-                  riskStatus.dailyPL >= 0 ? "text-green-500" : "text-red-500"
-                )}
-              >
-                {formatCurrency(riskStatus.dailyPL)} (
-                {formatPercent(riskStatus.dailyPLPercent)})
-              </span>
-            </div>
-
-            {/* Drawdown Progress */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Drawdown</span>
-                <span>
-                  {formatPercent(riskStatus.currentDrawdown)} /{" "}
-                  {formatPercent(riskStatus.maxDailyLoss * 100)} max
-                </span>
-              </div>
-              <Progress
-                value={
-                  (Math.abs(riskStatus.currentDrawdown) /
-                    (riskStatus.maxDailyLoss * 100)) *
-                  100
-                }
-                className={cn(
-                  "h-2",
-                  riskStatus.currentDrawdown < -3
-                    ? "[&>div]:bg-red-500"
-                    : "[&>div]:bg-yellow-500"
-                )}
-              />
-            </div>
-
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Trades Today</span>
-              <span className="font-medium">{riskStatus.tradesToday}</span>
-            </div>
-          </div>
-        )}
-
-        <Separator />
-
-        {/* Account Summary */}
-        {account && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Wallet className="h-4 w-4 text-muted-foreground" />
-              <span className="font-medium">Account Summary</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div className="space-y-1">
-                <div className="text-muted-foreground">Equity</div>
-                <div className="font-medium text-lg">
-                  {formatCurrency(account.equity)}
-                </div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-muted-foreground">Cash</div>
-                <div className="font-medium text-lg">
-                  {formatCurrency(account.cash)}
-                </div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-muted-foreground">Buying Power</div>
-                <div className="font-medium">
-                  {formatCurrency(account.buyingPower)}
-                </div>
-              </div>
-              <div className="space-y-1">
-                <div className="text-muted-foreground">Day Trades</div>
-                <div className="font-medium">{account.dayTradeCount} / 3</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Current Position */}
-        {currentPosition && (
-          <>
-            <Separator />
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Activity className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">
-                  Position in {currentPosition.symbol}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="space-y-1">
-                  <div className="text-muted-foreground">Quantity</div>
-                  <div className="font-medium">
-                    {currentPosition.quantity} shares
+      <CardContent>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left: Circuit Breaker & Risk */}
+          <div className="space-y-4">
+            {riskStatus && (
+              <div className="p-4 rounded-lg bg-secondary/30 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5" />
+                    <span className="font-medium">Circuit Breaker</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={cn(
+                        "w-3 h-3 rounded-full animate-pulse",
+                        getCircuitBreakerColor(riskStatus.circuitBreaker)
+                      )}
+                    />
+                    <Badge
+                      variant={
+                        riskStatus.circuitBreaker === "GREEN"
+                          ? "success"
+                          : riskStatus.circuitBreaker === "RED"
+                          ? "destructive"
+                          : "warning"
+                      }
+                    >
+                      {riskStatus.circuitBreaker}
+                    </Badge>
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <div className="text-muted-foreground">Avg Entry</div>
-                  <div className="font-medium">
-                    {formatCurrency(currentPosition.avgEntryPrice)}
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-muted-foreground">Market Value</div>
-                  <div className="font-medium">
-                    {formatCurrency(currentPosition.marketValue)}
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <div className="text-muted-foreground">Unrealized P&L</div>
-                  <div
+                <p className="text-sm text-muted-foreground">
+                  {getCircuitBreakerLabel(riskStatus.circuitBreaker)}
+                </p>
+
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Daily P&L</span>
+                  <span
                     className={cn(
-                      "font-medium flex items-center gap-1",
-                      currentPosition.unrealizedPL >= 0
-                        ? "text-green-500"
-                        : "text-red-500"
+                      "font-medium",
+                      riskStatus.dailyPL >= 0 ? "text-green-500" : "text-red-500"
                     )}
                   >
-                    {currentPosition.unrealizedPL >= 0 ? (
-                      <TrendingUp className="h-3 w-3" />
-                    ) : (
-                      <TrendingDown className="h-3 w-3" />
+                    {formatCurrency(riskStatus.dailyPL)} (
+                    {formatPercent(riskStatus.dailyPLPercent)})
+                  </span>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Drawdown</span>
+                    <span>
+                      {formatPercent(riskStatus.currentDrawdown)} /{" "}
+                      {formatPercent(riskStatus.maxDailyLoss * 100)} max
+                    </span>
+                  </div>
+                  <Progress
+                    value={
+                      (Math.abs(riskStatus.currentDrawdown) /
+                        (riskStatus.maxDailyLoss * 100)) *
+                      100
+                    }
+                    className={cn(
+                      "h-2",
+                      riskStatus.currentDrawdown < -3
+                        ? "[&>div]:bg-red-500"
+                        : "[&>div]:bg-yellow-500"
                     )}
-                    {formatCurrency(currentPosition.unrealizedPL)} (
-                    {formatPercent(currentPosition.unrealizedPLPercent * 100)})
+                  />
+                </div>
+
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Trades Today</span>
+                  <span className="font-medium">{riskStatus.tradesToday}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Middle: Account Summary */}
+          <div className="space-y-4">
+            {account && (
+              <div className="p-4 rounded-lg bg-secondary/30 space-y-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <Wallet className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">Account Summary</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="space-y-1">
+                    <div className="text-muted-foreground">Equity</div>
+                    <div className="font-semibold text-xl">
+                      {formatCurrency(account.equity)}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-muted-foreground">Cash</div>
+                    <div className="font-semibold text-xl">
+                      {formatCurrency(account.cash)}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-muted-foreground">Buying Power</div>
+                    <div className="font-medium text-lg">
+                      {formatCurrency(account.buyingPower)}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-muted-foreground">Day Trades</div>
+                    <div className="font-medium text-lg">
+                      {account.dayTradeCount}
+                      {account.equity >= 25000 && (
+                        <span className="text-xs text-muted-foreground ml-1 block">(no PDT limit)</span>
+                      )}
+                      {account.equity < 25000 && (
+                        <span className="text-xs text-muted-foreground ml-1 block">/ 3 (5-day)</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
+            )}
+          </div>
+
+          {/* Right: All Positions */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Activity className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">All Positions</span>
+              </div>
+              {positions && positions.length > 0 && (
+                <Badge variant="outline">{positions.length} open</Badge>
+              )}
             </div>
-          </>
-        )}
+
+            {(!positions || positions.length === 0) ? (
+              <div className="text-sm text-muted-foreground text-center py-8 bg-secondary/30 rounded-lg">
+                No open positions
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
+                {positions.map((position) => {
+                  const isSelected = position.symbol === selectedTicker;
+                  const isProfit = position.unrealizedPL >= 0;
+                  return (
+                    <div
+                      key={position.symbol}
+                      className={cn(
+                        "p-3 rounded-lg border text-sm transition-colors",
+                        isSelected
+                          ? "bg-primary/10 border-primary/30"
+                          : "bg-secondary/30 border-transparent hover:bg-secondary/50"
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">{position.symbol}</span>
+                          {isSelected && (
+                            <Badge variant="secondary" className="text-xs">Selected</Badge>
+                          )}
+                        </div>
+                        <div
+                          className={cn(
+                            "flex items-center gap-1 font-medium",
+                            isProfit ? "text-green-500" : "text-red-500"
+                          )}
+                        >
+                          {isProfit ? (
+                            <TrendingUp className="h-3 w-3" />
+                          ) : (
+                            <TrendingDown className="h-3 w-3" />
+                          )}
+                          {formatPercent(position.unrealizedPLPercent * 100)}
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2 text-xs">
+                        <div>
+                          <div className="text-muted-foreground">Qty</div>
+                          <div className="font-medium">{position.quantity}</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Entry</div>
+                          <div className="font-medium">{formatCurrency(position.avgEntryPrice)}</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">Current</div>
+                          <div className="font-medium">{formatCurrency(position.currentPrice)}</div>
+                        </div>
+                        <div>
+                          <div className="text-muted-foreground">P&L</div>
+                          <div className={cn("font-medium", isProfit ? "text-green-500" : "text-red-500")}>
+                            {formatCurrency(position.unrealizedPL)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Total P&L Summary */}
+            {positions && positions.length > 0 && (
+              <div className="flex items-center justify-between pt-2 border-t text-sm">
+                <span className="text-muted-foreground">Total Unrealized P&L</span>
+                <span
+                  className={cn(
+                    "font-semibold text-lg",
+                    positions.reduce((sum, p) => sum + p.unrealizedPL, 0) >= 0
+                      ? "text-green-500"
+                      : "text-red-500"
+                  )}
+                >
+                  {formatCurrency(positions.reduce((sum, p) => sum + p.unrealizedPL, 0))}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

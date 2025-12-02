@@ -9,6 +9,7 @@ import {
   AIAgentsPanel,
   TradeDecisionPanel,
   RiskPanel,
+  ScannerPanel,
 } from "@/components/dashboard";
 import {
   useQuote,
@@ -129,14 +130,16 @@ export default function DashboardPage() {
               isLoading={quoteLoading || barsLoading}
             />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <NewsPanel news={news} isLoading={newsLoading} />
-              <EarningsPanel earnings={earnings} isLoading={earningsLoading} />
-            </div>
+            <NewsPanel news={news} isLoading={newsLoading} />
           </div>
 
           {/* Right Column - AI Analysis & Trading */}
           <div className="space-y-6">
+            <ScannerPanel
+              selectedTicker={selectedTicker}
+              onSelectTicker={setSelectedTicker}
+            />
+
             <AIAgentsPanel
               newsAgent={analysisResult?.agents?.news}
               earningsAgent={analysisResult?.agents?.earnings}
@@ -152,14 +155,19 @@ export default function DashboardPage() {
               tradingMode={status?.tradingMode || "paper"}
             />
 
-            <RiskPanel
-              account={account}
-              positions={positions}
-              riskStatus={riskStatus}
-              selectedTicker={selectedTicker}
-              isLoading={accountLoading}
-            />
+            <EarningsPanel earnings={earnings} isLoading={earningsLoading} />
           </div>
+        </div>
+
+        {/* Full Width Bottom Row - Risk & Positions */}
+        <div className="mt-6">
+          <RiskPanel
+            account={account}
+            positions={positions}
+            riskStatus={riskStatus}
+            selectedTicker={selectedTicker}
+            isLoading={accountLoading}
+          />
         </div>
       </main>
     </div>
