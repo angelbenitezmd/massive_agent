@@ -1,4 +1,27 @@
-"""Simplified configuration for Python 3.14 compatibility."""
+"""
+Simplified configuration for Python 3.14 compatibility.
+
+WATCHLIST CONFIGURATION
+=======================
+This config reads ticker lists from environment variables (.env file):
+
+- WATCHLIST_TICKERS: Core "Best Stocks" universe
+  High-quality, highly liquid S&P 100-style large caps.
+  Sector-balanced for diversification.
+  Used by: Scanner "Watchlist" tab, primary AI analysis.
+
+- SCAN_UNIVERSE_TICKERS: Extended momentum universe
+  Growth & momentum stocks for broader scanning.
+
+- SPICY_TICKERS: High Volatility / "Spicy" list
+  Meme stocks, high beta, story stocks.
+  Used by: Scanner "High Volatility" tab.
+
+All major US exchanges (NYSE, NASDAQ, AMEX) are supported.
+No exchange-specific filtering is applied - Alpaca + Benzinga cover all.
+
+TODO (future): Dynamic universe selection via nightly scoring/rotation.
+"""
 import os
 from dotenv import load_dotenv
 

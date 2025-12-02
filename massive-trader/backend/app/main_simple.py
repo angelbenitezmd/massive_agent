@@ -1337,6 +1337,21 @@ def has_positive_earnings_trend(earnings_data):
 
 # ============= WATCHLIST SCANNER =============
 
+@app.get("/api/watchlist")
+async def get_watchlist():
+    """Return the configured watchlist tickers from .env."""
+    return {
+        "tickers": settings.watchlist,
+        "universe": settings.universe,
+        "spicy": settings.spicy,
+        "count": {
+            "watchlist": len(settings.watchlist),
+            "universe": len(settings.universe),
+            "spicy": len(settings.spicy),
+        }
+    }
+
+
 @app.get("/api/scan/watchlist")
 async def scan_watchlist():
     """Scan all watchlist tickers for opportunities."""
