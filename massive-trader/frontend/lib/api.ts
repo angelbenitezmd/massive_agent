@@ -245,3 +245,70 @@ export async function scanUniverse(): Promise<any[]> {
 export async function scanSpicy(): Promise<any[]> {
   return fetchAPI("/api/scan/spicy");
 }
+
+// Trade History / Orders
+export async function getOrders(
+  status: string = "all",
+  limit: number = 50,
+  days: number = 7
+): Promise<{ orders: any[]; count: number }> {
+  try {
+    const response = await fetchAPI<any>(
+      `/api/trading/orders?status=${status}&limit=${limit}&days=${days}`
+    );
+    return {
+      orders: response.orders || [],
+      count: response.count || 0,
+    };
+  } catch {
+    return { orders: [], count: 0 };
+  }
+}
+
+// Analyst Ratings
+export async function getAnalystRatings(
+  ticker?: string,
+  daysBack: number = 30,
+  limit: number = 20
+): Promise<any[]> {
+  try {
+    const params = new URLSearchParams({
+      days_back: daysBack.toString(),
+      limit: limit.toString(),
+    });
+    if (ticker) {
+      params.set("ticker", ticker);
+    }
+    const response = await fetchAPI<any>(`/api/ratings?${params.toString()}`);
+    const results = response.results || response || [];
+    return Array.isArray(results) ? results : [];
+  } catch {
+    return [];
+  }
+}
+
+// Consensus Ratings for a specific ticker
+export async function getConsensusRating(ticker: string): Promise<any | null> {
+  try {
+    const response = await fetchAPI<any>(`/api/consensus/${ticker}`);
+    const results = response.results || response || [];
+    return Array.isArray(results) && results.length > 0 ? results[0] : null;
+  } catch {
+    return null;
+  }
+}
+
+// Deep AI Analysis (Claude + OpenAI multi-agent)
+export async function getDeepAnalysis(ticker: string): Promise<any> {
+  try {
+    const response = await fetchAPI<any>(`/api/ai/deep-analysis/${ticker}`);
+    return response;
+  } catch (error) {
+    console.error("Deep analysis error:", error);
+    return {
+      error: "Failed to get deep analysis",
+      final_action: "HOLD",
+      final_score: 50
+    };
+  }
+}

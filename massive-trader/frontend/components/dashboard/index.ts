@@ -6,3 +6,8 @@ export { AIAgentsPanel } from "./ai-agents-panel";
 export { TradeDecisionPanel } from "./trade-decision-panel";
 export { RiskPanel } from "./risk-panel";
 export { ScannerPanel } from "./scanner-panel";
+export { TradeJournal } from "./trade-journal";
+export { AnalystRatings } from "./analyst-ratings";
+export { PerformanceStats } from "./performance-stats";
+export { MarketMovers } from "./market-movers";
+export { DeepAnalysisPanel } from "./deep-analysis-panel";

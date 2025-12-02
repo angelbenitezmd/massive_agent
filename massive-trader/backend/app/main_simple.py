@@ -741,6 +741,122 @@ async def get_account():
     """Get Alpaca account status."""
     return alpaca_trader.get_account_status()
 
+
+@app.get("/api/trading/orders")
+async def get_orders(
+    status: Optional[str] = Query("all", description="Order status: open, closed, all"),
+    limit: int = Query(50, description="Maximum orders to return"),
+    days: int = Query(7, description="Days to look back")
+):
+    """Get trade/order history from Alpaca."""
+    if not alpaca_trader.client:
+        # Return simulated orders if no client
+        return {
+            "orders": [
+                {
+                    "id": "sim-001",
+                    "symbol": "AAPL",
+                    "side": "buy",
+                    "qty": 10,
+                    "filled_qty": 10,
+                    "type": "market",
+                    "status": "filled",
+                    "filled_avg_price": 234.50,
+                    "submitted_at": (datetime.utcnow() - timedelta(hours=2)).isoformat(),
+                    "filled_at": (datetime.utcnow() - timedelta(hours=2)).isoformat(),
+                    "pnl": 28.50,
+                    "pnl_pct": 1.22
+                },
+                {
+                    "id": "sim-002",
+                    "symbol": "NVDA",
+                    "side": "buy",
+                    "qty": 5,
+                    "filled_qty": 5,
+                    "type": "market",
+                    "status": "filled",
+                    "filled_avg_price": 142.30,
+                    "submitted_at": (datetime.utcnow() - timedelta(hours=5)).isoformat(),
+                    "filled_at": (datetime.utcnow() - timedelta(hours=5)).isoformat(),
+                    "pnl": -15.75,
+                    "pnl_pct": -2.21
+                },
+                {
+                    "id": "sim-003",
+                    "symbol": "TSLA",
+                    "side": "sell",
+                    "qty": 8,
+                    "filled_qty": 8,
+                    "type": "market",
+                    "status": "filled",
+                    "filled_avg_price": 351.20,
+                    "submitted_at": (datetime.utcnow() - timedelta(days=1)).isoformat(),
+                    "filled_at": (datetime.utcnow() - timedelta(days=1)).isoformat(),
+                    "pnl": 124.80,
+                    "pnl_pct": 4.44
+                }
+            ],
+            "count": 3,
+            "status": "simulated",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    try:
+        from alpaca.trading.requests import GetOrdersRequest
+        from alpaca.trading.enums import QueryOrderStatus
+
+        # Map status string to enum
+        status_map = {
+            "open": QueryOrderStatus.OPEN,
+            "closed": QueryOrderStatus.CLOSED,
+            "all": QueryOrderStatus.ALL
+        }
+        query_status = status_map.get(status, QueryOrderStatus.ALL)
+
+        # Get orders
+        request = GetOrdersRequest(
+            status=query_status,
+            limit=limit,
+            after=datetime.utcnow() - timedelta(days=days)
+        )
+
+        orders = alpaca_trader.client.get_orders(filter=request)
+
+        order_list = []
+        for order in orders:
+            order_data = {
+                "id": str(order.id),
+                "symbol": order.symbol,
+                "side": order.side.value if hasattr(order.side, 'value') else str(order.side),
+                "qty": float(order.qty) if order.qty else 0,
+                "filled_qty": float(order.filled_qty) if order.filled_qty else 0,
+                "type": order.type.value if hasattr(order.type, 'value') else str(order.type),
+                "status": order.status.value if hasattr(order.status, 'value') else str(order.status),
+                "filled_avg_price": float(order.filled_avg_price) if order.filled_avg_price else None,
+                "submitted_at": order.submitted_at.isoformat() if order.submitted_at else None,
+                "filled_at": order.filled_at.isoformat() if order.filled_at else None,
+                "limit_price": float(order.limit_price) if order.limit_price else None,
+                "stop_price": float(order.stop_price) if order.stop_price else None,
+            }
+            order_list.append(order_data)
+
+        return {
+            "orders": order_list,
+            "count": len(order_list),
+            "status": "connected",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching orders: {e}")
+        return {
+            "orders": [],
+            "count": 0,
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
 # ============= POSITION MANAGEMENT WITH AUTO-EXIT =============
 
 # Global position tracking for momentum monitoring
@@ -1072,9 +1188,236 @@ async def momentum_scanner():
 
 # ============= AI INSIGHTS & ANALYSIS =============
 
+@app.get("/api/ai/deep-analysis/{ticker}")
+async def get_deep_ai_analysis(
+    ticker: str,
+    force: bool = Query(False, description="Force LLM calls even if cache is valid")
+):
+    """
+    Get DEEP AI analysis using Claude + OpenAI agents WITH SMART CACHING.
+
+    This endpoint runs the full multi-agent analysis:
+    1. NewsIntelligenceAgent (Claude) - Deep news analysis
+    2. TechnicalAnalysisAgent (OpenAI) - Technical signals
+    3. SentimentSynthesisAgent (Claude) - Final trading decision
+
+    LLMs are only called when:
+    - No cached signal exists
+    - Upstream data has changed since last run
+    - Cache has expired
+    - force=true is passed
+
+    This keeps LLM costs low (~$40-80/month vs $150-200+).
+    """
+    ticker = ticker.upper()
+
+    try:
+        from app.services.ai_agents import run_full_analysis
+
+        # Gather all data
+        quote_data = await get_quote(ticker)
+        current_price = quote_data.get("price", 100)
+
+        # Get bars for technical analysis
+        bars = await get_bars(ticker, timeframe="1H", limit=50)
+
+        # Get news with timestamp for cache check
+        latest_news_ts = None
+        if benzinga_client:
+            news_data = await benzinga_client.get_news(tickers=ticker, limit=10)
+            news_items = news_data.get("results", [])
+            # Extract latest news timestamp
+            if news_items:
+                newest = news_items[0]
+                ts_str = newest.get("created", newest.get("published_at", ""))
+                if ts_str:
+                    try:
+                        latest_news_ts = datetime.fromisoformat(
+                            ts_str.replace("Z", "+00:00")
+                        )
+                    except ValueError:
+                        pass
+        else:
+            news_items = []
+
+        # Get earnings
+        if benzinga_client:
+            earnings_data = await benzinga_client.get_earnings(ticker=ticker, limit=3)
+            earnings = earnings_data.get("results", [{}])[0] if earnings_data.get("results") else None
+        else:
+            earnings = None
+
+        # Get account and positions
+        account = alpaca_trader.get_account_status()
+        positions_data = alpaca_trader.get_positions()
+
+        # Calculate technical indicators (simple versions)
+        closes = [b.get("close", 0) for b in bars[-20:]] if bars else []
+        rsi = calculate_rsi(closes) if len(closes) >= 14 else None
+        macd = calculate_macd(closes) if len(closes) >= 26 else None
+        sma_20 = sum(closes[-20:]) / 20 if len(closes) >= 20 else None
+        sma_50 = sum([b.get("close", 0) for b in bars[-50:]]) / 50 if len(bars) >= 50 else None
+
+        # Run full AI analysis WITH CACHING
+        result = await run_full_analysis(
+            ticker=ticker,
+            news_items=news_items,
+            current_price=current_price,
+            bars=bars,
+            rsi=rsi,
+            macd=macd,
+            sma_20=sma_20,
+            sma_50=sma_50,
+            earnings=earnings,
+            account=account,
+            positions=positions_data,
+            latest_news_ts=latest_news_ts,
+            force_llm=force,  # Pass force flag
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Deep AI analysis error for {ticker}: {e}", exc_info=True)
+        return {
+            "ticker": ticker,
+            "error": str(e),
+            "final_action": "HOLD",
+            "final_score": 50,
+            "message": "AI analysis failed, using neutral stance"
+        }
+
+
+@app.get("/api/ai/quick-analysis/{ticker}")
+async def get_quick_ai_analysis(ticker: str):
+    """
+    Get FAST analysis using only Python (NO LLM calls).
+
+    This endpoint runs pure Python technical analysis without any LLM costs.
+    Use this for the main loop / frequent updates.
+
+    For deep analysis with LLMs, use /api/ai/deep-analysis/{ticker}.
+    """
+    ticker = ticker.upper()
+
+    try:
+        from app.services.ai_agents import run_quick_analysis
+
+        # Get bars for technical analysis
+        bars = await get_bars(ticker, timeframe="1H", limit=50)
+
+        # Get current price
+        quote_data = await get_quote(ticker)
+        current_price = quote_data.get("price", 100)
+
+        # Run quick analysis (no LLM)
+        result = await run_quick_analysis(
+            ticker=ticker,
+            current_price=current_price,
+            bars=bars,
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Quick analysis error for {ticker}: {e}", exc_info=True)
+        return {
+            "ticker": ticker,
+            "error": str(e),
+            "score": 50,
+            "message": "Quick analysis failed"
+        }
+
+
+@app.get("/api/ai/cache/status")
+async def get_cache_status_endpoint(
+    ticker: Optional[str] = Query(None, description="Specific ticker or None for overall stats")
+):
+    """
+    Get agent cache status and statistics.
+
+    This endpoint shows:
+    - Cache hit/miss rates
+    - LLM calls saved
+    - Per-ticker cache status
+    - Cache expiration times
+
+    Use this to monitor LLM cost optimization.
+    """
+    from app.services.ai_agents import get_cache_status
+
+    if ticker:
+        return get_cache_status(ticker.upper())
+    return get_cache_status()
+
+
+@app.post("/api/ai/cache/clear")
+async def clear_cache_endpoint(
+    ticker: Optional[str] = Query(None, description="Specific ticker or None to clear all")
+):
+    """
+    Clear agent caches.
+
+    Use this to force fresh LLM analysis on next request.
+    """
+    from app.services.agent_cache import agent_cache
+
+    if ticker:
+        agent_cache.invalidate(ticker.upper())
+        return {"message": f"Cache cleared for {ticker.upper()}"}
+    else:
+        agent_cache.invalidate_all()
+        return {"message": "All caches cleared"}
+
+
+def calculate_rsi(closes: list, period: int = 14) -> float:
+    """Calculate RSI from closing prices."""
+    if len(closes) < period + 1:
+        return 50.0
+
+    deltas = [closes[i] - closes[i-1] for i in range(1, len(closes))]
+    gains = [d if d > 0 else 0 for d in deltas]
+    losses = [-d if d < 0 else 0 for d in deltas]
+
+    avg_gain = sum(gains[-period:]) / period
+    avg_loss = sum(losses[-period:]) / period
+
+    if avg_loss == 0:
+        return 100.0
+
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
+
+
+def calculate_macd(closes: list) -> dict:
+    """Calculate MACD from closing prices."""
+    if len(closes) < 26:
+        return {"value": 0, "signal": 0, "histogram": 0}
+
+    def ema(data, period):
+        multiplier = 2 / (period + 1)
+        ema_values = [data[0]]
+        for price in data[1:]:
+            ema_values.append((price * multiplier) + (ema_values[-1] * (1 - multiplier)))
+        return ema_values[-1]
+
+    ema_12 = ema(closes, 12)
+    ema_26 = ema(closes, 26)
+    macd_line = ema_12 - ema_26
+
+    # Signal line (9-period EMA of MACD) - simplified
+    signal = macd_line * 0.8  # Approximation
+
+    return {
+        "value": round(macd_line, 4),
+        "signal": round(signal, 4),
+        "histogram": round(macd_line - signal, 4)
+    }
+
+
 @app.get("/api/ai/analyze/{ticker}")
 async def get_ai_analysis(ticker: str):
-    """Get comprehensive AI analysis and insights for a ticker."""
+    """Get comprehensive AI analysis and insights for a ticker (legacy endpoint)."""
     ticker = ticker.upper()
 
     # Gather all available data

@@ -179,3 +179,38 @@ export interface SystemStatus {
   tradingMode: "paper" | "live";
   lastUpdate: string;
 }
+
+// Trade History / Orders
+export interface Order {
+  id: string;
+  symbol: string;
+  side: "buy" | "sell";
+  qty: number;
+  filled_qty: number;
+  type: string;
+  status: string;
+  filled_avg_price: number | null;
+  submitted_at: string | null;
+  filled_at: string | null;
+  limit_price?: number | null;
+  stop_price?: number | null;
+  pnl?: number;
+  pnl_pct?: number;
+}
+
+// Analyst Ratings
+export interface AnalystRating {
+  id: string;
+  ticker: string;
+  company_name: string;
+  firm: string;
+  analyst?: string;
+  rating?: string;
+  previous_rating?: string;
+  rating_action?: "upgrades" | "downgrades" | "maintains" | "initiates_coverage_on" | "reiterates";
+  price_target?: number;
+  previous_price_target?: number;
+  price_target_action?: "raises" | "lowers" | "maintains" | "announces" | "sets";
+  date: string;
+  importance?: number;
+}

@@ -10,6 +10,11 @@ import {
   TradeDecisionPanel,
   RiskPanel,
   ScannerPanel,
+  TradeJournal,
+  AnalystRatings,
+  PerformanceStats,
+  MarketMovers,
+  DeepAnalysisPanel,
 } from "@/components/dashboard";
 import {
   useQuote,
@@ -23,6 +28,11 @@ import {
   useAnalysis,
   useExecuteTrade,
   useSystemStatus,
+  useOrders,
+  useAnalystRatings,
+  useScanWatchlist,
+  useScanSpicy,
+  useDeepAnalysis,
 } from "@/hooks/use-trading-data";
 import type { AgentSignal, TradeDecision, Technicals } from "@/types";
 
@@ -50,10 +60,18 @@ export default function DashboardPage() {
   const { data: account, isLoading: accountLoading } = useAccount();
   const { data: positions } = usePositions();
   const { data: riskStatus } = useRiskStatus();
+  const { data: ordersData, isLoading: ordersLoading } = useOrders("all", 20, 7);
+  const { data: ratings, isLoading: ratingsLoading } = useAnalystRatings(selectedTicker, 30, 10);
+  const { data: watchlistScan, isLoading: watchlistScanLoading } = useScanWatchlist();
+  const { data: spicyScan, isLoading: spicyScanLoading } = useScanSpicy();
 
   // Mutations
   const analysisMutation = useAnalysis(selectedTicker);
   const executeTradeMutation = useExecuteTrade();
+  const deepAnalysisMutation = useDeepAnalysis(selectedTicker);
+
+  // Deep analysis result state
+  const [deepAnalysisResult, setDeepAnalysisResult] = useState<any>(null);
 
   // Handle analysis
   const runAnalysis = useCallback(async () => {
@@ -75,9 +93,20 @@ export default function DashboardPage() {
     }
   }, [analysisResult?.decision, executeTradeMutation]);
 
+  // Handle deep AI analysis
+  const runDeepAnalysis = useCallback(async () => {
+    try {
+      const result = await deepAnalysisMutation.mutateAsync();
+      setDeepAnalysisResult(result);
+    } catch (error) {
+      console.error("Deep analysis failed:", error);
+    }
+  }, [deepAnalysisMutation]);
+
   // Run analysis on mount and ticker change
   useEffect(() => {
     runAnalysis();
+    setDeepAnalysisResult(null); // Clear deep analysis when ticker changes
   }, [selectedTicker]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-refresh effect
@@ -131,6 +160,27 @@ export default function DashboardPage() {
             />
 
             <NewsPanel news={news} isLoading={newsLoading} />
+
+            {/* New: Trade Journal and Analyst Ratings side by side */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <TradeJournal
+                orders={ordersData?.orders}
+                isLoading={ordersLoading}
+              />
+              <AnalystRatings
+                ratings={ratings}
+                selectedTicker={selectedTicker}
+                isLoading={ratingsLoading}
+              />
+            </div>
+
+            {/* Market Movers - fills remaining space */}
+            <MarketMovers
+              watchlistResults={watchlistScan?.results}
+              spicyResults={spicyScan?.results}
+              onSelectTicker={setSelectedTicker}
+              isLoading={watchlistScanLoading || spicyScanLoading}
+            />
           </div>
 
           {/* Right Column - AI Analysis & Trading */}
@@ -147,6 +197,14 @@ export default function DashboardPage() {
               isLoading={analysisMutation.isPending}
             />
 
+            {/* Deep AI Analysis Panel */}
+            <DeepAnalysisPanel
+              ticker={selectedTicker}
+              result={deepAnalysisResult}
+              isLoading={deepAnalysisMutation.isPending}
+              onRunAnalysis={runDeepAnalysis}
+            />
+
             <TradeDecisionPanel
               decision={analysisResult?.decision}
               riskStatus={riskStatus}
@@ -156,6 +214,13 @@ export default function DashboardPage() {
             />
 
             <EarningsPanel earnings={earnings} isLoading={earningsLoading} />
+
+            {/* New: Performance Stats */}
+            <PerformanceStats
+              account={account}
+              positions={positions}
+              riskStatus={riskStatus}
+            />
           </div>
         </div>
 

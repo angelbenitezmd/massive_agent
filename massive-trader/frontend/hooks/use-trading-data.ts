@@ -145,3 +145,40 @@ export function useScanSpicy() {
     staleTime: 60000,
   });
 }
+
+export function useOrders(status: string = "all", limit: number = 50, days: number = 7) {
+  return useQuery({
+    queryKey: ["orders", status, limit, days],
+    queryFn: () => api.getOrders(status, limit, days),
+    staleTime: 30000,
+    refetchInterval: 60000,
+  });
+}
+
+export function useAnalystRatings(ticker?: string, daysBack: number = 30, limit: number = 20) {
+  return useQuery({
+    queryKey: ["ratings", ticker, daysBack, limit],
+    queryFn: () => api.getAnalystRatings(ticker, daysBack, limit),
+    staleTime: 300000,
+  });
+}
+
+export function useConsensusRating(ticker: string) {
+  return useQuery({
+    queryKey: ["consensus", ticker],
+    queryFn: () => api.getConsensusRating(ticker),
+    enabled: !!ticker,
+    staleTime: 300000,
+  });
+}
+
+export function useDeepAnalysis(ticker: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.getDeepAnalysis(ticker),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["deepAnalysis", ticker], data);
+    },
+  });
+}
