@@ -67,7 +67,7 @@ class RiskEngine:
 
         # Check 2: Daily drawdown
         daily_pnl = self._calculate_daily_pnl(account, positions)
-        if daily_pnl < -self.max_daily_drawdown * account.portfolio_value:
+        if account.portfolio_value > 0 and daily_pnl < -self.max_daily_drawdown * account.portfolio_value:
             decision.reason = f"Daily drawdown {daily_pnl/account.portfolio_value:.2%} exceeds limit {self.max_daily_drawdown:.2%}"
             raise MaxDrawdownExceededError(decision.reason)
 
@@ -231,7 +231,7 @@ class RiskEngine:
         score += (signal.final_score - 50) * 0.4
 
         # Account health factor (+/- 15 points)
-        buying_power_ratio = account.buying_power / account.portfolio_value
+        buying_power_ratio = account.buying_power / account.portfolio_value if account.portfolio_value > 0 else 0
         if buying_power_ratio > 0.5:
             score += 15
         elif buying_power_ratio > 0.2:
@@ -240,7 +240,7 @@ class RiskEngine:
             score -= 10
 
         # Position sizing factor (+/- 10 points)
-        position_ratio = position_value / account.portfolio_value
+        position_ratio = position_value / account.portfolio_value if account.portfolio_value > 0 else 0
         if position_ratio < 0.05:
             score += 10
         elif position_ratio < 0.1:

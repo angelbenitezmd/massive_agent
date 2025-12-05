@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Header,
   MarketSnapshot,
   NewsPanel,
+  NewsFeed,
   EarningsPanel,
   AIAgentsPanel,
   TradeDecisionPanel,
@@ -15,11 +16,14 @@ import {
   PerformanceStats,
   MarketMovers,
   DeepAnalysisPanel,
+  ActivityLog,
+  MarketStatus,
+  TodaysSummary,
+  PortfolioHeatmap,
 } from "@/components/dashboard";
 import {
   useQuote,
   useBars,
-  useNews,
   useEarnings,
   useAccount,
   usePositions,
@@ -33,11 +37,15 @@ import {
   useScanWatchlist,
   useScanSpicy,
   useDeepAnalysis,
+  useActivityLog,
+  useLatestNews,
+  useNews,
 } from "@/hooks/use-trading-data";
 import type { AgentSignal, TradeDecision, Technicals } from "@/types";
 
 export default function DashboardPage() {
   const [selectedTicker, setSelectedTicker] = useState("AAPL");
+  const [selectedTimeframe, setSelectedTimeframe] = useState("1Min");
   const [autoRefresh, setAutoRefresh] = useState(false);
   const [autoTrade, setAutoTrade] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<{
@@ -54,8 +62,9 @@ export default function DashboardPage() {
   const { data: status } = useSystemStatus();
   const { data: watchlist } = useWatchlist();
   const { data: quote, isLoading: quoteLoading } = useQuote(selectedTicker);
-  const { data: bars, isLoading: barsLoading } = useBars(selectedTicker);
-  const { data: news, isLoading: newsLoading } = useNews(selectedTicker);
+  const { data: bars, isLoading: barsLoading } = useBars(selectedTicker, selectedTimeframe);
+  const { data: globalNews, isLoading: globalNewsLoading } = useLatestNews();
+  const { data: tickerNews, isLoading: tickerNewsLoading } = useNews(selectedTicker);
   const { data: earnings, isLoading: earningsLoading } = useEarnings(selectedTicker);
   const { data: account, isLoading: accountLoading } = useAccount();
   const { data: positions } = usePositions();
@@ -64,6 +73,7 @@ export default function DashboardPage() {
   const { data: ratings, isLoading: ratingsLoading } = useAnalystRatings(selectedTicker, 30, 10);
   const { data: watchlistScan, isLoading: watchlistScanLoading } = useScanWatchlist();
   const { data: spicyScan, isLoading: spicyScanLoading } = useScanSpicy();
+  const { data: activityLog, isLoading: activityLogLoading } = useActivityLog(50);
 
   // Mutations
   const analysisMutation = useAnalysis(selectedTicker);
@@ -72,6 +82,12 @@ export default function DashboardPage() {
 
   // Deep analysis result state
   const [deepAnalysisResult, setDeepAnalysisResult] = useState<any>(null);
+
+  // Execution management - prevent duplicate trades
+  const lastExecutedSignalRef = useRef<string | null>(null);
+  const isExecutingRef = useRef<boolean>(false);
+  const lastExecutionTimeRef = useRef<number>(0);
+  const EXECUTION_COOLDOWN_MS = 60000; // 1 minute cooldown between trades
 
   // Handle analysis
   const runAnalysis = useCallback(async () => {
@@ -83,13 +99,31 @@ export default function DashboardPage() {
     }
   }, [analysisMutation]);
 
-  // Handle trade execution
+  // Handle manual trade execution (from button click)
   const executeTrade = useCallback(async () => {
     if (!analysisResult?.decision) return;
+    if (isExecutingRef.current) {
+      console.log("[ManualTrade] Already executing, please wait");
+      return;
+    }
+
+    const now = Date.now();
+    const timeSinceLastExecution = now - lastExecutionTimeRef.current;
+    if (timeSinceLastExecution < EXECUTION_COOLDOWN_MS) {
+      console.log(`[ManualTrade] Cooldown active: ${Math.ceil((EXECUTION_COOLDOWN_MS - timeSinceLastExecution) / 1000)}s remaining`);
+      return;
+    }
+
+    isExecutingRef.current = true;
+    lastExecutionTimeRef.current = now;
+
     try {
+      console.log(`[ManualTrade] Executing: ${analysisResult.decision.ticker}`);
       await executeTradeMutation.mutateAsync(analysisResult.decision);
     } catch (error) {
-      console.error("Trade execution failed:", error);
+      console.error("[ManualTrade] Failed:", error);
+    } finally {
+      isExecutingRef.current = false;
     }
   }, [analysisResult?.decision, executeTradeMutation]);
 
@@ -120,19 +154,67 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [autoRefresh, runAnalysis]);
 
-  // Auto-trade effect
+  // Auto-trade effect - with robust duplicate prevention
   useEffect(() => {
-    if (!autoTrade || !analysisResult?.decision) return;
+    // Early exits - must pass ALL checks
+    if (!autoTrade) return;
+    if (!analysisResult?.decision) return;
+    if (isExecutingRef.current) return; // Already executing
+    if (executeTradeMutation.isPending) return; // Mutation in progress
 
     const decision = analysisResult.decision;
-    if (
+    const now = Date.now();
+
+    // Cooldown check - prevent rapid executions
+    const timeSinceLastExecution = now - lastExecutionTimeRef.current;
+    if (timeSinceLastExecution < EXECUTION_COOLDOWN_MS) {
+      console.log(`[AutoTrade] Cooldown active: ${Math.ceil((EXECUTION_COOLDOWN_MS - timeSinceLastExecution) / 1000)}s remaining`);
+      return;
+    }
+
+    // Create unique signal ID - only changes when ticker or action changes
+    const signalId = `${decision.ticker}-${decision.action}`;
+
+    // Skip if we already executed this exact signal
+    if (lastExecutedSignalRef.current === signalId) {
+      return;
+    }
+
+    // Check trade conditions
+    const shouldTrade =
       decision.action === "BUY" &&
       decision.confidence >= 0.7 &&
-      riskStatus?.circuitBreaker === "GREEN"
-    ) {
-      executeTrade();
-    }
-  }, [autoTrade, analysisResult?.decision, riskStatus?.circuitBreaker, executeTrade]);
+      riskStatus?.circuitBreaker === "GREEN";
+
+    if (!shouldTrade) return;
+
+    // Lock execution
+    isExecutingRef.current = true;
+    lastExecutedSignalRef.current = signalId;
+    lastExecutionTimeRef.current = now;
+
+    console.log(`[AutoTrade] Executing: ${decision.ticker} ${decision.action} (confidence: ${decision.confidence})`);
+
+    // Execute trade
+    executeTradeMutation.mutateAsync(decision)
+      .then((result) => {
+        console.log(`[AutoTrade] Success:`, result);
+      })
+      .catch((error) => {
+        console.error(`[AutoTrade] Failed:`, error);
+        // Reset signal ID on failure so it can retry
+        lastExecutedSignalRef.current = null;
+      })
+      .finally(() => {
+        isExecutingRef.current = false;
+      });
+
+  }, [autoTrade, analysisResult?.decision, riskStatus?.circuitBreaker, executeTradeMutation]);
+
+  // Reset signal tracking when ticker changes (allow new trades for new ticker)
+  useEffect(() => {
+    lastExecutedSignalRef.current = null;
+  }, [selectedTicker]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -148,92 +230,124 @@ export default function DashboardPage() {
         watchlist={watchlist || []}
       />
 
-      <main className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Market Snapshot (spans 2 columns on large screens) */}
-          <div className="lg:col-span-2 space-y-6">
+      <main className="container mx-auto px-4 py-3">
+        {/* Market Status Bar */}
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <MarketStatus />
+          <TodaysSummary
+            account={account}
+            positions={positions}
+            riskStatus={riskStatus}
+            activityLog={activityLog?.logs}
+          />
+        </div>
+
+        {/* Top Row: News + Scanner/AI side by side */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 mb-3">
+          {/* News Panels - Left 2 columns */}
+          <NewsFeed
+            news={globalNews}
+            isLoading={globalNewsLoading}
+            onTickerClick={setSelectedTicker}
+          />
+          <NewsFeed
+            news={tickerNews}
+            isLoading={tickerNewsLoading}
+            onTickerClick={setSelectedTicker}
+            selectedTicker={selectedTicker}
+          />
+          {/* Scanner + AI Agents - Right 2 columns */}
+          <ScannerPanel
+            selectedTicker={selectedTicker}
+            onSelectTicker={setSelectedTicker}
+          />
+          <AIAgentsPanel
+            ticker={selectedTicker}
+            newsAgent={analysisResult?.agents?.news}
+            earningsAgent={analysisResult?.agents?.earnings}
+            technicalAgent={analysisResult?.agents?.technical}
+            isLoading={analysisMutation.isPending}
+          />
+        </div>
+
+        {/* Middle Row: Chart + Deep Analysis + Trade Decision */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 mb-3">
+          {/* Market Snapshot - spans 2 columns */}
+          <div className="lg:col-span-2">
             <MarketSnapshot
               quote={quote}
               technicals={analysisResult?.technicals}
               bars={bars}
               isLoading={quoteLoading || barsLoading}
-            />
-
-            <NewsPanel news={news} isLoading={newsLoading} />
-
-            {/* New: Trade Journal and Analyst Ratings side by side */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <TradeJournal
-                orders={ordersData?.orders}
-                isLoading={ordersLoading}
-              />
-              <AnalystRatings
-                ratings={ratings}
-                selectedTicker={selectedTicker}
-                isLoading={ratingsLoading}
-              />
-            </div>
-
-            {/* Market Movers - fills remaining space */}
-            <MarketMovers
-              watchlistResults={watchlistScan?.results}
-              spicyResults={spicyScan?.results}
-              onSelectTicker={setSelectedTicker}
-              isLoading={watchlistScanLoading || spicyScanLoading}
+              timeframe={selectedTimeframe}
+              onTimeframeChange={setSelectedTimeframe}
             />
           </div>
-
-          {/* Right Column - AI Analysis & Trading */}
-          <div className="space-y-6">
-            <ScannerPanel
-              selectedTicker={selectedTicker}
-              onSelectTicker={setSelectedTicker}
-            />
-
-            <AIAgentsPanel
-              newsAgent={analysisResult?.agents?.news}
-              earningsAgent={analysisResult?.agents?.earnings}
-              technicalAgent={analysisResult?.agents?.technical}
-              isLoading={analysisMutation.isPending}
-            />
-
-            {/* Deep AI Analysis Panel */}
-            <DeepAnalysisPanel
-              ticker={selectedTicker}
-              result={deepAnalysisResult}
-              isLoading={deepAnalysisMutation.isPending}
-              onRunAnalysis={runDeepAnalysis}
-            />
-
-            <TradeDecisionPanel
-              decision={analysisResult?.decision}
-              riskStatus={riskStatus}
-              onExecuteTrade={executeTrade}
-              isExecuting={executeTradeMutation.isPending}
-              tradingMode={status?.tradingMode || "paper"}
-            />
-
-            <EarningsPanel earnings={earnings} isLoading={earningsLoading} />
-
-            {/* New: Performance Stats */}
-            <PerformanceStats
-              account={account}
-              positions={positions}
-              riskStatus={riskStatus}
-            />
-          </div>
+          {/* Deep Analysis */}
+          <DeepAnalysisPanel
+            ticker={selectedTicker}
+            result={deepAnalysisResult}
+            isLoading={deepAnalysisMutation.isPending}
+            onRunAnalysis={runDeepAnalysis}
+          />
+          {/* Trade Decision */}
+          <TradeDecisionPanel
+            decision={analysisResult?.decision}
+            riskStatus={riskStatus}
+            onExecuteTrade={executeTrade}
+            isExecuting={executeTradeMutation.isPending}
+            tradingMode={status?.tradingMode || "paper"}
+          />
         </div>
 
-        {/* Full Width Bottom Row - Risk & Positions */}
-        <div className="mt-6">
-          <RiskPanel
+        {/* Portfolio Heatmap */}
+        {positions && positions.length > 0 && (
+          <div className="mb-3">
+            <PortfolioHeatmap
+              positions={positions}
+              onSelectTicker={setSelectedTicker}
+              selectedTicker={selectedTicker}
+            />
+          </div>
+        )}
+
+        {/* Bottom Grid: 3x2 layout */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
+          <TradeJournal
+            orders={ordersData?.orders}
+            isLoading={ordersLoading}
+          />
+          <AnalystRatings
+            ratings={ratings}
+            selectedTicker={selectedTicker}
+            isLoading={ratingsLoading}
+          />
+          <ActivityLog
+            logs={activityLog?.logs}
+            isLoading={activityLogLoading}
+          />
+          <EarningsPanel earnings={earnings} isLoading={earningsLoading} />
+          <PerformanceStats
             account={account}
             positions={positions}
             riskStatus={riskStatus}
-            selectedTicker={selectedTicker}
-            isLoading={accountLoading}
+          />
+          <MarketMovers
+            watchlistResults={watchlistScan?.results}
+            spicyResults={spicyScan?.results}
+            onSelectTicker={setSelectedTicker}
+            isLoading={watchlistScanLoading || spicyScanLoading}
           />
         </div>
+
+        {/* Full Width - Risk & Account */}
+        <RiskPanel
+          account={account}
+          positions={positions}
+          riskStatus={riskStatus}
+          selectedTicker={selectedTicker}
+          isLoading={accountLoading}
+        />
       </main>
     </div>
   );

@@ -11,7 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { formatRelativeTime, cn } from "@/lib/utils";
+import { formatNewsTime, cn } from "@/lib/utils";
 import type { NewsItem } from "@/types";
 
 interface NewsPanelProps {
@@ -62,7 +62,7 @@ export function NewsPanel({ news, isLoading }: NewsPanelProps) {
           Market News
         </CardTitle>
         <CardDescription>
-          Latest news from Benzinga
+          Latest Benzinga headlines across all tickers
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -87,7 +87,7 @@ export function NewsPanel({ news, isLoading }: NewsPanelProps) {
                     <div className="flex items-center gap-2 flex-wrap">
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Clock className="h-3 w-3" />
-                        {formatRelativeTime(item.publishedAt)}
+                        {formatNewsTime(item.publishedAt)}
                       </div>
                       <span className="text-xs text-muted-foreground">
                         {item.source}

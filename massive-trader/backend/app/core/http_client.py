@@ -82,6 +82,18 @@ class AsyncHTTPClient:
     ) -> httpx.Response:
         """Make HTTP request with retry logic."""
         response = await self.client.request(method, url, **kwargs)
+
+        # Log detailed error info for non-2xx responses
+        if response.status_code >= 400:
+            request_id = response.headers.get("x-request-id", response.headers.get("request-id", "N/A"))
+            logger.error(
+                f"HTTP {response.status_code} Error\n"
+                f"  URL: {method} {url}\n"
+                f"  Request-ID: {request_id}\n"
+                f"  Headers: {dict(response.headers)}\n"
+                f"  Body: {response.text[:500]}"
+            )
+
         response.raise_for_status()
         return response
 

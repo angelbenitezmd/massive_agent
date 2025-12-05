@@ -5,11 +5,18 @@ from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 
 from app.core.config import get_settings
-from app.models.signals import StrategySignal, MarketEvent
+from app.models.signals import StrategySignal, MarketEvent, AgentScore
 from app.models.trading import TradeOrder
 from app.services.benzinga_client import BenzingaClient
 from app.services.alpaca_client import AlpacaClient
 from app.services.risk_engine import RiskEngine
+from app.services.ai_agents import (
+    run_full_analysis,
+    run_quick_analysis,
+    NewsIntelligenceAgent,
+    TechnicalAnalysisAgent,
+    SentimentSynthesisAgent,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +115,7 @@ class HybridOrchestrator:
                 # Fetch recent news
                 news_response = await self.benzinga.get_news(
                     tickers=ticker,
-                    published_gte=datetime.utcnow() - timedelta(hours=1),
+                    published_gte=(datetime.utcnow() - timedelta(hours=1)).strftime("%Y-%m-%d"),
                     limit=10
                 )
 
@@ -205,7 +212,7 @@ class HybridOrchestrator:
 
     async def run_event_driven(self, event: MarketEvent) -> Optional[StrategySignal]:
         """
-        Process a market event and generate signal if appropriate.
+        Process a market event and generate signal using AI agents.
 
         Args:
             event: Market event to process
@@ -215,29 +222,50 @@ class HybridOrchestrator:
         """
         logger.info(f"Processing {event.event_type} event for {event.ticker}")
 
-        # This would call the full agent system
-        # For now, return a mock signal for demonstration
-        if event.urgency > 0.8:
-            # High urgency - generate signal
-            signal = StrategySignal(
+        try:
+            # Get current price
+            quote = await self.alpaca.get_latest_quote(event.ticker)
+            current_price = quote.last if quote else 0
+
+            # Get account and positions for context
+            account = await self.alpaca.get_account()
+            positions = await self.alpaca.get_positions()
+            account_dict = {"equity": float(account.equity), "buying_power": float(account.buying_power)} if account else None
+            positions_list = [{"symbol": p.symbol, "qty": float(p.qty), "unrealized_plpc": float(p.unrealized_plpc) if p.unrealized_plpc else 0} for p in positions] if positions else []
+
+            # Prepare news items from event data
+            news_items = []
+            if event.event_type == "news" and event.data.get("news"):
+                news_data = event.data["news"]
+                news_items = [news_data] if isinstance(news_data, dict) else news_data
+
+            # Get latest news timestamp for cache check
+            latest_news_ts = None
+            if news_items:
+                for item in news_items:
+                    if isinstance(item.get("published"), datetime):
+                        if latest_news_ts is None or item["published"] > latest_news_ts:
+                            latest_news_ts = item["published"]
+
+            # Run full AI analysis
+            logger.info(f"Running AI agents for event-driven analysis of {event.ticker}")
+            analysis = await run_full_analysis(
                 ticker=event.ticker,
-                action="BUY" if event.event_type != "negative_news" else "SELL",
-                final_score=75.0,
-                news={"score": 70, "sentiment": 0.5, "confidence": 0.7, "urgency": event.urgency, "notes": "Event-driven"},
-                earnings={"score": 60, "sentiment": 0.3, "confidence": 0.6, "urgency": 0.5, "notes": "Neutral"},
-                consensus={"score": 65, "sentiment": 0.4, "confidence": 0.7, "urgency": 0.3, "notes": "Positive"},
-                guidance={"score": 55, "sentiment": 0.1, "confidence": 0.5, "urgency": 0.2, "notes": "Neutral"},
-                risk={"score": 30, "sentiment": 0, "confidence": 0.8, "urgency": 0.1, "notes": "Low risk"},
-                impact_score=70.0,
-                time_horizon="scalp" if event.urgency > 0.9 else "swing",
-                fast_reaction_mode=event.urgency > 0.8,
-                stop_loss_pct=0.02,
-                take_profit_pct=0.05
+                news_items=news_items,
+                current_price=current_price,
+                bars=[],  # Event-driven doesn't need historical bars
+                account=account_dict,
+                positions=positions_list,
+                latest_news_ts=latest_news_ts,
+                force_llm=event.urgency > 0.9,  # Force LLM for urgent events
             )
 
-            return signal
+            # Convert AI analysis to StrategySignal
+            return self._analysis_to_signal(event.ticker, analysis, event.urgency)
 
-        return None
+        except Exception as e:
+            logger.error(f"Error in AI-driven event analysis for {event.ticker}: {e}")
+            return None
 
     async def run_interval_cycle(self) -> List[StrategySignal]:
         """
@@ -268,56 +296,263 @@ class HybridOrchestrator:
         return signals
 
     async def gather_ticker_data(self, ticker: str) -> Dict[str, Any]:
-        """Gather all relevant data for a ticker."""
+        """Gather all relevant data for a ticker including price bars."""
         data = {}
 
         # Get news
         try:
             news = await self.benzinga.get_news(tickers=ticker, limit=10)
             data["news"] = news.results
-        except:
+            # Convert to dict format for AI agents
+            data["news_items"] = [n.dict() if hasattr(n, 'dict') else n for n in news.results]
+        except Exception as e:
+            logger.debug(f"Error fetching news for {ticker}: {e}")
             data["news"] = []
+            data["news_items"] = []
 
         # Get consensus
         try:
             consensus = await self.benzinga.get_consensus(ticker)
             data["consensus"] = consensus.results[0] if consensus.results else None
-        except:
+        except Exception as e:
+            logger.debug(f"Error fetching consensus for {ticker}: {e}")
             data["consensus"] = None
 
         # Get recent ratings
         try:
             ratings = await self.benzinga.get_ratings(ticker=ticker, limit=5)
             data["ratings"] = ratings.results
-        except:
+        except Exception as e:
+            logger.debug(f"Error fetching ratings for {ticker}: {e}")
             data["ratings"] = []
+
+        # Get earnings data
+        try:
+            earnings = await self.benzinga.get_earnings(ticker=ticker, limit=1)
+            data["earnings"] = earnings.results[0].dict() if earnings.results else None
+        except Exception as e:
+            logger.debug(f"Error fetching earnings for {ticker}: {e}")
+            data["earnings"] = None
+
+        # Get current price and bars from Alpaca
+        try:
+            quote = await self.alpaca.get_latest_quote(ticker)
+            data["current_price"] = quote.last if quote else 0
+            data["quote"] = quote
+        except Exception as e:
+            logger.debug(f"Error fetching quote for {ticker}: {e}")
+            data["current_price"] = 0
+            data["quote"] = None
+
+        # Get historical bars for technical analysis
+        try:
+            bars = await self.alpaca.get_bars(ticker, timeframe="1D", limit=50)
+            data["bars"] = [{"open": b.open, "high": b.high, "low": b.low, "close": b.close, "volume": b.volume} for b in bars] if bars else []
+        except Exception as e:
+            logger.debug(f"Error fetching bars for {ticker}: {e}")
+            data["bars"] = []
+
+        # Get latest news timestamp for cache
+        data["latest_news_ts"] = None
+        if data["news"]:
+            for item in data["news"]:
+                published = item.published if hasattr(item, 'published') else item.get("published")
+                if isinstance(published, datetime):
+                    if data["latest_news_ts"] is None or published > data["latest_news_ts"]:
+                        data["latest_news_ts"] = published
 
         return data
 
     async def analyze_ticker(self, ticker: str, data: Dict[str, Any]) -> Optional[StrategySignal]:
-        """Analyze ticker data and generate signal."""
-        # Simplified analysis (real system would use agents)
-        has_news = len(data.get("news", [])) > 0
-        has_positive_consensus = data.get("consensus") and data["consensus"].consensus_rating in ["buy", "strong_buy"]
+        """Analyze ticker data using AI agents and generate signal."""
+        try:
+            # Get account and positions for context
+            account = await self.alpaca.get_account()
+            positions = await self.alpaca.get_positions()
+            account_dict = {"equity": float(account.equity), "buying_power": float(account.buying_power)} if account else None
+            positions_list = [{"symbol": p.symbol, "qty": float(p.qty), "unrealized_plpc": float(p.unrealized_plpc) if p.unrealized_plpc else 0} for p in positions] if positions else []
 
-        if has_news and has_positive_consensus:
-            return StrategySignal(
+            # Run full AI analysis with caching
+            logger.info(f"Running AI agents for interval analysis of {ticker}")
+            analysis = await run_full_analysis(
                 ticker=ticker,
-                action="BUY",
-                final_score=65.0,
-                news={"score": 60, "sentiment": 0.3, "confidence": 0.6, "urgency": 0.3, "notes": "Interval"},
-                earnings={"score": 50, "sentiment": 0, "confidence": 0.5, "urgency": 0.1, "notes": "Neutral"},
-                consensus={"score": 70, "sentiment": 0.5, "confidence": 0.7, "urgency": 0.2, "notes": "Positive"},
-                guidance={"score": 50, "sentiment": 0, "confidence": 0.5, "urgency": 0.1, "notes": "Neutral"},
-                risk={"score": 40, "sentiment": 0, "confidence": 0.6, "urgency": 0.1, "notes": "Moderate"},
-                impact_score=62.0,
-                time_horizon="swing",
-                fast_reaction_mode=False,
-                stop_loss_pct=0.03,
-                take_profit_pct=0.08
+                news_items=data.get("news_items", []),
+                current_price=data.get("current_price", 0),
+                bars=data.get("bars", []),
+                earnings=data.get("earnings"),
+                account=account_dict,
+                positions=positions_list,
+                latest_news_ts=data.get("latest_news_ts"),
+                force_llm=False,  # Use caching for interval analysis
             )
 
-        return None
+            # Convert AI analysis to StrategySignal
+            return self._analysis_to_signal(ticker, analysis, urgency=0.5)
+
+        except Exception as e:
+            logger.error(f"Error in AI-driven analysis for {ticker}: {e}")
+            return None
+
+    def _analysis_to_signal(
+        self, ticker: str, analysis: Dict[str, Any], urgency: float = 0.5
+    ) -> Optional[StrategySignal]:
+        """
+        Convert AI agent analysis output to StrategySignal.
+
+        Args:
+            ticker: Stock ticker
+            analysis: Output from run_full_analysis()
+            urgency: Event urgency level (0-1)
+
+        Returns:
+            StrategySignal or None if analysis doesn't warrant a signal
+        """
+        try:
+            synthesis = analysis.get("synthesis", {})
+            news_agent = analysis.get("agents", {}).get("news", {})
+            tech_agent = analysis.get("agents", {}).get("technical", {})
+
+            # Get the final action and score
+            final_action = synthesis.get("action", analysis.get("final_action", "HOLD"))
+            final_score = synthesis.get("score", analysis.get("final_score", 50))
+            confidence = synthesis.get("confidence", analysis.get("confidence", 50))
+
+            # Map action to signal action
+            action_map = {
+                "STRONG_BUY": "STRONG_BUY",
+                "BUY": "BUY",
+                "HOLD": "HOLD",
+                "SELL": "SELL",
+                "STRONG_SELL": "STRONG_SELL",
+                "AVOID": "HOLD",  # Map AVOID to HOLD
+            }
+            action = action_map.get(final_action, "HOLD")
+
+            # Don't generate signals for HOLD actions unless very high score
+            if action == "HOLD" and final_score < 70:
+                logger.debug(f"Skipping signal for {ticker}: action={action}, score={final_score}")
+                return None
+
+            # Extract risk management from synthesis
+            risk_mgmt = synthesis.get("risk_management", {})
+            stop_loss_pct = risk_mgmt.get("stop_loss_percent", 3.0) / 100  # Convert to decimal
+            take_profit_pct = (risk_mgmt.get("take_profit_1", 0) / analysis.get("current_price", 1) - 1) if analysis.get("current_price") else 0.08
+
+            # Clamp values to valid ranges
+            stop_loss_pct = max(0.01, min(0.5, stop_loss_pct if stop_loss_pct > 0 else 0.03))
+            take_profit_pct = max(0.02, min(2.0, take_profit_pct if take_profit_pct > 0 else 0.08))
+
+            # Determine time horizon
+            time_horizon_map = {
+                "scalp": "scalp",
+                "day_trade": "scalp",
+                "swing": "swing",
+                "position": "position",
+            }
+            time_horizon = time_horizon_map.get(synthesis.get("time_horizon", "swing"), "swing")
+
+            # Build AgentScore objects from analysis
+            def build_agent_score(agent_data: Dict, default_urgency: float = 0.3) -> Dict:
+                return {
+                    "score": agent_data.get("score", 50),
+                    "sentiment": self._sentiment_to_float(agent_data.get("sentiment", "neutral")),
+                    "confidence": agent_data.get("confidence", 50) / 100 if agent_data.get("confidence", 50) > 1 else agent_data.get("confidence", 0.5),
+                    "urgency": agent_data.get("urgency", default_urgency) if isinstance(agent_data.get("urgency"), (int, float)) else self._urgency_to_float(agent_data.get("urgency", "low")),
+                    "notes": agent_data.get("summary", agent_data.get("thesis", "AI analysis"))[:200],
+                }
+
+            news_score = build_agent_score(news_agent, urgency)
+            tech_score = build_agent_score(tech_agent, 0.3)
+
+            # Build consensus score from synthesis
+            consensus_score = {
+                "score": synthesis.get("score", final_score),
+                "sentiment": self._sentiment_to_float(synthesis.get("action", "HOLD")),
+                "confidence": confidence / 100 if confidence > 1 else confidence,
+                "urgency": urgency,
+                "notes": synthesis.get("thesis", "Consensus analysis")[:200],
+            }
+
+            # Create default guidance and risk scores
+            guidance_score = {
+                "score": 50,
+                "sentiment": 0.0,
+                "confidence": 0.5,
+                "urgency": 0.1,
+                "notes": "No specific guidance data",
+            }
+
+            risk_score = {
+                "score": 100 - final_score,  # Inverse of signal strength
+                "sentiment": 0.0,
+                "confidence": 0.6,
+                "urgency": 0.1,
+                "notes": "; ".join(synthesis.get("key_risks", ["Market risk"]))[:200],
+            }
+
+            signal = StrategySignal(
+                ticker=ticker,
+                action=action,
+                final_score=final_score,
+                news=news_score,
+                earnings=guidance_score,  # Use guidance as earnings placeholder
+                consensus=consensus_score,
+                guidance=guidance_score,
+                risk=risk_score,
+                impact_score=final_score * (confidence / 100 if confidence > 1 else confidence),
+                time_horizon=time_horizon,
+                fast_reaction_mode=urgency > 0.8,
+                stop_loss_pct=stop_loss_pct,
+                take_profit_pct=take_profit_pct,
+                reasoning_tree={
+                    "ai_analysis": analysis,
+                    "cache_stats": analysis.get("cache_stats", {}),
+                    "cached_agents": analysis.get("cached_agents", {}),
+                },
+            )
+
+            logger.info(
+                f"Generated signal for {ticker}: {action} (score={final_score:.1f}, "
+                f"confidence={confidence:.1f}%, cached={analysis.get('cached_agents', {})})"
+            )
+            return signal
+
+        except Exception as e:
+            logger.error(f"Error converting analysis to signal for {ticker}: {e}")
+            return None
+
+    def _sentiment_to_float(self, sentiment: Any) -> float:
+        """Convert sentiment string or value to float (-1 to 1)."""
+        if isinstance(sentiment, (int, float)):
+            return max(-1, min(1, sentiment))
+
+        sentiment_map = {
+            "bullish": 0.7,
+            "strong_buy": 0.9,
+            "buy": 0.6,
+            "neutral": 0.0,
+            "hold": 0.0,
+            "avoid": -0.3,
+            "bearish": -0.7,
+            "sell": -0.6,
+            "strong_sell": -0.9,
+        }
+        return sentiment_map.get(str(sentiment).lower(), 0.0)
+
+    def _urgency_to_float(self, urgency: Any) -> float:
+        """Convert urgency string to float (0 to 1)."""
+        if isinstance(urgency, (int, float)):
+            return max(0, min(1, urgency))
+
+        urgency_map = {
+            "immediate": 0.95,
+            "high": 0.8,
+            "short_term": 0.6,
+            "medium_term": 0.4,
+            "medium": 0.4,
+            "low": 0.2,
+        }
+        return urgency_map.get(str(urgency).lower(), 0.3)
 
     async def process_signal(self, signal: StrategySignal):
         """Process a signal and potentially execute trade."""

@@ -7,6 +7,7 @@ import {
   TrendingDown,
   Activity,
   AlertTriangle,
+  Info,
 } from "lucide-react";
 import {
   Card,
@@ -18,6 +19,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   formatCurrency,
   formatPercent,
@@ -78,14 +85,31 @@ export function RiskPanel({
   }
 
   return (
-    <Card className="card-hover">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2">
-          <Shield className="h-5 w-5 text-primary" />
-          Risk & Account
-        </CardTitle>
-        <CardDescription>Portfolio status, risk controls, and positions</CardDescription>
-      </CardHeader>
+    <TooltipProvider>
+      <Card className="card-hover">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-primary" />
+            Risk & Account
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[300px] p-3">
+                <div className="space-y-2 text-xs">
+                  <p className="font-semibold">Risk Management</p>
+                  <div className="space-y-1.5">
+                    <p><strong>Circuit Breaker:</strong> Automatic trading limits based on daily P&L.</p>
+                    <p className="pl-2 text-muted-foreground">GREEN: Normal | YELLOW: -2% | ORANGE: -3% | RED: -5%</p>
+                    <p><strong>Buying Power:</strong> Available capital for new trades (includes margin).</p>
+                    <p><strong>Daily P&L:</strong> Today&apos;s profit/loss across all positions.</p>
+                  </div>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </CardTitle>
+          <CardDescription>Portfolio status, risk controls, and positions</CardDescription>
+        </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left: Circuit Breaker & Risk */}
@@ -226,7 +250,7 @@ export function RiskPanel({
                 No open positions
               </div>
             ) : (
-              <div className="space-y-2 max-h-[250px] overflow-y-auto pr-1">
+              <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
                 {positions.map((position) => {
                   const isSelected = position.symbol === selectedTicker;
                   const isProfit = position.unrealizedPL >= 0;
@@ -306,6 +330,7 @@ export function RiskPanel({
           </div>
         </div>
       </CardContent>
-    </Card>
+      </Card>
+    </TooltipProvider>
   );
 }

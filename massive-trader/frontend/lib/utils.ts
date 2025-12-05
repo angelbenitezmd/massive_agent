@@ -5,7 +5,8 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatCurrency(value: number): string {
+export function formatCurrency(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "$0.00";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -14,7 +15,8 @@ export function formatCurrency(value: number): string {
   }).format(value);
 }
 
-export function formatPercent(value: number): string {
+export function formatPercent(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "N/A";
   const sign = value >= 0 ? "+" : "";
   return `${sign}${value.toFixed(2)}%`;
 }
@@ -59,6 +61,37 @@ export function formatRelativeTime(date: Date | string | undefined | null): stri
   return then.toLocaleDateString();
 }
 
+export function formatDateTime(date: Date | string | undefined | null): string {
+  if (!date) return "";
+
+  const then = new Date(date);
+
+  // Check for invalid date
+  if (isNaN(then.getTime())) return "";
+
+  // Format as "Dec 2, 2:41 PM ET" in Eastern Time
+  return then.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "America/New_York",
+  }) + " ET";
+}
+
+export function formatNewsTime(date: Date | string | undefined | null): string {
+  if (!date) return "Unknown";
+
+  const then = new Date(date);
+  if (isNaN(then.getTime())) return "Unknown";
+
+  const relative = formatRelativeTime(date);
+  const absolute = formatDateTime(date);
+
+  return `${relative} · ${absolute}`;
+}
+
 export function getDirectionColor(direction: string): string {
   switch (direction.toLowerCase()) {
     case "bullish":
@@ -72,7 +105,8 @@ export function getDirectionColor(direction: string): string {
   }
 }
 
-export function getDirectionBgColor(direction: string): string {
+export function getDirectionBgColor(direction?: string): string {
+  if (!direction) return "bg-yellow-500/10 text-yellow-500 border-yellow-500/20";
   switch (direction.toLowerCase()) {
     case "bullish":
     case "buy":
@@ -85,7 +119,8 @@ export function getDirectionBgColor(direction: string): string {
   }
 }
 
-export function getCircuitBreakerColor(level: string): string {
+export function getCircuitBreakerColor(level?: string): string {
+  if (!level) return "bg-gray-500";
   switch (level.toUpperCase()) {
     case "GREEN":
       return "bg-green-500";

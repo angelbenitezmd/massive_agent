@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,14 @@ import {
   Newspaper,
   BarChart3,
   Lightbulb,
+  Info,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface DeepAnalysisResult {
   ticker: string;
@@ -99,7 +106,7 @@ function getScoreColor(score: number): string {
   return "text-yellow-500";
 }
 
-export function DeepAnalysisPanel({
+export const DeepAnalysisPanel = memo(function DeepAnalysisPanel({
   ticker,
   result,
   isLoading,
@@ -108,14 +115,31 @@ export function DeepAnalysisPanel({
   const [expanded, setExpanded] = useState(false);
 
   const hasResult = result && !result.error;
+  const isStaleResult = hasResult && result.ticker && result.ticker !== ticker;
 
   return (
+    <TooltipProvider>
     <Card className="bg-card border-border">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-base">
             <Brain className="h-4 w-4 text-purple-500" />
             Deep AI Analysis
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[280px] p-3">
+                <div className="space-y-2 text-xs">
+                  <p className="font-semibold">Deep AI Analysis</p>
+                  <p>Advanced multi-model analysis using Claude + GPT for comprehensive stock evaluation.</p>
+                  <p className="text-muted-foreground">Includes news sentiment, technical analysis, trade setup with targets and stop loss.</p>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+            <Badge variant="outline" className="text-[10px] font-bold">
+              {ticker}
+            </Badge>
             <Badge variant="secondary" className="text-[10px] bg-purple-500/20 text-purple-400">
               Claude + GPT
             </Badge>
@@ -130,29 +154,35 @@ export function DeepAnalysisPanel({
             {isLoading ? (
               <>
                 <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                Analyzing...
+                Analyzing {ticker}...
               </>
             ) : (
               <>
                 <Sparkles className="h-3 w-3 mr-1" />
-                Run Deep Analysis
+                Analyze {ticker}
               </>
             )}
           </Button>
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
-        {!hasResult && !isLoading ? (
-          <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-            <Brain className="h-12 w-12 mb-3 opacity-30" />
-            <p className="text-sm">Click "Run Deep Analysis" to get AI insights</p>
-            <p className="text-xs mt-1">Uses Claude for news & OpenAI for technicals</p>
+        {isStaleResult && (
+          <div className="mb-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-xs text-yellow-600 flex items-center gap-2">
+            <AlertTriangle className="h-3 w-3" />
+            Result is for {result.ticker}, not {ticker}. Run analysis again for updated data.
+          </div>
+        )}
+        {(!hasResult || isStaleResult) && !isLoading ? (
+          <div className="flex flex-col items-center justify-center py-4 text-muted-foreground">
+            <Brain className="h-8 w-8 mb-2 opacity-30" />
+            <p className="text-xs">Click &quot;Analyze {ticker}&quot; to get AI insights</p>
+            <p className="text-[10px] mt-0.5 text-muted-foreground/70">Uses Claude for news & OpenAI for technicals</p>
           </div>
         ) : isLoading ? (
-          <div className="flex flex-col items-center justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-purple-500 mb-3" />
-            <p className="text-sm text-muted-foreground">Running multi-agent analysis...</p>
-            <p className="text-xs text-muted-foreground mt-1">This may take 10-20 seconds</p>
+          <div className="flex flex-col items-center justify-center py-4">
+            <Loader2 className="h-6 w-6 animate-spin text-purple-500 mb-2" />
+            <p className="text-xs text-muted-foreground">Running multi-agent analysis...</p>
+            <p className="text-[10px] text-muted-foreground/70 mt-0.5">This may take 10-20 seconds</p>
           </div>
         ) : hasResult ? (
           <div className="space-y-4">
@@ -381,5 +411,6 @@ export function DeepAnalysisPanel({
         ) : null}
       </CardContent>
     </Card>
+    </TooltipProvider>
   );
-}
+});

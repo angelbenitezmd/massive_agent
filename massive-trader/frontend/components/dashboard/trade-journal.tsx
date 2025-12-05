@@ -1,9 +1,16 @@
 "use client";
 
+import { memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { BookOpen, TrendingUp, TrendingDown, Clock } from "lucide-react";
+import { BookOpen, TrendingUp, TrendingDown, Clock, Info } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { Order } from "@/types";
 
 interface TradeJournalProps {
@@ -31,7 +38,7 @@ function formatPrice(price: number | null): string {
   return `$${price.toFixed(2)}`;
 }
 
-export function TradeJournal({ orders = [], isLoading }: TradeJournalProps) {
+export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading }: TradeJournalProps) {
   // Calculate summary stats
   const filledOrders = orders.filter((o) => o.status === "filled");
   const totalTrades = filledOrders.length;
@@ -40,11 +47,29 @@ export function TradeJournal({ orders = [], isLoading }: TradeJournalProps) {
   const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
 
   return (
+    <TooltipProvider>
     <Card className="bg-card border-border">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <BookOpen className="h-4 w-4 text-primary" />
           Trade Journal
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Info className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[280px] p-3">
+              <div className="space-y-2 text-xs">
+                <p className="font-semibold">Trade Journal</p>
+                <p>Historical record of all executed trades from Alpaca.</p>
+                <div className="space-y-1 pt-1">
+                  <p><strong>Win Rate:</strong> Percentage of profitable trades</p>
+                  <p><strong>Total P&L:</strong> Cumulative profit/loss</p>
+                  <p><strong>W/L:</strong> Wins vs losses count</p>
+                </div>
+                <p className="text-muted-foreground">Shows your 10 most recent trades with entry details.</p>
+              </div>
+            </TooltipContent>
+          </Tooltip>
           {totalTrades > 0 && (
             <Badge variant="secondary" className="ml-auto text-xs">
               {totalTrades} trades
@@ -86,7 +111,7 @@ export function TradeJournal({ orders = [], isLoading }: TradeJournalProps) {
         </div>
 
         {/* Trade List */}
-        <ScrollArea className="h-[200px]">
+        <ScrollArea className="h-[160px]">
           {isLoading ? (
             <div className="flex items-center justify-center h-full text-muted-foreground">
               Loading trades...
@@ -148,5 +173,6 @@ export function TradeJournal({ orders = [], isLoading }: TradeJournalProps) {
         </ScrollArea>
       </CardContent>
     </Card>
+    </TooltipProvider>
   );
-}
+});

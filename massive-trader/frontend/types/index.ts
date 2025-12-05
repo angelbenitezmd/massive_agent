@@ -106,6 +106,7 @@ export type TradeAction = "BUY" | "SELL" | "HOLD" | "NO_BUY";
 export interface TradeDecision {
   action: TradeAction;
   symbol: string;
+  ticker?: string;
   quantity: number;
   entryPrice: number;
   stopLoss: number;
@@ -114,6 +115,11 @@ export interface TradeDecision {
   reasoning: string;
   contributingAgents: string[];
   timestamp: string;
+  // Score breakdown
+  combinedScore?: number;
+  aiScore?: number;
+  momentumScore?: number;
+  strategy?: string;
 }
 
 // Account & Risk Types

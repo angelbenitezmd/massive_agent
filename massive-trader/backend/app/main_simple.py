@@ -2,6 +2,8 @@
 import logging
 import asyncio
 import random
+import json
+from pathlib import Path
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
 from typing import Optional
@@ -21,6 +23,14 @@ logger = logging.getLogger(__name__)
 
 # Global Benzinga client
 benzinga_client = None
+
+# Simple TTL cache for sentiment data (reduces API calls)
+_sentiment_cache = {}
+_momentum_cache = {}
+_scan_cache = {}
+SENTIMENT_CACHE_TTL = 120  # Cache sentiment for 2 minutes
+MOMENTUM_CACHE_TTL = 60    # Cache momentum for 1 minute
+SCAN_CACHE_TTL = 60        # Cache scan results for 1 minute
 
 
 @asynccontextmanager
@@ -131,26 +141,35 @@ async def get_news(
     ticker: Optional[str] = Query(None, description="Stock ticker(s), comma-separated"),
     channels: Optional[str] = Query(None, description="News channels to filter"),
     days_back: int = Query(1, description="Number of days to look back"),
+    hours_back: int = Query(None, description="Hours to look back (overrides days_back)"),
     limit: int = Query(10, description="Maximum results")
 ):
     """Get real-time news from Benzinga."""
     if not benzinga_client:
         raise HTTPException(status_code=503, detail="Benzinga client not configured")
 
-    # Calculate date range
-    published_gte = (datetime.utcnow() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+    # For global news (no ticker), limit to 1 hour and 15 results max for speed
+    if not ticker:
+        hours_back = hours_back or 1  # Default 1 hour for global
+        limit = min(limit, 15)  # Cap at 15 for global news
 
-    result = await benzinga_client.get_news(
-        tickers=ticker,
-        channels=channels,
-        published_gte=published_gte,
-        limit=limit
-    )
+    # Calculate date range (use hours if specified)
+    if hours_back:
+        published_gte = (datetime.utcnow() - timedelta(hours=hours_back)).strftime("%Y-%m-%dT%H:%M:%S")
+    else:
+        published_gte = (datetime.utcnow() - timedelta(days=days_back)).strftime("%Y-%m-%d")
 
-    if "error" in result:
-        raise HTTPException(status_code=500, detail=result.get("message", "API error"))
-
-    return result
+    try:
+        result = await benzinga_client.get_news(
+            tickers=ticker,
+            channels=channels,
+            published_gte=published_gte,
+            limit=limit
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching news: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/earnings")
@@ -169,18 +188,18 @@ async def get_earnings(
     date_gte = (datetime.utcnow() - timedelta(days=days_back)).strftime("%Y-%m-%d")
     date_lte = (datetime.utcnow() + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
 
-    result = await benzinga_client.get_earnings(
-        ticker=ticker,
-        date_gte=date_gte,
-        date_lte=date_lte,
-        importance_gte=importance_min,
-        limit=limit
-    )
-
-    if "error" in result:
-        raise HTTPException(status_code=500, detail=result.get("message", "API error"))
-
-    return result
+    try:
+        result = await benzinga_client.get_earnings(
+            ticker=ticker,
+            date_gte=date_gte,
+            date_lte=date_lte,
+            importance_gte=importance_min,
+            limit=limit
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error fetching earnings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/ratings")
@@ -246,6 +265,143 @@ async def get_dashboard(ticker: str):
     except Exception as exc:  # noqa: BLE001
         logger.error(f"Failed to build dashboard for {ticker}: {exc}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to build dashboard payload") from exc
+
+
+# ============= FAST SIGNAL ENDPOINT (NO API CALLS) =============
+
+@app.get("/api/signal/fast/{ticker}")
+async def get_fast_signal(ticker: str):
+    """
+    ULTRA-FAST signal endpoint - uses ONLY cached data and local Python analysis.
+    NO external API calls. Target: <100ms response time.
+
+    This is used for:
+    - AI Agents panel (instant display)
+    - Trade decision panel (instant recommendations)
+    - Auto-trade logic (must be fast for real-time trading)
+    """
+    ticker = ticker.upper()
+
+    try:
+        # Get quote (fast - Alpaca is quick)
+        quote_data = await get_quote(ticker)
+        current_price = quote_data.get("price", 100)
+
+        # Get bars for technical analysis (fast - Alpaca is quick)
+        bars = await get_bars(ticker, timeframe="1H", limit=30)
+
+        # Pure Python technical analysis (instant)
+        from app.services.technical_indicators import analyze_technical
+        technical = analyze_technical(ticker, current_price, bars)
+
+        # Check sentiment cache (NO API call if not cached)
+        cached_sentiment = _sentiment_cache.get(ticker)
+        sentiment_score = 50  # Neutral default
+        sentiment_label = "neutral"
+
+        if cached_sentiment:
+            cached_data, cache_time = cached_sentiment
+            # Use cache if less than 5 minutes old
+            if (datetime.utcnow() - cache_time).total_seconds() < 300:
+                sentiment_score = cached_data.get("score", 50)
+                sentiment_label = cached_data.get("sentiment", "neutral")
+
+        # Combine scores: Technical weighted 60%, Sentiment 40%
+        combined_score = (technical.score * 0.6) + (sentiment_score * 0.4)
+
+        # Determine action
+        if combined_score >= 70:
+            action = "BUY"
+            confidence = min(0.9, combined_score / 100)
+        elif combined_score <= 30:
+            action = "SELL"
+            confidence = min(0.9, (100 - combined_score) / 100)
+        else:
+            action = "HOLD"
+            confidence = 0.5
+
+        # Build agent signals for the UI
+        news_agent = {
+            "score": sentiment_score,
+            "sentiment": 1 if sentiment_score > 60 else -1 if sentiment_score < 40 else 0,
+            "confidence": 0.7 if cached_sentiment else 0.3,
+            "urgency": 0.5,
+            "notes": f"Sentiment: {sentiment_label}" + (" (cached)" if cached_sentiment else " (no data)")
+        }
+
+        earnings_agent = {
+            "score": 50,
+            "sentiment": 0,
+            "confidence": 0.3,
+            "urgency": 0.2,
+            "notes": "Earnings data from cache"
+        }
+
+        technical_agent = {
+            "score": technical.score,
+            "sentiment": 1 if technical.score > 55 else -1 if technical.score < 45 else 0,
+            "confidence": technical.confidence / 100,
+            "urgency": 0.7 if abs(technical.score - 50) > 20 else 0.3,
+            "notes": f"{technical.trend} trend, RSI: {technical.rsi:.1f}"
+        }
+
+        return {
+            "ticker": ticker,
+            "timestamp": datetime.utcnow().isoformat(),
+            "fast_mode": True,
+            "agents": {
+                "news": news_agent,
+                "earnings": earnings_agent,
+                "technical": technical_agent
+            },
+            "decision": {
+                "action": action,
+                "ticker": ticker,
+                "confidence": confidence,
+                "score": round(combined_score),
+                "entry_price": current_price,
+                "stop_loss": round(current_price * 0.98, 2),
+                "take_profit": round(current_price * 1.03, 2),
+                "quantity": 10,
+                "rationale": f"Technical: {technical.score}, Sentiment: {sentiment_score}"
+            },
+            "technicals": {
+                "rsi": technical.rsi,
+                "macd": technical.macd,
+                "trend": technical.trend,
+                "regime": technical.regime.value,
+                "support": technical.support,
+                "resistance": technical.resistance,
+                "signals": technical.signals
+            },
+            "market": {
+                "price": current_price,
+                "change": quote_data.get("change", 0),
+                "change_percent": quote_data.get("change_percent", 0)
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Fast signal error for {ticker}: {e}")
+        # Return neutral signal on error - never block the UI
+        return {
+            "ticker": ticker,
+            "timestamp": datetime.utcnow().isoformat(),
+            "fast_mode": True,
+            "error": str(e),
+            "agents": {
+                "news": {"score": 50, "sentiment": 0, "confidence": 0, "urgency": 0, "notes": "Error"},
+                "earnings": {"score": 50, "sentiment": 0, "confidence": 0, "urgency": 0, "notes": "Error"},
+                "technical": {"score": 50, "sentiment": 0, "confidence": 0, "urgency": 0, "notes": "Error"}
+            },
+            "decision": {
+                "action": "HOLD",
+                "ticker": ticker,
+                "confidence": 0,
+                "score": 50,
+                "rationale": "Error - defaulting to HOLD"
+            }
+        }
 
 
 # ============= REAL-TIME PRICE ENDPOINT =============
@@ -497,6 +653,18 @@ async def get_bars(
 @app.get("/api/sentiment/{ticker}")
 async def get_sentiment(ticker: str):
     """Get aggregated sentiment for a ticker based on news and earnings."""
+    # Convert ticker to uppercase for consistency
+    ticker = ticker.upper()
+
+    # Check cache first
+    cache_key = ticker
+    now = datetime.utcnow()
+    if cache_key in _sentiment_cache:
+        cached_data, cache_time = _sentiment_cache[cache_key]
+        if (now - cache_time).total_seconds() < SENTIMENT_CACHE_TTL:
+            logger.debug(f"Sentiment cache HIT for {ticker}")
+            return cached_data
+
     if not benzinga_client:
         return {
             "ticker": ticker,
@@ -504,9 +672,6 @@ async def get_sentiment(ticker: str):
             "score": 50,
             "message": "Benzinga API not configured"
         }
-
-    # Convert ticker to uppercase for consistency
-    ticker = ticker.upper()
 
     # Fetch multiple data sources
     news_task = benzinga_client.get_news(tickers=ticker, limit=20)
@@ -596,7 +761,7 @@ async def get_sentiment(ticker: str):
     else:
         sentiment = "neutral"
 
-    return {
+    result = {
         "ticker": ticker,
         "sentiment": sentiment,
         "score": sentiment_score,
@@ -609,56 +774,103 @@ async def get_sentiment(ticker: str):
         "timestamp": datetime.utcnow().isoformat()
     }
 
+    # Cache the result
+    _sentiment_cache[ticker] = (result, datetime.utcnow())
+
+    return result
+
 
 # ============= UNIFIED PRODUCTION TRADING SYSTEM =============
+
+async def _analyze_ticker_for_signal(ticker: str) -> dict:
+    """Analyze a single ticker and return signal data."""
+    try:
+        # Get momentum and sentiment in parallel
+        momentum_task = get_momentum_analysis(ticker)
+        sentiment_task = get_sentiment(ticker)
+
+        momentum, sentiment = await asyncio.gather(
+            momentum_task, sentiment_task,
+            return_exceptions=True
+        )
+
+        # Handle exceptions
+        if isinstance(momentum, Exception):
+            logger.error(f"Momentum analysis failed for {ticker}: {momentum}")
+            return None
+        if isinstance(sentiment, Exception):
+            logger.error(f"Sentiment analysis failed for {ticker}: {sentiment}")
+            return None
+
+        momentum_score = momentum["momentum_score"]
+        ai_score = sentiment["score"]
+
+        # Combined score - weight AI higher when it has strong conviction
+        # If AI score >= 80, weight AI 60% / momentum 40%
+        # Otherwise, equal 50/50 weight
+        if ai_score >= 80:
+            combined_score = (momentum_score * 0.4) + (ai_score * 0.6)
+        else:
+            combined_score = (momentum_score * 0.5) + (ai_score * 0.5)
+
+        # Determine action based on combined score and AI conviction
+        # Strong AI signal (>=80) can override low momentum
+        if combined_score >= 70 or (ai_score >= 80 and momentum_score >= 40):
+            action = "BUY"
+        elif combined_score >= 60 or ai_score >= 75:
+            action = "HOLD"  # Watch closely
+        else:
+            action = "WAIT"
+
+        # Only return if meets threshold
+        if momentum_score >= 70 or ai_score >= 75:
+            quote = await get_quote(ticker)
+            current_price = quote.get("price", 100)
+
+            return {
+                "ticker": ticker,
+                "action": action,
+                "combined_score": round(combined_score, 1),
+                "momentum_score": momentum_score,
+                "ai_score": ai_score,
+                "entry_price": current_price,
+                "stop_loss": round(current_price * 0.995, 2),  # -0.5%
+                "take_profit": round(current_price * 1.015, 2),  # +1.5%
+                "quantity": 10,  # Start with 10 shares for paper trading
+                "signals": momentum["signals"][:2],
+                "strategy": "MOMENTUM" if momentum_score > ai_score else "AI_DRIVEN",
+                "urgency": momentum["urgency"],
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        return None
+    except Exception as e:
+        logger.error(f"Error analyzing {ticker}: {e}")
+        return None
+
 
 @app.get("/api/trading/best-signal")
 async def get_best_trading_signal():
     """Get the SINGLE BEST trading signal from all sources (momentum + AI)."""
 
-    # Scan top tickers for opportunities
+    # Scan top tickers for opportunities - IN PARALLEL
     candidates = ["TSLA", "NVDA", "AMD", "AAPL", "META", "GOOGL", "MSFT"]
+
+    # Analyze all tickers in parallel for speed
+    results = await asyncio.gather(
+        *[_analyze_ticker_for_signal(ticker) for ticker in candidates],
+        return_exceptions=True
+    )
+
+    # Find best signal from results
     best_signal = None
     best_score = 0
 
-    for ticker in candidates:
-        try:
-            # Get momentum analysis
-            momentum = await get_momentum_analysis(ticker)
-            momentum_score = momentum["momentum_score"]
-
-            # Get AI sentiment
-            sentiment = await get_sentiment(ticker)
-            ai_score = sentiment["score"]
-
-            # Combined score (momentum weighted higher for fast trades)
-            combined_score = (momentum_score * 0.7) + (ai_score * 0.3)
-
-            # Check if this is the best signal
-            if combined_score > best_score and (momentum_score >= 70 or ai_score >= 75):
-                quote = await get_quote(ticker)
-                current_price = quote.get("price", 100)
-
-                best_signal = {
-                    "ticker": ticker,
-                    "action": "BUY" if combined_score >= 70 else "HOLD",
-                    "combined_score": round(combined_score, 1),
-                    "momentum_score": momentum_score,
-                    "ai_score": ai_score,
-                    "entry_price": current_price,
-                    "stop_loss": round(current_price * 0.995, 2),  # -0.5%
-                    "take_profit": round(current_price * 1.015, 2),  # +1.5%
-                    "quantity": 10,  # Start with 10 shares for paper trading
-                    "signals": momentum["signals"][:2],
-                    "strategy": "MOMENTUM" if momentum_score > ai_score else "AI_DRIVEN",
-                    "urgency": momentum["urgency"],
-                    "timestamp": datetime.utcnow().isoformat()
-                }
-                best_score = combined_score
-
-        except Exception as e:
-            logger.error(f"Error analyzing {ticker}: {e}")
+    for result in results:
+        if result is None or isinstance(result, Exception):
             continue
+        if result.get("combined_score", 0) > best_score:
+            best_signal = result
+            best_score = result["combined_score"]
 
     # If no good signal, return wait status
     if not best_signal:
@@ -670,9 +882,25 @@ async def get_best_trading_signal():
 
     return best_signal
 
+# Rate limiting for trade execution
+_last_trade_execution: dict = {"time": 0, "ticker": None}
+TRADE_COOLDOWN_SECONDS = 60  # 1 minute between trades
+
 @app.post("/api/trading/execute")
 async def execute_trade(auto: bool = False):
     """Execute the best trade on Alpaca paper trading."""
+    global _last_trade_execution
+
+    # Rate limiting check
+    now = datetime.utcnow().timestamp()
+    time_since_last = now - _last_trade_execution["time"]
+    if time_since_last < TRADE_COOLDOWN_SECONDS:
+        remaining = int(TRADE_COOLDOWN_SECONDS - time_since_last)
+        return {
+            "status": "rate_limited",
+            "message": f"Please wait {remaining}s before next trade",
+            "cooldown_remaining": remaining
+        }
 
     # Get best signal
     signal = await get_best_trading_signal()
@@ -684,9 +912,39 @@ async def execute_trade(auto: bool = False):
             "signal": signal
         }
 
+    # Check if we already have a large position in this ticker
+    ticker = signal.get("ticker")
+    positions = alpaca_trader.get_positions()
+    existing_position = next((p for p in positions if p["symbol"] == ticker), None)
+    if existing_position and abs(existing_position.get("qty", 0)) >= 100:
+        return {
+            "status": "position_limit",
+            "message": f"Already have {existing_position['qty']} shares of {ticker}. Close or reduce position first.",
+            "existing_position": existing_position
+        }
+
     # Execute on Alpaca
     if auto or signal.get("combined_score", 0) >= 75:
+        # Update rate limit tracker BEFORE execution
+        _last_trade_execution = {"time": now, "ticker": ticker}
+
         result = alpaca_trader.execute_trade(signal)
+
+        # Log the trade execution
+        log_activity(
+            log_type="TRADE",
+            ticker=signal.get("ticker", "UNKNOWN"),
+            action=signal.get("action", "BUY"),
+            details={
+                "price": signal.get("price"),
+                "quantity": result.get("qty") if result else None,
+                "score": signal.get("combined_score"),
+                "reasoning": signal.get("reasoning", "")[:200],  # Truncate long reasoning
+                "order_id": result.get("id") if result else None,
+                "status": "executed"
+            }
+        )
+
         return {
             "status": "executed",
             "signal": signal,
@@ -731,10 +989,210 @@ async def get_positions():
     }
 
 @app.post("/api/trading/close/{ticker}")
-async def close_position(ticker: str):
+async def close_position(ticker: str, reason: str = "manual"):
     """Close a position."""
     result = alpaca_trader.close_position(ticker.upper())
+
+    # Log the position exit
+    log_activity(
+        log_type="EXIT",
+        ticker=ticker.upper(),
+        action="CLOSE",
+        details={
+            "reason": reason,
+            "pnl": result.get("pnl") if isinstance(result, dict) else None,
+            "result": result.get("status") if isinstance(result, dict) else str(result)
+        }
+    )
+
     return result
+
+@app.post("/api/trading/reduce/{ticker}")
+async def reduce_position(ticker: str, quantity: int = 100):
+    """Reduce a position by a specific quantity."""
+    result = alpaca_trader.reduce_position(ticker.upper(), quantity)
+
+    log_activity(
+        log_type="REDUCE",
+        ticker=ticker.upper(),
+        action="REDUCE",
+        details={
+            "reduced_qty": quantity,
+            "result": result.get("status") if isinstance(result, dict) else str(result)
+        }
+    )
+
+    return result
+
+@app.post("/api/trading/close-all")
+async def close_all_positions():
+    """Emergency: Close ALL positions."""
+    result = alpaca_trader.close_all_positions()
+
+    log_activity(
+        log_type="EMERGENCY",
+        ticker="ALL",
+        action="CLOSE_ALL",
+        details={"result": result.get("status") if isinstance(result, dict) else str(result)}
+    )
+
+    return result
+
+# ============================================================
+# AUTO-EXIT MONITORING
+# ============================================================
+EXIT_CONFIG = {
+    "stop_loss_pct": -2.0,      # Exit if loss exceeds 2%
+    "take_profit_pct": 5.0,     # Exit if profit exceeds 5%
+    "momentum_exit": 35,        # Exit if momentum drops below 35
+    "trailing_stop_pct": 1.5,   # Trailing stop: 1.5% from peak
+}
+
+# Track peak prices for trailing stops
+_position_peaks: dict = {}
+
+# Track tickers with pending exit orders to avoid duplicates
+_pending_exit_orders: set = set()
+
+async def check_position_exits():
+    """Check all positions for exit signals and auto-close if needed."""
+    global _pending_exit_orders
+
+    positions = alpaca_trader.get_positions()
+    exits_triggered = []
+
+    # Get all pending orders to check which tickers already have exit orders
+    try:
+        if alpaca_trader.client:
+            pending_orders = alpaca_trader.client.get_orders(status="open")
+            tickers_with_pending = {order.symbol for order in pending_orders}
+        else:
+            tickers_with_pending = set()
+    except Exception as e:
+        logger.warning(f"Could not fetch pending orders: {e}")
+        tickers_with_pending = _pending_exit_orders  # Use cached set
+
+    for position in positions:
+        ticker = position["symbol"]
+        pnl_pct = position.get("pnl_pct", 0) * 100  # Convert to percentage
+        current_price = position.get("current", 0)
+        entry_price = position.get("entry", 0)
+
+        # Skip if this ticker already has a pending order
+        if ticker in tickers_with_pending or ticker in _pending_exit_orders:
+            logger.debug(f"Skipping {ticker} - already has pending exit order")
+            continue
+
+        exit_reason = None
+
+        # 1. Stop Loss Check
+        if pnl_pct <= EXIT_CONFIG["stop_loss_pct"]:
+            exit_reason = f"STOP_LOSS ({pnl_pct:.2f}%)"
+
+        # 2. Take Profit Check
+        elif pnl_pct >= EXIT_CONFIG["take_profit_pct"]:
+            exit_reason = f"TAKE_PROFIT ({pnl_pct:.2f}%)"
+
+        # 3. Trailing Stop Check
+        else:
+            # Track peak price
+            if ticker not in _position_peaks or current_price > _position_peaks[ticker]:
+                _position_peaks[ticker] = current_price
+
+            peak = _position_peaks[ticker]
+            if peak > 0:
+                drawdown_from_peak = ((peak - current_price) / peak) * 100
+                if drawdown_from_peak >= EXIT_CONFIG["trailing_stop_pct"] and pnl_pct > 0:
+                    exit_reason = f"TRAILING_STOP (peak: ${peak:.2f}, drawdown: {drawdown_from_peak:.2f}%)"
+
+        # 4. Momentum Check (only if in profit and no other exit triggered)
+        if not exit_reason and pnl_pct > 0:
+            try:
+                momentum = await get_momentum_analysis(ticker)
+                if momentum.get("momentum_score", 50) < EXIT_CONFIG["momentum_exit"]:
+                    exit_reason = f"MOMENTUM_EXIT (score: {momentum.get('momentum_score')})"
+            except:
+                pass
+
+        # Execute exit if triggered
+        if exit_reason:
+            logger.info(f"🚨 EXIT TRIGGERED: {ticker} - {exit_reason}")
+
+            # Mark as pending BEFORE attempting to close
+            _pending_exit_orders.add(ticker)
+
+            result = alpaca_trader.close_position(ticker)
+
+            # Check if order was successful
+            if isinstance(result, dict):
+                if result.get("status") == "error":
+                    # Order failed - remove from pending
+                    _pending_exit_orders.discard(ticker)
+                    logger.warning(f"Exit order failed for {ticker}: {result.get('message')}")
+                    # Don't log failed exits to avoid spam
+                    continue
+                elif result.get("status") in ["closed", "executed"]:
+                    # Order succeeded - log it
+                    log_activity(
+                        log_type="AUTO_EXIT",
+                        ticker=ticker,
+                        action="CLOSE",
+                        details={
+                            "reason": exit_reason,
+                            "pnl_pct": pnl_pct,
+                            "entry": entry_price,
+                            "exit_price": current_price,
+                            "result": result.get("status")
+                        }
+                    )
+                    exits_triggered.append({
+                        "ticker": ticker,
+                        "reason": exit_reason,
+                        "pnl_pct": pnl_pct,
+                        "result": result
+                    })
+                    # Clean up peak tracking
+                    if ticker in _position_peaks:
+                        del _position_peaks[ticker]
+                    # Remove from pending after successful close
+                    _pending_exit_orders.discard(ticker)
+
+    return exits_triggered
+
+@app.post("/api/trading/check-exits")
+async def manual_check_exits():
+    """Manually trigger exit check for all positions."""
+    exits = await check_position_exits()
+    return {
+        "exits_triggered": len(exits),
+        "details": exits,
+        "config": EXIT_CONFIG,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+@app.get("/api/trading/exit-config")
+async def get_exit_config():
+    """Get current exit configuration."""
+    return EXIT_CONFIG
+
+@app.put("/api/trading/exit-config")
+async def update_exit_config(
+    stop_loss_pct: float = None,
+    take_profit_pct: float = None,
+    momentum_exit: int = None,
+    trailing_stop_pct: float = None
+):
+    """Update exit configuration."""
+    if stop_loss_pct is not None:
+        EXIT_CONFIG["stop_loss_pct"] = stop_loss_pct
+    if take_profit_pct is not None:
+        EXIT_CONFIG["take_profit_pct"] = take_profit_pct
+    if momentum_exit is not None:
+        EXIT_CONFIG["momentum_exit"] = momentum_exit
+    if trailing_stop_pct is not None:
+        EXIT_CONFIG["trailing_stop_pct"] = trailing_stop_pct
+
+    return {"status": "updated", "config": EXIT_CONFIG}
 
 @app.get("/api/trading/account")
 async def get_account():
@@ -857,6 +1315,64 @@ async def get_orders(
             "timestamp": datetime.utcnow().isoformat()
         }
 
+
+# Activity log storage - persisted to file
+ACTIVITY_LOG_FILE = Path(__file__).parent.parent / "data" / "activity_log.json"
+_activity_log = []
+
+def _load_activity_log():
+    """Load activity log from file on startup."""
+    global _activity_log
+    try:
+        ACTIVITY_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        if ACTIVITY_LOG_FILE.exists():
+            with open(ACTIVITY_LOG_FILE, 'r') as f:
+                _activity_log = json.load(f)
+            logger.info(f"Loaded {len(_activity_log)} activity log entries from disk")
+    except Exception as e:
+        logger.error(f"Failed to load activity log: {e}")
+        _activity_log = []
+
+def _save_activity_log():
+    """Save activity log to file."""
+    try:
+        ACTIVITY_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(ACTIVITY_LOG_FILE, 'w') as f:
+            json.dump(_activity_log, f, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to save activity log: {e}")
+
+# Load on module import
+_load_activity_log()
+
+
+def log_activity(log_type: str, ticker: str, action: str, details: dict):
+    """Add an entry to the activity log and persist to disk."""
+    import uuid
+    entry = {
+        "id": str(uuid.uuid4())[:8],
+        "timestamp": datetime.utcnow().isoformat(),
+        "type": log_type,
+        "ticker": ticker,
+        "action": action,
+        "details": details
+    }
+    _activity_log.insert(0, entry)  # Most recent first
+    _save_activity_log()  # Persist immediately
+
+
+@app.get("/api/trading/activity-log")
+async def get_activity_log(limit: int = Query(50, description="Max entries to return")):
+    """Get trading activity log (entries, exits, signals)."""
+    logs = _activity_log[:limit]
+    return {
+        "logs": logs,
+        "total": len(_activity_log),
+        "filtered": len(logs),
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
 # ============= POSITION MANAGEMENT WITH AUTO-EXIT =============
 
 # Global position tracking for momentum monitoring
@@ -955,6 +1471,20 @@ async def monitor_positions_for_exit():
                 "execution_result": result
             })
 
+            # Log the automatic exit
+            log_activity(
+                log_type="EXIT",
+                ticker=exit_action["ticker"],
+                action="SELL",
+                details={
+                    "reason": exit_action["reason"],
+                    "pnl_pct": exit_action["pnl_pct"],
+                    "momentum": exit_action["momentum"],
+                    "price": exit_action["current_price"],
+                    "auto": True
+                }
+            )
+
             # Clean up tracking
             if exit_action["ticker"] in position_momentum:
                 del position_momentum[exit_action["ticker"]]
@@ -1005,14 +1535,22 @@ async def get_position_momentum(ticker: str):
 
 # Background task for continuous position monitoring
 async def auto_monitor_positions():
-    """Background task that monitors positions every 30 seconds."""
+    """Background task that monitors positions every 30 seconds for exits."""
     while True:
         try:
             if is_market_open():
-                # Monitor and auto-exit positions
-                await monitor_positions_for_exit()
-                logger.info("Position monitoring completed")
-            await asyncio.sleep(30)  # Check every 30 seconds
+                # Only monitor if we have positions (avoid unnecessary API calls)
+                positions = alpaca_trader.get_positions() if alpaca_trader else []
+                if positions:
+                    # Check for automatic exits (stop-loss, take-profit, trailing, momentum)
+                    exits = await check_position_exits()
+                    if exits:
+                        logger.info(f"🚨 AUTO-EXITS TRIGGERED: {len(exits)} positions closed")
+                        for exit in exits:
+                            logger.info(f"   - {exit['ticker']}: {exit['reason']} (P&L: {exit['pnl_pct']:.2f}%)")
+                    else:
+                        logger.debug(f"Position monitoring: {len(positions)} positions, no exits triggered")
+            await asyncio.sleep(30)  # Check every 30 seconds for day trading
         except Exception as e:
             logger.error(f"Error in position monitoring: {e}")
             await asyncio.sleep(30)
@@ -1025,6 +1563,14 @@ async def auto_monitor_positions():
 async def get_momentum_analysis(ticker: str):
     """Ultra-fast momentum analysis for quick trades."""
     ticker = ticker.upper()
+
+    # Check cache first
+    now = datetime.utcnow()
+    if ticker in _momentum_cache:
+        cached_data, cache_time = _momentum_cache[ticker]
+        if (now - cache_time).total_seconds() < MOMENTUM_CACHE_TTL:
+            logger.debug(f"Momentum cache HIT for {ticker}")
+            return cached_data
 
     # Get real-time data
     quote_data = await get_quote(ticker)
@@ -1110,7 +1656,7 @@ async def get_momentum_analysis(ticker: str):
 
     current_price = quote_data.get("price", 100)
 
-    return {
+    result = {
         "ticker": ticker,
         "momentum_score": momentum_score,
         "action": action,
@@ -1149,6 +1695,11 @@ async def get_momentum_analysis(ticker: str):
         "timestamp": datetime.utcnow().isoformat(),
         "analysis_time": "< 1 second"
     }
+
+    # Cache the result
+    _momentum_cache[ticker] = (result, now)
+
+    return result
 
 @app.get("/api/momentum/scan")
 async def momentum_scanner():
@@ -1698,47 +2249,60 @@ async def get_watchlist():
 @app.get("/api/scan/watchlist")
 async def scan_watchlist():
     """Scan all watchlist tickers for opportunities."""
+    # Check cache first
+    cache_key = "watchlist"
+    now = datetime.utcnow()
+    if cache_key in _scan_cache:
+        cached_data, cache_time = _scan_cache[cache_key]
+        if (now - cache_time).total_seconds() < SCAN_CACHE_TTL:
+            logger.debug("Scan watchlist cache HIT")
+            return cached_data
+
     if not benzinga_client:
         return {
             "message": "Benzinga API not configured",
             "watchlist": settings.watchlist
         }
 
-    results = []
-
-    for ticker in settings.watchlist:
+    async def scan_ticker(ticker: str):
+        """Scan a single ticker and return result."""
         try:
-            # Get sentiment for each ticker
             sentiment_data = await get_sentiment(ticker)
-
-            # Add to results
-            results.append({
+            return {
                 "ticker": ticker,
                 "sentiment": sentiment_data["sentiment"],
                 "score": sentiment_data["score"],
                 "recommendation": "BUY" if sentiment_data["score"] >= 70 else
                                  "SELL" if sentiment_data["score"] <= 30 else "HOLD"
-            })
+            }
         except Exception as e:
             logger.error(f"Error scanning {ticker}: {e}")
-            results.append({
+            return {
                 "ticker": ticker,
                 "sentiment": "unknown",
                 "score": 50,
                 "recommendation": "HOLD",
                 "error": str(e)
-            })
+            }
+
+    # Run all scans in parallel for speed
+    results = await asyncio.gather(*[scan_ticker(t) for t in settings.watchlist])
+    results = list(results)
 
     # Sort by score (highest first)
     results.sort(key=lambda x: x["score"], reverse=True)
 
-    return {
+    response = {
         "scan_time": datetime.utcnow().isoformat(),
         "watchlist_count": len(settings.watchlist),
         "results": results,
         "top_opportunities": [r for r in results if r["score"] >= 70],
         "warnings": [r for r in results if r["score"] <= 30]
     }
+
+    # Cache the result
+    _scan_cache[cache_key] = (response, now)
+    return response
 
 
 @app.get("/api/scan/universe")
@@ -1757,35 +2321,30 @@ async def scan_universe():
             "universe": []
         }
 
-    results = []
+    async def scan_ticker(ticker: str):
+        """Scan a single ticker and return result."""
+        try:
+            sentiment_data = await get_sentiment(ticker)
+            return {
+                "ticker": ticker,
+                "sentiment": sentiment_data["sentiment"],
+                "score": sentiment_data["score"],
+                "recommendation": "BUY" if sentiment_data["score"] >= 70 else
+                                 "SELL" if sentiment_data["score"] <= 30 else "HOLD"
+            }
+        except Exception as e:
+            logger.error(f"Error scanning {ticker}: {e}")
+            return {
+                "ticker": ticker,
+                "sentiment": "unknown",
+                "score": 50,
+                "recommendation": "HOLD",
+                "error": str(e)
+            }
 
-    # Process in batches to avoid overwhelming the API
-    batch_size = 10
-    for i in range(0, len(universe_tickers), batch_size):
-        batch = universe_tickers[i:i+batch_size]
-
-        for ticker in batch:
-            try:
-                # Get sentiment for each ticker
-                sentiment_data = await get_sentiment(ticker)
-
-                # Add to results
-                results.append({
-                    "ticker": ticker,
-                    "sentiment": sentiment_data["sentiment"],
-                    "score": sentiment_data["score"],
-                    "recommendation": "BUY" if sentiment_data["score"] >= 70 else
-                                     "SELL" if sentiment_data["score"] <= 30 else "HOLD"
-                })
-            except Exception as e:
-                logger.error(f"Error scanning {ticker}: {e}")
-                results.append({
-                    "ticker": ticker,
-                    "sentiment": "unknown",
-                    "score": 50,
-                    "recommendation": "HOLD",
-                    "error": str(e)
-                })
+    # Run all scans in parallel for speed
+    results = await asyncio.gather(*[scan_ticker(t) for t in universe_tickers])
+    results = list(results)
 
     # Sort by score (highest first)
     results.sort(key=lambda x: x["score"], reverse=True)
@@ -1802,6 +2361,15 @@ async def scan_universe():
 @app.get("/api/scan/spicy")
 async def scan_spicy():
     """Scan high-volatility spicy list for opportunities."""
+    # Check cache first
+    cache_key = "spicy"
+    now = datetime.utcnow()
+    if cache_key in _scan_cache:
+        cached_data, cache_time = _scan_cache[cache_key]
+        if (now - cache_time).total_seconds() < SCAN_CACHE_TTL:
+            logger.debug("Scan spicy cache HIT")
+            return cached_data
+
     if not benzinga_client:
         return {
             "message": "Benzinga API not configured",
@@ -1815,15 +2383,11 @@ async def scan_spicy():
             "spicy": []
         }
 
-    results = []
-
-    for ticker in spicy_tickers:
+    async def scan_ticker(ticker: str):
+        """Scan a single ticker and return result."""
         try:
-            # Get sentiment for each ticker
             sentiment_data = await get_sentiment(ticker)
-
-            # Add volatility warning for spicy stocks
-            results.append({
+            return {
                 "ticker": ticker,
                 "sentiment": sentiment_data["sentiment"],
                 "score": sentiment_data["score"],
@@ -1831,22 +2395,26 @@ async def scan_spicy():
                                  "SELL" if sentiment_data["score"] <= 25 else "HOLD",
                 "risk_level": "HIGH",
                 "warning": "High volatility - trade with caution"
-            })
+            }
         except Exception as e:
             logger.error(f"Error scanning {ticker}: {e}")
-            results.append({
+            return {
                 "ticker": ticker,
                 "sentiment": "unknown",
                 "score": 50,
                 "recommendation": "HOLD",
                 "risk_level": "HIGH",
                 "error": str(e)
-            })
+            }
+
+    # Run all scans in parallel for speed
+    results = await asyncio.gather(*[scan_ticker(t) for t in spicy_tickers])
+    results = list(results)
 
     # Sort by score (highest first)
     results.sort(key=lambda x: x["score"], reverse=True)
 
-    return {
+    response = {
         "scan_time": datetime.utcnow().isoformat(),
         "spicy_count": len(spicy_tickers),
         "results": results,
@@ -1854,6 +2422,10 @@ async def scan_spicy():
         "warnings": [r for r in results if r["score"] <= 25],
         "risk_warning": "⚠️ SPICY LIST - High volatility stocks with elevated risk"
     }
+
+    # Cache the result
+    _scan_cache[cache_key] = (response, now)
+    return response
 
 
 # ============= WEBSOCKET =============
@@ -1936,10 +2508,13 @@ async def websocket_production(websocket: WebSocket):
                     best_signal = await get_best_trading_signal()
 
                     # Check if we should execute
+                    # Paper trading works 24/7, so we allow execution anytime
+                    market_status = get_market_status()
+                    is_paper_mode = True  # Alpaca is always in paper mode for safety
                     should_execute = (
                         best_signal.get("action") == "BUY" and
                         best_signal.get("combined_score", 0) >= 75 and
-                        is_market_open()  # Only execute when market is open
+                        (is_market_open() or is_paper_mode)  # Paper mode allows 24/7 trading
                     )
 
                     # Send unified update
@@ -1977,8 +2552,8 @@ async def websocket_production(websocket: WebSocket):
                             "timestamp": datetime.utcnow().isoformat()
                         })
                         logger.info(f"✅ Execution result: {result}")
-                    elif best_signal.get("combined_score", 0) >= 75:
-                        logger.info(f"⏸️ Signal {best_signal['ticker']} score {best_signal['combined_score']:.1f} >= 75 but market closed")
+                    elif best_signal.get("combined_score", 0) >= 75 and best_signal.get("action") != "BUY":
+                        logger.info(f"⏸️ Signal {best_signal['ticker']} score {best_signal['combined_score']:.1f} >= 75 but action is {best_signal.get('action')}")
 
                 # Check for exit conditions on positions
                 if scan_counter % 3 == 0:  # Every 30 seconds

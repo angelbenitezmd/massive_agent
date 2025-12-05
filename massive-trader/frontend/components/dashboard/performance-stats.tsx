@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -9,7 +10,14 @@ import {
   Activity,
   Zap,
   Target,
+  Info,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { Account, Position } from "@/types";
 
 interface PerformanceStatsProps {
@@ -23,7 +31,7 @@ interface PerformanceStatsProps {
   };
 }
 
-export function PerformanceStats({
+export const PerformanceStats = memo(function PerformanceStats({
   account,
   positions = [],
   riskStatus,
@@ -50,11 +58,28 @@ export function PerformanceStats({
   const drawdownProgress = Math.abs(maxDrawdown) / 5; // 5% max drawdown scale
 
   return (
+    <TooltipProvider>
     <Card className="bg-card border-border">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <BarChart3 className="h-4 w-4 text-primary" />
           Performance Stats
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Info className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[300px] p-3">
+              <div className="space-y-2 text-xs">
+                <p className="font-semibold">Performance Stats</p>
+                <div className="space-y-1.5">
+                  <p><strong>Unrealized P&L:</strong> Profit/loss on open positions (not yet sold).</p>
+                  <p><strong>Daily Drawdown:</strong> Today&apos;s loss from peak. Triggers circuit breaker at -5%.</p>
+                  <p><strong>Largest Position:</strong> Concentration risk. Green &lt;20%, Yellow &lt;40%, Red 40%+.</p>
+                  <p><strong>Buying Power:</strong> Capital available for new trades (includes margin).</p>
+                </div>
+              </div>
+            </TooltipContent>
+          </Tooltip>
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0 space-y-4">
@@ -195,5 +220,6 @@ export function PerformanceStats({
         )}
       </CardContent>
     </Card>
+    </TooltipProvider>
   );
-}
+});

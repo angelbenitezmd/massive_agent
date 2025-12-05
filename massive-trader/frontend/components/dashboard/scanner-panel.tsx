@@ -9,6 +9,7 @@ import {
   Zap,
   RefreshCw,
   ChevronRight,
+  Info,
 } from "lucide-react";
 import {
   Card,
@@ -20,6 +21,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 interface ScanResult {
@@ -90,6 +97,7 @@ export function ScannerPanel({ selectedTicker, onSelectTicker }: ScannerPanelPro
   };
 
   return (
+    <TooltipProvider>
     <Card className="card-hover">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
@@ -97,6 +105,22 @@ export function ScannerPanel({ selectedTicker, onSelectTicker }: ScannerPanelPro
             <CardTitle className="flex items-center gap-2">
               <Radar className="h-5 w-5 text-primary" />
               Stock Scanner
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[280px] p-3">
+                  <div className="space-y-2 text-xs">
+                    <p className="font-semibold">Stock Scanner</p>
+                    <p>Scans your watchlist and high-volatility stocks for trading opportunities using AI analysis.</p>
+                    <div className="space-y-1 pt-1">
+                      <p><strong>Watchlist:</strong> Stocks you're tracking</p>
+                      <p><strong>High Volatility:</strong> Stocks with unusual movement</p>
+                    </div>
+                    <p className="text-muted-foreground">Score 70+ with BUY = strong opportunity. Click any ticker to analyze.</p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
             </CardTitle>
             <CardDescription>
               {topOpportunities.length > 0
@@ -161,7 +185,7 @@ export function ScannerPanel({ selectedTicker, onSelectTicker }: ScannerPanelPro
         )}
 
         {/* All Results */}
-        <ScrollArea className="h-[280px]">
+        <ScrollArea className="h-[140px]">
           {isLoading ? (
             <div className="space-y-2">
               {[1, 2, 3, 4, 5].map((i) => (
@@ -189,9 +213,16 @@ export function ScannerPanel({ selectedTicker, onSelectTicker }: ScannerPanelPro
                     {getRecommendationBadge(result.recommendation)}
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={cn("font-bold", getScoreColor(result.score))}>
-                      {result.score}
-                    </span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className={cn("font-bold cursor-help", getScoreColor(result.score))}>
+                          {result.score}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="left" className="text-xs">
+                        AI Score (0-100)
+                      </TooltipContent>
+                    </Tooltip>
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </div>
                 </button>
@@ -208,10 +239,11 @@ export function ScannerPanel({ selectedTicker, onSelectTicker }: ScannerPanelPro
         {/* Last Update */}
         {data?.scan_time && (
           <div className="mt-2 text-xs text-muted-foreground text-center">
-            Last scan: {new Date(data.scan_time).toLocaleTimeString()}
+            Last scan: {new Date(data.scan_time).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" })} ET
           </div>
         )}
       </CardContent>
     </Card>
+    </TooltipProvider>
   );
 }

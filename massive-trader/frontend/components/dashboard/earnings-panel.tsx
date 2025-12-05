@@ -1,6 +1,6 @@
 "use client";
 
-import { DollarSign, TrendingUp, TrendingDown, Calendar } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown, Calendar, Info } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -10,6 +10,12 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
 import type { Earnings } from "@/types";
 
@@ -54,11 +60,29 @@ export function EarningsPanel({ earnings, isLoading }: EarningsPanelProps) {
   const recentEarnings = earnings?.slice(0, 2) || [];
 
   return (
+    <TooltipProvider>
     <Card className="card-hover">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2">
           <DollarSign className="h-5 w-5 text-primary" />
           Earnings
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Info className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[280px] p-3">
+              <div className="space-y-2 text-xs">
+                <p className="font-semibold">Earnings Reports</p>
+                <p>Recent quarterly earnings data from Benzinga.</p>
+                <div className="space-y-1 pt-1">
+                  <p><strong>EPS:</strong> Earnings per share (actual vs estimate)</p>
+                  <p><strong>Revenue:</strong> Total revenue vs analyst estimates</p>
+                  <p><strong>Surprise %:</strong> Beat/miss vs expectations</p>
+                </div>
+                <p className="text-muted-foreground">Green = beat, Red = miss. Importance shows market impact.</p>
+              </div>
+            </TooltipContent>
+          </Tooltip>
         </CardTitle>
         <CardDescription>Recent earnings reports</CardDescription>
       </CardHeader>
@@ -168,7 +192,7 @@ export function EarningsPanel({ earnings, isLoading }: EarningsPanelProps) {
                 <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border/50">
                   <span>Report Date</span>
                   <span>
-                    {new Date(earning.reportDate).toLocaleDateString()} (
+                    {new Date(earning.reportDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} (
                     {earning.reportTime})
                   </span>
                 </div>
@@ -183,5 +207,6 @@ export function EarningsPanel({ earnings, isLoading }: EarningsPanelProps) {
         )}
       </CardContent>
     </Card>
+    </TooltipProvider>
   );
 }

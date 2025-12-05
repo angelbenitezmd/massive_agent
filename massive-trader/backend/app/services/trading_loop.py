@@ -342,11 +342,11 @@ class TradingLoop:
             return result
 
         try:
-            # Check for new news (last hour)
+            # Check for new news (today)
             news = await self.benzinga_client.get_news(
                 tickers=ticker,
-                published_gte=(datetime.utcnow() - timedelta(hours=1)).strftime(
-                    "%Y-%m-%dT%H:%M:%S"
+                published_gte=(datetime.utcnow() - timedelta(days=1)).strftime(
+                    "%Y-%m-%d"
                 ),
                 limit=5,
             )
@@ -512,8 +512,8 @@ class TradingLoop:
         try:
             news = await self.benzinga_client.get_news(
                 tickers=ticker,
-                published_gte=(datetime.utcnow() - timedelta(hours=4)).strftime(
-                    "%Y-%m-%dT%H:%M:%S"
+                published_gte=(datetime.utcnow() - timedelta(days=1)).strftime(
+                    "%Y-%m-%d"
                 ),
                 limit=10,
             )

@@ -78,22 +78,36 @@ export async function getBars(
   return fetchAPI(`/api/bars/${ticker}?timeframe=${timeframe}&limit=${limit}`);
 }
 
-// News
-export async function getNews(ticker: string): Promise<NewsItem[]> {
-  const response = await fetchAPI<any>(`/api/news?ticker=${ticker}`);
+// News (supports global feed when ticker is omitted)
+// For global news (no ticker), uses hours_back=1 for speed
+export async function getNews(ticker?: string, limit: number = 15, hoursBack: number = 1): Promise<NewsItem[]> {
+  const params = new URLSearchParams();
+  if (ticker) {
+    params.set("ticker", ticker);
+    params.set("limit", limit.toString());
+    params.set("days_back", "1");  // 1 day for ticker-specific
+  } else {
+    // Global news - limit to 1 hour and 15 items for speed
+    params.set("limit", Math.min(limit, 15).toString());
+    params.set("hours_back", hoursBack.toString());
+  }
+
+  const endpoint = `/api/news${params.toString() ? `?${params.toString()}` : ""}`;
+
+  const response = await fetchAPI<any>(endpoint);
   // Benzinga returns { results: [...] }
   const data = response.results || response || [];
   if (!Array.isArray(data)) return [];
   return data.map((item: any) => ({
-    id: item.id || item.url,
+    id: item.id || item.benzinga_id?.toString?.() || item.url,
     headline: item.title || item.headline,
     summary: item.teaser || item.summary,
     author: item.author,
     source: item.source || "Benzinga",
     url: item.url,
     publishedAt: item.published || item.created || item.published_at || item.updated || item.last_updated,
-    symbols: item.stocks?.map((s: any) => s.name) || item.symbols || [ticker],
-    tags: item.channels?.map((c: any) => c.name) || item.tags || [],
+    symbols: item.tickers || item.stocks?.map((s: any) => s.name) || item.symbols || (ticker ? [ticker] : []),
+    tags: item.channels || item.tags || [],
     sentiment: item.sentiment,
   }));
 }
@@ -122,17 +136,68 @@ export async function getEarnings(ticker: string): Promise<Earnings[]> {
   }));
 }
 
-// AI Analysis - uses the Next.js API route which aggregates backend data
+// AI Analysis - uses dashboard + best-signal endpoints for complete data
 export async function runAnalysis(ticker: string): Promise<AnalysisResponse> {
-  // First try the dashboard endpoint for aggregated data
   try {
-    const dashboard = await fetchAPI<any>(`/api/dashboard/${ticker}`);
-    return dashboard;
-  } catch {
-    // Fall back to calling Next.js API route
-    const res = await fetch(`/api/analyze/${ticker}`, { method: "POST" });
-    if (!res.ok) throw new Error("Analysis failed");
-    return res.json();
+    // Fetch dashboard and best-signal in parallel
+    const [dashboard, bestSignal] = await Promise.all([
+      fetchAPI<any>(`/api/dashboard/${ticker}`),
+      fetchAPI<any>(`/api/trading/best-signal`).catch(() => null),
+    ]);
+
+    // Transform dashboard response to expected format
+    const agents = dashboard.consensus?.contributing_agents || {};
+
+    // Use best-signal data if available and matches ticker
+    const signal = bestSignal?.ticker === ticker ? bestSignal : null;
+
+    return {
+      agents: {
+        news: agents.news || { score: 50, sentiment: 0, confidence: 0, notes: "No data" },
+        earnings: agents.earnings || { score: 50, sentiment: 0, confidence: 0, notes: "No data" },
+        technical: agents.technical || { score: 50, sentiment: 0, confidence: 0, notes: "No data" },
+      },
+      decision: {
+        action: signal?.action || dashboard.consensus?.action || "HOLD",
+        confidence: signal ? signal.combined_score / 100 : (dashboard.consensus?.final_score || 50) / 100,
+        ticker: ticker,
+        symbol: ticker,
+        reasoning: `Score: ${signal?.combined_score?.toFixed(1) || dashboard.consensus?.final_score?.toFixed(1) || 50}/100`,
+        stopLoss: signal?.stop_loss || dashboard.consensus?.stop_loss_pct || 0.03,
+        takeProfit: signal?.take_profit || dashboard.consensus?.take_profit_pct || 0.03,
+        entryPrice: signal?.entry_price || dashboard.market?.quote?.price || 0,
+        quantity: signal?.quantity || 10,
+        contributingAgents: ["News Agent", "Earnings Agent", "Technical Agent"],
+        // Score breakdown from best-signal
+        combinedScore: signal?.combined_score,
+        aiScore: signal?.ai_score,
+        momentumScore: signal?.momentum_score,
+        strategy: signal?.strategy,
+      },
+      technicals: dashboard.market?.technicals || {},
+      raw: dashboard, // Keep raw response for debugging
+    } as any;
+  } catch (error) {
+    console.error("Dashboard analysis failed:", error);
+    // Return default empty response
+    return {
+      agents: {
+        news: { score: 50, sentiment: 0, confidence: 0, notes: "Error loading" },
+        earnings: { score: 50, sentiment: 0, confidence: 0, notes: "Error loading" },
+        technical: { score: 50, sentiment: 0, confidence: 0, notes: "Error loading" },
+      },
+      decision: {
+        action: "HOLD",
+        confidence: 0.5,
+        ticker: ticker,
+        symbol: ticker,
+        reasoning: "Analysis unavailable",
+        stopLoss: 0.03,
+        takeProfit: 0.03,
+        contributingAgents: [],
+      },
+      technicals: {},
+    } as any;
   }
 }
 
@@ -182,9 +247,11 @@ export async function getPositions(): Promise<Position[]> {
 
 export async function getRiskStatus(): Promise<RiskStatus> {
   try {
-    // Risk status is derived from account and positions
-    const account = await getAccount();
-    const positions = await getPositions();
+    // Fetch account and positions in parallel to avoid waterfall
+    const [account, positions] = await Promise.all([
+      getAccount(),
+      getPositions()
+    ]);
 
     // Calculate daily P&L from positions
     const dailyPL = positions.reduce((sum, p) => sum + p.unrealizedPL, 0);
@@ -218,9 +285,28 @@ export async function getRiskStatus(): Promise<RiskStatus> {
 
 export async function executeTrade(decision: TradeDecision): Promise<any> {
   // Use the trading execute endpoint
-  return fetchAPI("/api/trading/execute?auto=true", {
-    method: "POST",
-  });
+  try {
+    const res = await fetch(`${API_BASE}/api/trading/execute?auto=true`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ ticker: decision.ticker }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Trade execution failed: ${res.status} ${res.statusText} - ${text}`);
+    }
+
+    return res.json();
+  } catch (error) {
+    // Provide more helpful error message
+    if (error instanceof TypeError && error.message === "Failed to fetch") {
+      throw new Error("Cannot connect to trading server. Please check if the backend is running on port 8000.");
+    }
+    throw error;
+  }
 }
 
 // Watchlist
@@ -234,15 +320,15 @@ export async function getWatchlist(): Promise<string[]> {
 }
 
 // Scan endpoints
-export async function scanWatchlist(): Promise<any[]> {
+export async function scanWatchlist(): Promise<{ results: any[] }> {
   return fetchAPI("/api/scan/watchlist");
 }
 
-export async function scanUniverse(): Promise<any[]> {
+export async function scanUniverse(): Promise<{ results: any[] }> {
   return fetchAPI("/api/scan/universe");
 }
 
-export async function scanSpicy(): Promise<any[]> {
+export async function scanSpicy(): Promise<{ results: any[] }> {
   return fetchAPI("/api/scan/spicy");
 }
 
@@ -311,4 +397,52 @@ export async function getDeepAnalysis(ticker: string): Promise<any> {
       final_score: 50
     };
   }
+}
+
+// Trading Activity Log
+export async function getActivityLog(limit: number = 50): Promise<{
+  logs: ActivityLogEntry[];
+  total: number;
+  filtered: number;
+  timestamp: string;
+}> {
+  try {
+    const response = await fetchAPI<any>(`/api/trading/activity-log?limit=${limit}`);
+    return {
+      logs: response.logs || [],
+      total: response.total || 0,
+      filtered: response.filtered || 0,
+      timestamp: response.timestamp || new Date().toISOString(),
+    };
+  } catch {
+    return {
+      logs: [],
+      total: 0,
+      filtered: 0,
+      timestamp: new Date().toISOString(),
+    };
+  }
+}
+
+// Type for activity log entries
+export interface ActivityLogEntry {
+  id: string;
+  timestamp: string;
+  type: "ENTRY_SUCCESS" | "ENTRY_ERROR" | "EXIT_SIGNAL" | "EXIT_SUCCESS" | "EXIT_ERROR" | "EXIT_WARNING";
+  ticker: string;
+  action: string;
+  details: {
+    reason?: string;
+    error?: string;
+    order_id?: string;
+    quantity?: number;
+    entry_price?: number;
+    current_price?: number;
+    stop_loss?: number;
+    take_profit?: number;
+    pnl?: number;
+    pnl_pct?: number;
+    confidence?: number;
+    momentum?: number;
+  };
 }

@@ -9,6 +9,9 @@ import {
   TrendingDown,
   Ban,
   CheckCircle2,
+  Info,
+  Brain,
+  Activity,
 } from "lucide-react";
 import {
   Card,
@@ -30,6 +33,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatCurrency, formatPercent, cn } from "@/lib/utils";
 import type { TradeDecision, RiskStatus, TradeAction } from "@/types";
 
@@ -110,14 +119,38 @@ export function TradeDecisionPanel({
   };
 
   return (
-    <Card className="card-hover border-primary/20">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2">
-          <Target className="h-5 w-5 text-primary" />
-          Trade Decision
-        </CardTitle>
-        <CardDescription>AI consensus recommendation</CardDescription>
-      </CardHeader>
+    <TooltipProvider>
+      <Card className="card-hover border-primary/20">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2">
+            <Target className="h-5 w-5 text-primary" />
+            Trade Decision
+            {decision?.ticker && (
+              <Badge variant="outline" className="text-[10px] font-bold">
+                {decision.ticker}
+              </Badge>
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[280px] p-3">
+                <div className="space-y-2 text-xs">
+                  <p className="font-semibold">Trade Decision Explained</p>
+                  <div className="space-y-1.5">
+                    <p><strong>BUY:</strong> Strong bullish signals across agents. Consider entering a long position.</p>
+                    <p><strong>SELL:</strong> Bearish signals detected. Consider exiting or shorting.</p>
+                    <p><strong>HOLD:</strong> Mixed or neutral signals. Wait for clearer direction.</p>
+                  </div>
+                  <div className="pt-1 border-t border-border">
+                    <p className="text-muted-foreground">Confidence shows how aligned the AI agents are. Higher = stronger consensus.</p>
+                  </div>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </CardTitle>
+          <CardDescription>AI consensus recommendation</CardDescription>
+        </CardHeader>
       <CardContent className="space-y-4">
         {decision ? (
           <>
@@ -141,6 +174,71 @@ export function TradeDecisionPanel({
                 decision.action === "HOLD" && "[&>div]:bg-yellow-500"
               )}
             />
+
+            {/* Score Breakdown */}
+            {(decision.aiScore !== undefined || decision.momentumScore !== undefined) && (
+              <TooltipProvider>
+                <div className="bg-muted/30 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <Brain className="h-3.5 w-3.5 text-purple-500" />
+                      <span className="text-muted-foreground">AI Score</span>
+                    </div>
+                    <span className={cn(
+                      "font-medium",
+                      (decision.aiScore || 0) >= 80 ? "text-green-500" :
+                      (decision.aiScore || 0) >= 60 ? "text-yellow-500" : "text-red-500"
+                    )}>
+                      {decision.aiScore || 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <Activity className="h-3.5 w-3.5 text-blue-500" />
+                      <span className="text-muted-foreground">Momentum</span>
+                    </div>
+                    <span className={cn(
+                      "font-medium",
+                      (decision.momentumScore || 0) >= 70 ? "text-green-500" :
+                      (decision.momentumScore || 0) >= 50 ? "text-yellow-500" : "text-red-500"
+                    )}>
+                      {decision.momentumScore || 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-border">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-muted-foreground">Combined</span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-3 w-3 text-muted-foreground hover:text-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-[260px] p-3">
+                          <div className="space-y-2 text-xs">
+                            <p className="font-semibold">How the score is calculated:</p>
+                            <div className="space-y-1">
+                              <p>When AI Score &ge; 80 (high conviction):</p>
+                              <p className="text-muted-foreground pl-2">AI: 60% + Momentum: 40%</p>
+                              <p className="pt-1">Otherwise:</p>
+                              <p className="text-muted-foreground pl-2">AI: 50% + Momentum: 50%</p>
+                            </div>
+                            <div className="pt-1 border-t border-border">
+                              <p><strong>BUY</strong> when score &ge; 70 or AI &ge; 80 with momentum &ge; 40</p>
+                              <p><strong>HOLD</strong> when score &ge; 60 or AI &ge; 75</p>
+                            </div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+                    <span className="font-bold">{decision.combinedScore || Math.round(decision.confidence * 100)}</span>
+                  </div>
+                  {decision.strategy && (
+                    <div className="text-[10px] text-muted-foreground text-center">
+                      Strategy: {decision.strategy}
+                    </div>
+                  )}
+                </div>
+              </TooltipProvider>
+            )}
 
             <Separator />
 
@@ -292,12 +390,13 @@ export function TradeDecisionPanel({
             </Dialog>
           </>
         ) : (
-          <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-            <Target className="h-12 w-12 mb-4 opacity-50" />
-            <p>Run analysis to get trade recommendation</p>
+          <div className="flex flex-col items-center justify-center py-4 text-muted-foreground">
+            <Target className="h-8 w-8 mb-2 opacity-50" />
+            <p className="text-xs">Run analysis to get trade recommendation</p>
           </div>
         )}
       </CardContent>
-    </Card>
+      </Card>
+    </TooltipProvider>
   );
 }

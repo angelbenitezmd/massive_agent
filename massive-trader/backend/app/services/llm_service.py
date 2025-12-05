@@ -4,6 +4,10 @@ import json
 import logging
 from typing import Dict, Any, Optional, List
 from enum import Enum
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +59,8 @@ class LLMService:
         self,
         system_prompt: str,
         user_prompt: str,
-        model: str = "claude-sonnet-4-20250514",
-        max_tokens: int = 1024,
+        model: str = "claude-3-5-haiku-20241022",  # Fast model for trading
+        max_tokens: int = 512,  # Reduced for faster response
         temperature: float = 0.3
     ) -> Dict[str, Any]:
         """
@@ -112,8 +116,8 @@ class LLMService:
         self,
         system_prompt: str,
         user_prompt: str,
-        model: str = "gpt-4o",
-        max_tokens: int = 1024,
+        model: str = "gpt-4o-mini",  # Fast model for trading
+        max_tokens: int = 512,  # Reduced for faster response
         temperature: float = 0.3
     ) -> Dict[str, Any]:
         """

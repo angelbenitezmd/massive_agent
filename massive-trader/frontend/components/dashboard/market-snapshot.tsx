@@ -9,11 +9,18 @@ import {
   Activity,
   CandlestickChart,
   Clock,
+  Info,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip as UITooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   formatCurrency,
   formatPercent,
@@ -40,7 +47,22 @@ interface MarketSnapshotProps {
   technicals: Technicals | undefined;
   bars: any[] | undefined;
   isLoading: boolean;
+  timeframe: string;
+  onTimeframeChange: (timeframe: string) => void;
 }
+
+// Available timeframes
+const TIMEFRAMES = [
+  { value: "1Min", label: "1m" },
+  { value: "5Min", label: "5m" },
+  { value: "15Min", label: "15m" },
+  { value: "30Min", label: "30m" },
+  { value: "1Hour", label: "1H" },
+  { value: "4Hour", label: "4H" },
+  { value: "1Day", label: "1D" },
+  { value: "1Week", label: "1W" },
+  { value: "1Month", label: "1M" },
+] as const;
 
 // Custom candlestick shape
 const CandlestickBar = (props: any) => {
@@ -147,6 +169,8 @@ export function MarketSnapshot({
   technicals,
   bars,
   isLoading,
+  timeframe,
+  onTimeframeChange,
 }: MarketSnapshotProps) {
   const [showVolume, setShowVolume] = useState(true);
   const [showSMA, setShowSMA] = useState(true);
@@ -156,6 +180,28 @@ export function MarketSnapshot({
 
     // Calculate SMA 20
     const sma20Period = 20;
+
+    // Format timestamp based on timeframe (in New York/Eastern time)
+    const formatTimestamp = (timestamp: string | undefined): string => {
+      if (!timestamp) return "";
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) return "";
+
+      // Use Eastern time zone for market data display
+      const options: Intl.DateTimeFormatOptions = { timeZone: "America/New_York" };
+
+      // Use different formats based on timeframe
+      if (timeframe === "1Month") {
+        return date.toLocaleDateString("en-US", { ...options, month: "short", year: "2-digit" });
+      } else if (timeframe === "1Week" || timeframe === "1Day" || timeframe === "1D") {
+        return date.toLocaleDateString("en-US", { ...options, month: "numeric", day: "numeric" });
+      } else if (timeframe === "4Hour" || timeframe === "1Hour" || timeframe === "1H") {
+        return date.toLocaleString("en-US", { ...options, month: "numeric", day: "numeric", hour: "numeric", hour12: false });
+      } else {
+        // Minute bars (1m, 5m, 15m, 30m)
+        return date.toLocaleTimeString("en-US", { ...options, hour: "2-digit", minute: "2-digit", hour12: false });
+      }
+    };
 
     return bars.map((bar, index) => {
       // Calculate SMA 20 if we have enough data
@@ -170,7 +216,7 @@ export function MarketSnapshot({
       return {
         time: index,
         timestamp: bar.timestamp,
-        t: bar.t || (bar.timestamp ? new Date(bar.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) : `${index}`),
+        t: bar.t || formatTimestamp(bar.timestamp) || `${index}`,
         open: bar.open || bar.o,
         high: bar.high || bar.h,
         low: bar.low || bar.l,
@@ -179,7 +225,7 @@ export function MarketSnapshot({
         sma20,
       };
     });
-  }, [bars]);
+  }, [bars, timeframe]);
 
   // Calculate chart statistics
   const chartStats = useMemo(() => {
@@ -264,12 +310,25 @@ export function MarketSnapshot({
   }
 
   return (
+    <TooltipProvider>
     <Card className="col-span-2 card-hover">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <CardTitle className="text-2xl font-bold">
+            <CardTitle className="text-2xl font-bold flex items-center gap-2">
               {quote?.symbol || "---"}
+              <UITooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground hover:text-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[280px] p-3">
+                  <div className="space-y-2 text-xs">
+                    <p className="font-semibold">Market Snapshot</p>
+                    <p>Real-time price data from Alpaca. Shows current price, daily change, and technical indicators.</p>
+                    <p className="text-muted-foreground">Chart displays OHLC candlesticks with volume. Green = up, Red = down.</p>
+                  </div>
+                </TooltipContent>
+              </UITooltip>
             </CardTitle>
             <div className="flex items-center gap-2">
               <span className="text-3xl font-bold">
@@ -298,7 +357,25 @@ export function MarketSnapshot({
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {/* Timeframe selector */}
+            <div className="flex items-center gap-1 bg-secondary/50 rounded-lg p-1">
+              {TIMEFRAMES.map((tf) => (
+                <Button
+                  key={tf.value}
+                  variant={timeframe === tf.value ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => onTimeframeChange(tf.value)}
+                  className={cn(
+                    "text-xs h-7 px-2",
+                    timeframe === tf.value ? "" : "hover:bg-secondary"
+                  )}
+                >
+                  {tf.label}
+                </Button>
+              ))}
+            </div>
+            <Separator orientation="vertical" className="h-6" />
             <Button
               variant={showSMA ? "default" : "outline"}
               size="sm"
@@ -649,5 +726,6 @@ export function MarketSnapshot({
         </div>
       </CardContent>
     </Card>
+    </TooltipProvider>
   );
 }

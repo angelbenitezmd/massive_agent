@@ -1,9 +1,16 @@
 "use client";
 
+import { memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Users, TrendingUp, TrendingDown, Minus, Target } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Users, TrendingUp, TrendingDown, Minus, Target, Info } from "lucide-react";
 
 interface RatingItem {
   benzinga_id?: string;
@@ -99,7 +106,7 @@ function getPriceTargetChange(current?: number, previous?: number): JSX.Element 
   );
 }
 
-export function AnalystRatings({
+export const AnalystRatings = memo(function AnalystRatings({
   ratings = [],
   selectedTicker,
   isLoading,
@@ -118,29 +125,64 @@ export function AnalystRatings({
   ).length;
 
   return (
-    <Card className="bg-card border-border">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Users className="h-4 w-4 text-primary" />
-          Analyst Ratings
-          {displayRatings.length > 0 && (
-            <div className="ml-auto flex items-center gap-2">
-              {upgrades > 0 && (
-                <Badge variant="default" className="text-[10px] px-1.5 py-0">
-                  {upgrades} Up
-                </Badge>
-              )}
-              {downgrades > 0 && (
-                <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-                  {downgrades} Down
-                </Badge>
-              )}
-            </div>
-          )}
-        </CardTitle>
-      </CardHeader>
+    <TooltipProvider>
+      <Card className="bg-card border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Users className="h-4 w-4 text-primary" />
+            Analyst Ratings
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground cursor-help transition-colors" />
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[280px] p-3">
+                <div className="space-y-2 text-xs">
+                  <p className="font-semibold text-sm">Rating Actions Explained</p>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="default" className="text-[10px] px-1.5 py-0">Upgrade</Badge>
+                      <span>Analyst raised their rating (e.g., Hold → Buy)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Downgrade</Badge>
+                      <span>Analyst lowered their rating (e.g., Buy → Hold)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Reiterate</Badge>
+                      <span>Analyst reaffirmed their existing rating</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">New Coverage</Badge>
+                      <span>Analyst started covering this stock</span>
+                    </div>
+                  </div>
+                  <div className="pt-1 border-t border-border mt-2">
+                    <p className="text-muted-foreground">
+                      <Target className="h-3 w-3 inline mr-1" />
+                      <strong>Price Target:</strong> Analyst&apos;s expected stock price. % shows change from previous target.
+                    </p>
+                  </div>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+            {displayRatings.length > 0 && (
+              <div className="ml-auto flex items-center gap-2">
+                {upgrades > 0 && (
+                  <Badge variant="default" className="text-[10px] px-1.5 py-0">
+                    {upgrades} Up
+                  </Badge>
+                )}
+                {downgrades > 0 && (
+                  <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                    {downgrades} Down
+                  </Badge>
+                )}
+              </div>
+            )}
+          </CardTitle>
+        </CardHeader>
       <CardContent className="pt-0">
-        <ScrollArea className="h-[260px]">
+        <ScrollArea className="h-[220px]">
           {isLoading ? (
             <div className="flex items-center justify-center h-full text-muted-foreground">
               Loading ratings...
@@ -195,6 +237,7 @@ export function AnalystRatings({
           )}
         </ScrollArea>
       </CardContent>
-    </Card>
+      </Card>
+    </TooltipProvider>
   );
-}
+});

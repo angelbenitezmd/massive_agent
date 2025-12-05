@@ -45,6 +45,15 @@ export function useNews(ticker: string) {
   });
 }
 
+// Global news feed (no ticker filter) - limited to 1 hour for speed
+export function useLatestNews(limit: number = 15, hoursBack: number = 1) {
+  return useQuery({
+    queryKey: ["news", "all", limit, hoursBack],
+    queryFn: () => api.getNews(undefined, limit, hoursBack),
+    staleTime: 60000,  // Cache for 1 minute
+  });
+}
+
 export function useEarnings(ticker: string) {
   return useQuery({
     queryKey: ["earnings", ticker],
@@ -126,7 +135,8 @@ export function useScanWatchlist() {
   return useQuery({
     queryKey: ["scan", "watchlist"],
     queryFn: api.scanWatchlist,
-    staleTime: 60000,
+    staleTime: 90000,  // 1.5 min - backend caches for 1 min
+    refetchInterval: 120000,  // Refresh every 2 min
   });
 }
 
@@ -134,7 +144,8 @@ export function useScanUniverse() {
   return useQuery({
     queryKey: ["scan", "universe"],
     queryFn: api.scanUniverse,
-    staleTime: 60000,
+    staleTime: 90000,
+    refetchInterval: 120000,
   });
 }
 
@@ -142,7 +153,8 @@ export function useScanSpicy() {
   return useQuery({
     queryKey: ["scan", "spicy"],
     queryFn: api.scanSpicy,
-    staleTime: 60000,
+    staleTime: 90000,
+    refetchInterval: 120000,
   });
 }
 
@@ -180,5 +192,14 @@ export function useDeepAnalysis(ticker: string) {
     onSuccess: (data) => {
       queryClient.setQueryData(["deepAnalysis", ticker], data);
     },
+  });
+}
+
+export function useActivityLog(limit: number = 50) {
+  return useQuery({
+    queryKey: ["activityLog", limit],
+    queryFn: () => api.getActivityLog(limit),
+    refetchInterval: 10000,
+    staleTime: 5000,
   });
 }

@@ -1,6 +1,7 @@
 export { Header } from "./header";
 export { MarketSnapshot } from "./market-snapshot";
 export { NewsPanel } from "./news-panel";
+export { NewsFeed } from "./news-feed";
 export { EarningsPanel } from "./earnings-panel";
 export { AIAgentsPanel } from "./ai-agents-panel";
 export { TradeDecisionPanel } from "./trade-decision-panel";
@@ -11,3 +12,7 @@ export { AnalystRatings } from "./analyst-ratings";
 export { PerformanceStats } from "./performance-stats";
 export { MarketMovers } from "./market-movers";
 export { DeepAnalysisPanel } from "./deep-analysis-panel";
+export { ActivityLog } from "./activity-log";
+export { MarketStatus } from "./market-status";
+export { TodaysSummary } from "./todays-summary";
+export { PortfolioHeatmap } from "./portfolio-heatmap";

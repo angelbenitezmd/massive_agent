@@ -1,9 +1,16 @@
 "use client";
 
+import { memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Flame, TrendingUp, TrendingDown, ArrowRight } from "lucide-react";
+import { Flame, TrendingUp, TrendingDown, ArrowRight, Info } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface MoverItem {
   ticker: string;
@@ -19,7 +26,7 @@ interface MarketMoversProps {
   isLoading?: boolean;
 }
 
-export function MarketMovers({
+export const MarketMovers = memo(function MarketMovers({
   watchlistResults = [],
   spicyResults = [],
   onSelectTicker,
@@ -47,11 +54,29 @@ export function MarketMovers({
     .slice(0, 3);
 
   return (
+    <TooltipProvider>
     <Card className="bg-card border-border">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <Flame className="h-4 w-4 text-orange-500" />
           Market Movers
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Info className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[280px] p-3">
+              <div className="space-y-2 text-xs">
+                <p className="font-semibold">Market Movers</p>
+                <p>Quick view of stocks with strongest AI signals.</p>
+                <div className="space-y-1 pt-1">
+                  <p><strong>Bullish:</strong> Score 60+ (buy signals)</p>
+                  <p><strong>Bearish:</strong> Score 40 or below (sell/avoid)</p>
+                  <p><strong>Hot Momentum:</strong> High-volatility stocks with score 65+</p>
+                </div>
+                <p className="text-muted-foreground">Click any ticker to switch analysis focus.</p>
+              </div>
+            </TooltipContent>
+          </Tooltip>
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
@@ -151,5 +176,6 @@ export function MarketMovers({
         </div>
       </CardContent>
     </Card>
+    </TooltipProvider>
   );
-}
+});

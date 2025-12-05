@@ -1,10 +1,10 @@
 """Aggregate market, AI agent, and risk data for the Streamlit dashboard."""
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.core.config_simple import get_settings
+from app.core.config import get_settings
 from app.core.errors import (
     AlpacaAPIError,
     BenzingaAPIError,
@@ -19,6 +19,47 @@ from app.services.benzinga_client import BenzingaClient
 from app.services.risk_engine import RiskDecision, RiskEngine
 
 logger = logging.getLogger(__name__)
+
+
+def _quick_news_sentiment(news_items: List[NewsItem]) -> Dict[str, float]:
+    """
+    Quick sentiment analysis based on keywords.
+    Standalone version to avoid langchain dependency.
+    """
+    positive_keywords = {
+        "upgrade", "beat", "surpass", "exceed", "positive", "growth",
+        "profit", "revenue", "bullish", "buy", "outperform", "strong"
+    }
+
+    negative_keywords = {
+        "downgrade", "miss", "below", "negative", "loss", "decline",
+        "bearish", "sell", "underperform", "weak", "concern", "risk"
+    }
+
+    positive_count = 0
+    negative_count = 0
+    total_count = len(news_items)
+
+    for item in news_items:
+        text = (item.title + " " + (item.teaser or "")).lower()
+
+        for keyword in positive_keywords:
+            if keyword in text:
+                positive_count += 1
+                break
+
+        for keyword in negative_keywords:
+            if keyword in text:
+                negative_count += 1
+                break
+
+    if total_count == 0:
+        return {"sentiment": 0.0, "confidence": 0.0}
+
+    sentiment = (positive_count - negative_count) / total_count
+    confidence = (positive_count + negative_count) / total_count
+
+    return {"sentiment": sentiment, "confidence": confidence}
 
 
 def _safe_iso(dt: Optional[datetime]) -> Optional[str]:
@@ -110,52 +151,69 @@ class DashboardService:
     async def _fetch_quote_and_bars(
         self, ticker: str, alpaca: AlpacaClient
     ) -> Tuple[Optional[QuoteModel], List[Dict[str, Any]]]:
+        """Fetch quote and bars in parallel for better performance."""
         quote: Optional[QuoteModel] = None
         bars: List[Dict[str, Any]] = []
 
-        try:
-            quote = await alpaca.get_latest_quote(ticker)
-        except Exception as exc:  # noqa: BLE001
-            logger.error(f"Failed to fetch quote for {ticker}: {exc}")
+        # Fetch quote and bars in parallel
+        async def fetch_quote():
+            try:
+                return await alpaca.get_latest_quote(ticker)
+            except Exception as exc:  # noqa: BLE001
+                logger.error(f"Failed to fetch quote for {ticker}: {exc}")
+                return None
 
-        try:
-            bars = await alpaca.get_bars(ticker, timeframe="5Min", limit=150)
-        except Exception as exc:  # noqa: BLE001
-            logger.error(f"Failed to fetch bars for {ticker}: {exc}")
+        async def fetch_bars():
+            try:
+                # Reduced to 100 bars for faster response (still enough for technical analysis)
+                return await alpaca.get_bars(ticker, timeframe="5Min", limit=100)
+            except Exception as exc:  # noqa: BLE001
+                logger.error(f"Failed to fetch bars for {ticker}: {exc}")
+                return []
 
+        quote, bars = await asyncio.gather(fetch_quote(), fetch_bars())
         return quote, bars
 
     async def _fetch_news_and_earnings(
         self, ticker: str, benzinga: BenzingaClient
     ) -> Tuple[List[NewsItem], List[EarningsItem]]:
+        """Fetch news and earnings in parallel for better performance."""
         news_items: List[NewsItem] = []
         earnings_items: List[EarningsItem] = []
-        try:
-            news_resp = await benzinga.get_news(
-                tickers=ticker,
-                published_gte=datetime.utcnow() - timedelta(days=3),
-                limit=15,
-            )
-            news_items = news_resp.results
-        except Exception as exc:  # noqa: BLE001
-            logger.error(f"Failed to fetch news for {ticker}: {exc}")
 
-        try:
-            earnings_resp = await benzinga.get_earnings(
-                ticker=ticker,
-                date_gte=(datetime.utcnow() - timedelta(days=120)).date(),
-                limit=3,
-                sort="date.desc",
-            )
-            earnings_items = earnings_resp.results
-        except Exception as exc:  # noqa: BLE001
-            logger.error(f"Failed to fetch earnings for {ticker}: {exc}")
+        # Fetch news and earnings in parallel
+        async def fetch_news():
+            try:
+                # Reduced to 1 day for faster response
+                news_resp = await benzinga.get_news(
+                    tickers=ticker,
+                    published_gte=(datetime.utcnow() - timedelta(days=1)).strftime("%Y-%m-%d"),
+                    limit=15,
+                )
+                return news_resp.results
+            except Exception as exc:  # noqa: BLE001
+                logger.error(f"Failed to fetch news for {ticker}: {exc}")
+                return []
 
+        async def fetch_earnings():
+            try:
+                earnings_resp = await benzinga.get_earnings(
+                    ticker=ticker,
+                    date_gte=(datetime.utcnow() - timedelta(days=120)).date(),
+                    limit=3,
+                    sort="date.desc",
+                )
+                return earnings_resp.results
+            except Exception as exc:  # noqa: BLE001
+                logger.error(f"Failed to fetch earnings for {ticker}: {exc}")
+                return []
+
+        news_items, earnings_items = await asyncio.gather(fetch_news(), fetch_earnings())
         return news_items, earnings_items
 
     def _analyze_news(self, news_items: List[NewsItem]) -> AgentScore:
         """Create a lightweight news sentiment signal without LLM."""
-        sentiment_metrics = NewsAnalyzer.quick_sentiment(news_items)
+        sentiment_metrics = _quick_news_sentiment(news_items)
         sentiment = sentiment_metrics.get("sentiment", 0.0)
         confidence = sentiment_metrics.get("confidence", 0.0)
         score = _clamp(50 + sentiment * 50, 0, 100)
@@ -163,7 +221,7 @@ class DashboardService:
         urgency = 0.0
         if news_items:
             latest = news_items[0]
-            age_seconds = (datetime.utcnow() - latest.published).total_seconds()
+            age_seconds = (datetime.now(timezone.utc) - latest.published).total_seconds()
             if age_seconds < 300:
                 urgency = 0.9
             elif age_seconds < 3600:
@@ -329,7 +387,7 @@ class DashboardService:
             return "UNKNOWN", None
 
         daily_pnl = account.equity - account.last_equity
-        pnl_pct = daily_pnl / account.last_equity if account.last_equity else 0.0
+        pnl_pct = daily_pnl / account.last_equity if account.last_equity and account.last_equity > 0 else 0.0
 
         max_loss = self.settings.TRADING_DAILY_MAX_DRAWDOWN
         if pnl_pct <= -max_loss:
@@ -346,17 +404,43 @@ class DashboardService:
         errors: List[str] = []
 
         async with AlpacaClient() as alpaca, BenzingaClient() as benzinga:
-            quote, bars = await self._fetch_quote_and_bars(ticker, alpaca)
-            news_items, earnings_items = await self._fetch_news_and_earnings(ticker, benzinga)
+            # Fetch all independent data in parallel for maximum performance
+            async def fetch_market_data():
+                return await self._fetch_quote_and_bars(ticker, alpaca)
 
-            account: Optional[AccountModel] = None
-            positions: List[PositionModel] = []
-            try:
-                account = await alpaca.get_account()
-                positions = await alpaca.get_positions()
-            except Exception as exc:  # noqa: BLE001
-                logger.error(f"Failed to fetch account/positions: {exc}")
-                errors.append("Unable to fetch account or positions")
+            async def fetch_benzinga_data():
+                return await self._fetch_news_and_earnings(ticker, benzinga)
+
+            async def fetch_account_data():
+                account: Optional[AccountModel] = None
+                positions: List[PositionModel] = []
+                try:
+                    # Fetch account and positions in parallel
+                    account_task = alpaca.get_account()
+                    positions_task = alpaca.get_positions()
+                    account, positions = await asyncio.gather(
+                        account_task, positions_task, return_exceptions=True
+                    )
+                    # Handle exceptions
+                    if isinstance(account, Exception):
+                        logger.error(f"Failed to fetch account: {account}")
+                        account = None
+                        errors.append("Unable to fetch account")
+                    if isinstance(positions, Exception):
+                        logger.error(f"Failed to fetch positions: {positions}")
+                        positions = []
+                        errors.append("Unable to fetch positions")
+                except Exception as exc:  # noqa: BLE001
+                    logger.error(f"Failed to fetch account/positions: {exc}")
+                    errors.append("Unable to fetch account or positions")
+                return account, positions
+
+            # Run all three groups in parallel
+            (quote, bars), (news_items, earnings_items), (account, positions) = await asyncio.gather(
+                fetch_market_data(),
+                fetch_benzinga_data(),
+                fetch_account_data(),
+            )
 
         news_score = self._analyze_news(news_items)
         earnings_score = self._analyze_earnings(earnings_items)

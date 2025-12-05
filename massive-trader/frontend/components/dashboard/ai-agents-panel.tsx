@@ -6,6 +6,7 @@ import {
   DollarSign,
   TrendingUp,
   ChevronRight,
+  Info,
 } from "lucide-react";
 import {
   Card,
@@ -16,10 +17,17 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn, getDirectionBgColor } from "@/lib/utils";
 import type { AgentSignal, Direction } from "@/types";
 
 interface AIAgentsPanelProps {
+  ticker?: string;
   newsAgent: AgentSignal | undefined;
   earningsAgent: AgentSignal | undefined;
   technicalAgent: AgentSignal | undefined;
@@ -37,12 +45,12 @@ function AgentCard({
 }) {
   if (!agent) {
     return (
-      <div className="p-4 rounded-lg bg-secondary/30 space-y-3">
+      <div className="p-3 rounded-lg bg-secondary/30 space-y-1">
         <div className="flex items-center gap-2">
-          <Icon className="h-5 w-5 text-muted-foreground" />
-          <span className="font-medium">{title}</span>
+          <Icon className="h-4 w-4 text-muted-foreground" />
+          <span className="font-medium text-sm">{title}</span>
         </div>
-        <p className="text-sm text-muted-foreground">Awaiting analysis...</p>
+        <p className="text-xs text-muted-foreground">Awaiting analysis...</p>
       </div>
     );
   }
@@ -59,37 +67,34 @@ function AgentCard({
   };
 
   return (
-    <div className="p-4 rounded-lg bg-secondary/30 space-y-3">
+    <div className="p-3 rounded-lg bg-secondary/30 space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Icon className="h-5 w-5 text-primary" />
-          <span className="font-medium">{title}</span>
+          <Icon className="h-4 w-4 text-primary" />
+          <span className="font-medium text-sm">{title}</span>
         </div>
-        <Badge className={cn("capitalize", getDirectionBgColor(agent.direction))}>
+        <Badge className={cn("capitalize text-xs", getDirectionBgColor(agent.direction))}>
           {getDirectionIcon(agent.direction)}
           <span className="ml-1">{agent.direction}</span>
         </Badge>
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Confidence</span>
-          <span className="font-medium">
-            {Math.round(agent.confidence * 100)}%
-          </span>
-        </div>
+      <div className="flex items-center gap-2">
         <Progress
           value={agent.confidence * 100}
           className={cn(
-            "h-2",
+            "h-1.5 flex-1",
             agent.direction === "bullish" && "[&>div]:bg-green-500",
             agent.direction === "bearish" && "[&>div]:bg-red-500",
             agent.direction === "neutral" && "[&>div]:bg-yellow-500"
           )}
         />
+        <span className="text-xs font-medium w-8">
+          {Math.round(agent.confidence * 100)}%
+        </span>
       </div>
 
-      <p className="text-sm text-muted-foreground line-clamp-3">
+      <p className="text-xs text-muted-foreground line-clamp-2">
         {agent.reasoning}
       </p>
     </div>
@@ -97,6 +102,7 @@ function AgentCard({
 }
 
 export function AIAgentsPanel({
+  ticker,
   newsAgent,
   earningsAgent,
   technicalAgent,
@@ -109,6 +115,7 @@ export function AIAgentsPanel({
           <CardTitle className="flex items-center gap-2">
             <Brain className="h-5 w-5" />
             AI Agents
+            {ticker && <Badge variant="outline" className="text-[10px] font-bold">{ticker}</Badge>}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -125,21 +132,41 @@ export function AIAgentsPanel({
   }
 
   return (
-    <Card className="card-hover">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2">
-          <Brain className="h-5 w-5 text-primary" />
-          AI Agents Analysis
-        </CardTitle>
-        <CardDescription>
-          Multi-agent consensus for trading decisions
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <TooltipProvider>
+      <Card className="card-hover">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2">
+            <Brain className="h-5 w-5 text-primary" />
+            AI Agents Analysis
+            {ticker && <Badge variant="outline" className="text-[10px] font-bold">{ticker}</Badge>}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Info className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground cursor-help" />
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-[300px] p-3">
+                <div className="space-y-2 text-xs">
+                  <p className="font-semibold">AI Agents Explained</p>
+                  <div className="space-y-1.5">
+                    <p><strong>News Agent:</strong> Analyzes recent headlines and sentiment from financial news sources.</p>
+                    <p><strong>Earnings Agent:</strong> Evaluates earnings reports, surprises, and forward guidance.</p>
+                    <p><strong>Technical Agent:</strong> Uses RSI, MACD, and moving averages to assess momentum.</p>
+                  </div>
+                  <div className="pt-1 border-t border-border">
+                    <p className="text-muted-foreground">Each agent votes bullish, bearish, or neutral. Confidence shows how certain the agent is.</p>
+                  </div>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </CardTitle>
+          <CardDescription>
+            Multi-agent consensus for trading decisions
+          </CardDescription>
+        </CardHeader>
+      <CardContent className="space-y-2 pt-0">
         <AgentCard
           agent={newsAgent}
           icon={Newspaper}
-          title="News/Sentiment Agent"
+          title="News Agent"
         />
         <AgentCard
           agent={earningsAgent}
@@ -149,9 +176,10 @@ export function AIAgentsPanel({
         <AgentCard
           agent={technicalAgent}
           icon={TrendingUp}
-          title="Technical Momentum Agent"
+          title="Technical Agent"
         />
       </CardContent>
-    </Card>
+      </Card>
+    </TooltipProvider>
   );
 }

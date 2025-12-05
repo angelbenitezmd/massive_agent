@@ -47,7 +47,7 @@ class BenzingaClient:
         await self.http_client.__aexit__(exc_type, exc_val, exc_tb)
 
     def _build_params(self, **kwargs) -> Dict[str, Any]:
-        """Build query parameters, converting underscores to dots."""
+        """Build query parameters, converting underscores to dots and formatting dates."""
         params = {}
         for key, value in kwargs.items():
             if value is not None:
@@ -57,6 +57,15 @@ class BenzingaClient:
                     parts = key.split("_", 1)
                     if len(parts) == 2 and parts[1] in ["gt", "gte", "lt", "lte", "any_of", "all_of"]:
                         key = f"{parts[0]}.{parts[1]}"
+
+                # Format datetime/date values to YYYY-MM-DD (Benzinga requires date only)
+                if isinstance(value, datetime):
+                    value = value.strftime("%Y-%m-%d")
+                elif isinstance(value, date) and not isinstance(value, datetime):
+                    value = value.strftime("%Y-%m-%d")
+                elif isinstance(value, list):
+                    value = ",".join(str(v) for v in value)
+
                 params[key] = value
         return params
 
