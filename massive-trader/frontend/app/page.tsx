@@ -113,6 +113,7 @@ export default function DashboardPage() {
         quantity: 10, // Default quantity
         reasoning: `AI Score: ${found.aiScore}/100, Momentum: ${found.momentumScore}/100, Combined: ${found.combinedScore.toFixed(1)}/100`,
         contributingAgents: ["AI Analyst", "Momentum Scanner"],
+        timestamp: new Date().toISOString(),
       };
     }
 
