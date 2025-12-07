@@ -114,7 +114,7 @@ export function ScannerPanel({ selectedTicker, onSelectTicker }: ScannerPanelPro
                     <p className="font-semibold">Stock Scanner</p>
                     <p>Scans your watchlist and high-volatility stocks for trading opportunities using AI analysis.</p>
                     <div className="space-y-1 pt-1">
-                      <p><strong>Watchlist:</strong> Stocks you're tracking</p>
+                      <p><strong>Watchlist:</strong> Stocks you&apos;re tracking</p>
                       <p><strong>High Volatility:</strong> Stocks with unusual movement</p>
                     </div>
                     <p className="text-muted-foreground">Score 70+ with BUY = strong opportunity. Click any ticker to analyze.</p>

@@ -89,7 +89,7 @@ export const TodaysSummary = memo(function TodaysSummary({
               )}
             </div>
             <div>
-              <div className="text-xs text-muted-foreground">Today's P&L</div>
+              <div className="text-xs text-muted-foreground">Today&apos;s P&L</div>
               <div className={cn(
                 "text-lg font-bold",
                 totalUnrealizedPL >= 0 ? "text-green-500" : "text-red-500"

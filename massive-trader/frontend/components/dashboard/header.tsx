@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   Activity,
+  AlertTriangle,
   Circle,
   RefreshCw,
   Settings,
@@ -68,10 +69,18 @@ export function Header({
 
   const handlePanicClose = async () => {
     try {
-      await panicMutation.mutateAsync();
-      setPanicDialogOpen(false);
+      const result = await panicMutation.mutateAsync();
+      // Check if market was closed
+      if (result.positions?.status === "market_closed") {
+        alert(`⚠️ Market is CLOSED!\n\n${result.positions.message}\n\nPositions will remain open until market opens.`);
+      } else if (result.positions?.status === "all_closed") {
+        setPanicDialogOpen(false);
+      } else {
+        setPanicDialogOpen(false);
+      }
     } catch (error) {
       console.error("Panic close failed:", error);
+      alert("Failed to close positions. Check console for details.");
     }
   };
 
