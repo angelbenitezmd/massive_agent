@@ -275,6 +275,8 @@ class DashboardService:
         latest_price: Optional[float],
     ) -> Dict[str, Any]:
         """Calculate technical indicators and return an AgentScore plus raw values."""
+        if not bars:
+            bars = []
         closes = [bar.get("c") or bar.get("close") for bar in bars if bar.get("c") or bar.get("close")]
         if not closes and latest_price:
             closes = [latest_price]
@@ -283,6 +285,7 @@ class DashboardService:
         macd_vals = _macd(closes) if closes else {"macd": None, "signal": None, "histogram": None}
         sma_20 = _sma(closes, 20)
         sma_50 = _sma(closes, 50)
+        sma_200 = _sma(closes, 200) if len(closes) >= 200 else None
         ema_20 = _ema(closes, 20)
         ema_50 = _ema(closes, 50)
 
@@ -331,6 +334,7 @@ class DashboardService:
                 "macd_histogram": macd_vals.get("histogram"),
                 "sma_20": sma_20,
                 "sma_50": sma_50,
+                "sma_200": sma_200,
                 "ema_20": ema_20,
                 "ema_50": ema_50,
             },
@@ -476,7 +480,7 @@ class DashboardService:
 
         risk_decision: Optional[RiskDecision] = None
         risk_message: Optional[str] = None
-        if account and quote:
+        if account and quote and quote.last and quote.last > 0:
             risk_decision, risk_message = await self._evaluate_risk(
                 strategy_signal,
                 account,
@@ -485,6 +489,8 @@ class DashboardService:
             )
         elif not account:
             risk_message = "Account unavailable - cannot size trade"
+        elif not quote or not quote.last or quote.last <= 0:
+            risk_message = "Quote unavailable - cannot size trade"
 
         circuit_level, daily_pnl_pct = self._circuit_breaker_level(account)
 

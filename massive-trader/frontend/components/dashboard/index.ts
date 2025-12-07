@@ -16,3 +16,6 @@ export { ActivityLog } from "./activity-log";
 export { MarketStatus } from "./market-status";
 export { TodaysSummary } from "./todays-summary";
 export { PortfolioHeatmap } from "./portfolio-heatmap";
+export { PortfolioChart } from "./portfolio-chart";
+export { TickerSelector } from "./ticker-selector";
+export { TradeSignalCard } from "./trade-signal-card";

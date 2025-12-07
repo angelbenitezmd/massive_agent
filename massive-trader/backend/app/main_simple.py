@@ -429,7 +429,13 @@ async def get_quote(ticker: str):
     try:
         client = get_alpaca_data_client()
         if client:
-            from alpaca.data.requests import StockLatestQuoteRequest, StockLatestTradeRequest
+            from alpaca.data.requests import StockLatestQuoteRequest, StockLatestTradeRequest, StockBarsRequest
+            from alpaca.data.timeframe import TimeFrame
+
+            current_price = 0
+            prev_close = 0
+            volume = 0
+            source = "alpaca"
 
             # First try to get latest trade (more accurate for after hours)
             try:
@@ -437,49 +443,66 @@ async def get_quote(ticker: str):
                 trades = client.get_stock_latest_trade(trade_request)
                 if ticker in trades:
                     trade = trades[ticker]
-                    trade_price = float(trade.price) if trade.price else 0
-                    if trade_price > 0:
-                        return {
-                            "ticker": ticker,
-                            "price": round(trade_price, 2),
-                            "change": 0,
-                            "change_percent": 0,
-                            "volume": int(trade.size) if trade.size else 0,
-                            "timestamp": datetime.utcnow().isoformat(),
-                            "source": "alpaca_trade"
-                        }
+                    current_price = float(trade.price) if trade.price else 0
+                    volume = int(trade.size) if trade.size else 0
+                    source = "alpaca_trade"
             except Exception as e:
                 logger.debug(f"Failed to get latest trade for {ticker}: {e}")
 
-            # Fallback to quote
-            request = StockLatestQuoteRequest(symbol_or_symbols=[ticker])
-            quotes = client.get_stock_latest_quote(request)
+            # Fallback to quote if no trade
+            if current_price == 0:
+                try:
+                    request = StockLatestQuoteRequest(symbol_or_symbols=[ticker])
+                    quotes = client.get_stock_latest_quote(request)
+                    if ticker in quotes:
+                        quote = quotes[ticker]
+                        bid = float(quote.bid_price) if quote.bid_price else 0
+                        ask = float(quote.ask_price) if quote.ask_price else 0
+                        if bid > 0 and ask > 0:
+                            current_price = (bid + ask) / 2
+                        elif bid > 0:
+                            current_price = bid
+                        elif ask > 0:
+                            current_price = ask
+                        source = "alpaca_quote"
+                except Exception as e:
+                    logger.debug(f"Failed to get quote for {ticker}: {e}")
 
-            if ticker in quotes:
-                quote = quotes[ticker]
-                bid = float(quote.bid_price) if quote.bid_price else 0
-                ask = float(quote.ask_price) if quote.ask_price else 0
-                # Use mid price, or just bid/ask if one is missing (after hours)
-                if bid > 0 and ask > 0:
-                    price = (bid + ask) / 2
-                elif bid > 0:
-                    price = bid
-                elif ask > 0:
-                    price = ask
-                else:
-                    price = 0
+            # Get previous day's close for change calculation
+            if current_price > 0:
+                try:
+                    # Get the last 2 daily bars to find previous close
+                    bars_request = StockBarsRequest(
+                        symbol_or_symbols=[ticker],
+                        timeframe=TimeFrame.Day,
+                        limit=2
+                    )
+                    bars = client.get_stock_bars(bars_request)
+                    if ticker in bars and bars[ticker]:
+                        bar_list = list(bars[ticker])
+                        if len(bar_list) >= 2:
+                            # Previous day's close
+                            prev_close = float(bar_list[-2].close)
+                        elif len(bar_list) == 1:
+                            # Use today's open as fallback
+                            prev_close = float(bar_list[-1].open)
+                except Exception as e:
+                    logger.debug(f"Failed to get bars for change calc {ticker}: {e}")
 
-                if price > 0:
-                    return {
-                        "ticker": ticker,
-                        "price": round(price, 2),
-                        "bid": bid,
-                        "ask": ask,
-                        "change": 0,
-                        "change_percent": 0,
-                        "timestamp": datetime.utcnow().isoformat(),
-                        "source": "alpaca_quote"
-                    }
+            if current_price > 0:
+                change = current_price - prev_close if prev_close > 0 else 0
+                change_percent = (change / prev_close * 100) if prev_close > 0 else 0
+
+                return {
+                    "ticker": ticker,
+                    "price": round(current_price, 2),
+                    "change": round(change, 2),
+                    "change_percent": round(change_percent, 2),
+                    "volume": volume,
+                    "prev_close": round(prev_close, 2) if prev_close > 0 else None,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "source": source
+                }
     except Exception as e:
         logger.warning(f"Failed to get Alpaca quote for {ticker}: {e}")
 
@@ -578,13 +601,22 @@ async def get_bars(
 
             if bars_list:
                 result = []
+                # Import pytz for timezone conversion
+                import pytz
+                eastern = pytz.timezone('America/New_York')
+
                 for i, bar in enumerate(bars_list[-limit:]):  # Get last N bars
                     bar_time = bar.timestamp
+                    # Convert to Eastern time for display
+                    bar_time_et = bar_time.astimezone(eastern)
                     # Format time based on timeframe
                     if timeframe in ["1D", "1Day"]:
-                        t_str = bar_time.strftime("%m/%d")
+                        t_str = bar_time_et.strftime("%m/%d")
+                    elif timeframe in ["1H", "1Hour", "4Hour"]:
+                        t_str = bar_time_et.strftime("%m/%d %-I%p").replace("AM", "am").replace("PM", "pm")
                     else:
-                        t_str = bar_time.strftime("%H:%M")
+                        # Minute bars - show 12-hour format with AM/PM
+                        t_str = bar_time_et.strftime("%-I:%M%p").replace("AM", "am").replace("PM", "pm")
 
                     result.append({
                         "time": i,
@@ -620,6 +652,10 @@ async def get_bars(
     current_price = base_price * 0.98
     now = datetime.utcnow()
 
+    # Import pytz for timezone conversion
+    import pytz
+    eastern = pytz.timezone('America/New_York')
+
     for i in range(limit):
         bar_time = now - timedelta(minutes=interval_minutes * (limit - 1 - i))
         change_pct = random.uniform(-0.003, 0.0035)
@@ -629,10 +665,15 @@ async def get_bars(
         low = current_price * (1 - random.uniform(0, 0.002))
         open_price = current_price * (1 + random.uniform(-0.001, 0.001))
 
+        # Convert to Eastern time for display
+        bar_time_et = bar_time.replace(tzinfo=pytz.UTC).astimezone(eastern)
         if timeframe in ["1D", "1Day"]:
-            t_str = bar_time.strftime("%m/%d")
+            t_str = bar_time_et.strftime("%m/%d")
+        elif timeframe in ["1H", "1Hour", "4Hour"]:
+            t_str = bar_time_et.strftime("%m/%d %-I%p").replace("AM", "am").replace("PM", "pm")
         else:
-            t_str = bar_time.strftime("%H:%M")
+            # Minute bars - show 12-hour format with AM/PM
+            t_str = bar_time_et.strftime("%-I:%M%p").replace("AM", "am").replace("PM", "pm")
 
         bars.append({
             "time": i,
@@ -687,67 +728,160 @@ async def get_sentiment(ticker: str):
         return_exceptions=True
     )
 
-    # Calculate sentiment score
-    sentiment_score = 50  # Neutral baseline
+    # Calculate sentiment score using component-based system
+    # Each component contributes to a weighted average, avoiding artificial extremes
 
-    # Enhanced news sentiment with more keywords
+    components = []  # List of (score, weight) tuples
+
+    # === NEWS SENTIMENT (weight: 25%) ===
+    # Analyze news with diminishing returns and deduplication
+    news_score = 50  # Neutral baseline for this component
     if isinstance(news, dict) and "results" in news:
-        news_count = len(news.get("results", []))
-        for item in news.get("results", [])[:10]:
+        news_items = news.get("results", [])[:10]
+        positive_signals = 0
+        negative_signals = 0
+        seen_themes = set()  # Deduplicate similar headlines
+
+        for item in news_items:
             title = item.get("title", "").lower()
-            # Positive signals
-            if any(word in title for word in ["upgrade", "beat", "beats", "surge", "rally", "gain", "soar",
-                                              "jump", "rise", "bullish", "outperform", "strong", "record"]):
-                sentiment_score += 4
-            # Negative signals
-            elif any(word in title for word in ["downgrade", "miss", "misses", "fall", "drop", "loss",
-                                                "plunge", "crash", "bearish", "underperform", "weak", "concern"]):
-                sentiment_score -= 4
-            # Major positive
-            elif any(word in title for word in ["breakthrough", "exceeds expectations", "all-time high"]):
-                sentiment_score += 8
-            # Major negative
-            elif any(word in title for word in ["bankruptcy", "investigation", "lawsuit", "recall"]):
-                sentiment_score -= 8
 
-    # Earnings sentiment
+            # Create a simple theme key to avoid counting same story multiple times
+            theme_words = [w for w in ["upgrade", "downgrade", "beat", "miss", "earnings", "rating"] if w in title]
+            theme_key = "_".join(sorted(theme_words)) if theme_words else title[:30]
+
+            if theme_key in seen_themes:
+                continue
+            seen_themes.add(theme_key)
+
+            # Score based on keywords
+            if any(word in title for word in ["upgrade", "beat", "beats", "surge", "rally", "soar",
+                                              "jump", "bullish", "outperform", "record", "breakthrough"]):
+                positive_signals += 1
+            elif any(word in title for word in ["downgrade", "miss", "misses", "plunge", "crash",
+                                                "bearish", "underperform", "bankruptcy", "investigation"]):
+                negative_signals += 1
+            # Mild signals
+            elif any(word in title for word in ["gain", "rise", "strong", "growth"]):
+                positive_signals += 0.5
+            elif any(word in title for word in ["fall", "drop", "loss", "weak", "concern", "decline"]):
+                negative_signals += 0.5
+
+        # Convert to score with diminishing returns (sqrt scaling)
+        # Max ~3 strong signals move score significantly
+        net_signals = positive_signals - negative_signals
+        if net_signals > 0:
+            news_score = 50 + min(25, 10 * (net_signals ** 0.7))  # Max ~75
+        elif net_signals < 0:
+            news_score = 50 - min(25, 10 * (abs(net_signals) ** 0.7))  # Min ~25
+
+        if news_items:
+            components.append((news_score, 0.25))
+
+    # === EARNINGS SENTIMENT (weight: 30%) ===
+    # Most recent earnings matter most
+    earnings_score = 50
     if isinstance(earnings, dict) and "results" in earnings:
-        for earning in earnings.get("results", [])[:3]:
-            # Check if earnings beat or miss
+        earnings_items = earnings.get("results", [])[:3]
+        earnings_signals = []
+
+        for i, earning in enumerate(earnings_items):
             if earning.get("estimated_eps") and earning.get("actual_eps"):
-                estimated = earning["estimated_eps"]
-                actual = earning["actual_eps"]
-                if actual > estimated * 1.05:  # Beat by 5%+
-                    sentiment_score += 10
-                elif actual < estimated * 0.95:  # Miss by 5%+
-                    sentiment_score -= 10
+                try:
+                    estimated = float(earning["estimated_eps"])
+                    actual = float(earning["actual_eps"])
+                    if estimated != 0:
+                        surprise_pct = (actual - estimated) / abs(estimated)
+                        # Weight by recency (most recent = 1.0, older = 0.5, oldest = 0.25)
+                        recency_weight = 1.0 / (2 ** i)
+                        earnings_signals.append((surprise_pct, recency_weight))
+                except (ValueError, TypeError):
+                    pass
 
-            # Upcoming earnings importance
-            importance = earning.get("importance", 0)
-            if importance >= 4:  # High importance upcoming earnings
-                sentiment_score += 2
+        if earnings_signals:
+            # Weighted average of earnings surprises
+            total_weight = sum(w for _, w in earnings_signals)
+            weighted_surprise = sum(s * w for s, w in earnings_signals) / total_weight
 
-    # Ratings sentiment (if available)
+            # Convert surprise % to score adjustment (10% beat = +15 points, capped)
+            adjustment = max(-25, min(25, weighted_surprise * 150))
+            earnings_score = 50 + adjustment
+            components.append((earnings_score, 0.30))
+
+    # === ANALYST RATINGS (weight: 25%) ===
+    # Recent rating changes
+    ratings_score = 50
     if isinstance(ratings, dict) and "results" in ratings:
-        for rating in ratings.get("results", [])[:3]:
-            action = rating.get("rating_action", "")
-            if "upgrade" in action:
-                sentiment_score += 10
-            elif "downgrade" in action:
-                sentiment_score -= 10
+        ratings_items = ratings.get("results", [])[:5]
+        upgrades = 0
+        downgrades = 0
 
-    # Consensus sentiment (if available)
+        for rating in ratings_items:
+            action = rating.get("rating_action", "").lower()
+            if "upgrade" in action:
+                upgrades += 1
+            elif "downgrade" in action:
+                downgrades += 1
+
+        if upgrades or downgrades:
+            # Net rating changes, with diminishing returns
+            net = upgrades - downgrades
+            if net > 0:
+                ratings_score = 50 + min(20, 8 * net)  # Max ~70
+            elif net < 0:
+                ratings_score = 50 - min(20, 8 * abs(net))  # Min ~30
+            components.append((ratings_score, 0.25))
+
+    # === ANALYST CONSENSUS (weight: 20%) ===
+    # Current overall consensus
+    consensus_score = 50
     if isinstance(consensus, dict) and "results" in consensus:
         if consensus["results"]:
             cons = consensus["results"][0]
-            rating = cons.get("consensus_rating", "")
-            if "buy" in rating:
-                sentiment_score += 15
-            elif "sell" in rating:
-                sentiment_score -= 15
+            rating = cons.get("consensus_rating", "").lower()
 
-    # Cap score between 0 and 100
-    sentiment_score = max(0, min(100, sentiment_score))
+            if "strong buy" in rating:
+                consensus_score = 72
+            elif "buy" in rating:
+                consensus_score = 65
+            elif "hold" in rating or "neutral" in rating:
+                consensus_score = 50
+            elif "sell" in rating:
+                consensus_score = 35
+            elif "strong sell" in rating:
+                consensus_score = 28
+
+            components.append((consensus_score, 0.20))
+
+    # === CALCULATE FINAL SCORE ===
+    if components:
+        total_weight = sum(w for _, w in components)
+        sentiment_score = sum(s * w for s, w in components) / total_weight
+
+        # Conviction bonus: when multiple components strongly agree, boost the score
+        # This allows scores to reach 90+ when signals truly align
+        if len(components) >= 3:
+            component_scores_list = [s for s, _ in components]
+            all_bullish = all(s >= 62 for s in component_scores_list)
+            all_bearish = all(s <= 38 for s in component_scores_list)
+
+            if all_bullish:
+                # Strong agreement - boost proportionally to how bullish
+                avg_above_neutral = sum(s - 50 for s in component_scores_list) / len(component_scores_list)
+                conviction_bonus = min(12, avg_above_neutral * 0.5)
+                sentiment_score += conviction_bonus
+            elif all_bearish:
+                # Strong bearish agreement
+                avg_below_neutral = sum(50 - s for s in component_scores_list) / len(component_scores_list)
+                conviction_penalty = min(12, avg_below_neutral * 0.5)
+                sentiment_score -= conviction_penalty
+    else:
+        sentiment_score = 50  # No data = neutral
+
+    # Round to 1 decimal place
+    sentiment_score = round(sentiment_score, 1)
+
+    # Allow full range but scores near extremes require genuine conviction
+    sentiment_score = max(5, min(95, sentiment_score))
 
     # Determine sentiment label
     if sentiment_score >= 70:
@@ -761,10 +895,22 @@ async def get_sentiment(ticker: str):
     else:
         sentiment = "neutral"
 
+    # Build component breakdown for transparency
+    component_scores = {}
+    if isinstance(news, dict) and news.get("results"):
+        component_scores["news"] = round(news_score, 1)
+    if isinstance(earnings, dict) and earnings.get("results"):
+        component_scores["earnings"] = round(earnings_score, 1)
+    if isinstance(ratings, dict) and ratings.get("results"):
+        component_scores["ratings"] = round(ratings_score, 1)
+    if isinstance(consensus, dict) and consensus.get("results"):
+        component_scores["consensus"] = round(consensus_score, 1)
+
     result = {
         "ticker": ticker,
         "sentiment": sentiment,
         "score": sentiment_score,
+        "components": component_scores,
         "sources": {
             "news_analyzed": len(news.get("results", [])) if isinstance(news, dict) else 0,
             "earnings_analyzed": len(earnings.get("results", [])) if isinstance(earnings, dict) else 0,
@@ -822,27 +968,26 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
         else:
             action = "WAIT"
 
-        # Only return if meets threshold
-        if momentum_score >= 70 or ai_score >= 75:
-            quote = await get_quote(ticker)
-            current_price = quote.get("price", 100)
+        # Get quote for all tickers (not just high-scoring ones)
+        quote = await get_quote(ticker)
+        current_price = quote.get("price", 100)
 
-            return {
-                "ticker": ticker,
-                "action": action,
-                "combined_score": round(combined_score, 1),
-                "momentum_score": momentum_score,
-                "ai_score": ai_score,
-                "entry_price": current_price,
-                "stop_loss": round(current_price * 0.995, 2),  # -0.5%
-                "take_profit": round(current_price * 1.015, 2),  # +1.5%
-                "quantity": 10,  # Start with 10 shares for paper trading
-                "signals": momentum["signals"][:2],
-                "strategy": "MOMENTUM" if momentum_score > ai_score else "AI_DRIVEN",
-                "urgency": momentum["urgency"],
-                "timestamp": datetime.utcnow().isoformat()
-            }
-        return None
+        # Always return a signal - let the frontend/execute logic decide thresholds
+        return {
+            "ticker": ticker,
+            "action": action,
+            "combined_score": round(combined_score, 1),
+            "momentum_score": momentum_score,
+            "ai_score": ai_score,
+            "entry_price": current_price,
+            "stop_loss": round(current_price * 0.995, 2),  # -0.5%
+            "take_profit": round(current_price * 1.015, 2),  # +1.5%
+            "quantity": 10,  # Start with 10 shares for paper trading
+            "signals": momentum.get("signals", [])[:2],
+            "strategy": "MOMENTUM" if momentum_score > ai_score else "AI_DRIVEN",
+            "urgency": momentum.get("urgency", "WAIT"),
+            "timestamp": datetime.utcnow().isoformat()
+        }
     except Exception as e:
         logger.error(f"Error analyzing {ticker}: {e}")
         return None
@@ -882,13 +1027,98 @@ async def get_best_trading_signal():
 
     return best_signal
 
+
+# Cache for all decisions
+_all_decisions_cache = {"data": None, "timestamp": 0}
+ALL_DECISIONS_CACHE_TTL = 60  # Cache for 1 minute
+
+@app.get("/api/trading/all-decisions")
+async def get_all_trade_decisions():
+    """Get trade decisions for ALL watchlist tickers (grouped by BUY/HOLD/SELL)."""
+    global _all_decisions_cache
+
+    now = datetime.utcnow().timestamp()
+
+    # Check cache
+    if _all_decisions_cache["data"] and (now - _all_decisions_cache["timestamp"]) < ALL_DECISIONS_CACHE_TTL:
+        return _all_decisions_cache["data"]
+
+    settings = get_settings()
+    # Use watchlist tickers
+    tickers = settings.watchlist[:50]  # Limit to 50 for performance
+
+    # Analyze all tickers in parallel
+    results = await asyncio.gather(
+        *[_analyze_ticker_for_signal(ticker) for ticker in tickers],
+        return_exceptions=True
+    )
+
+    # Group by action
+    buy_decisions = []
+    hold_decisions = []
+    sell_decisions = []
+
+    for result in results:
+        if result is None or isinstance(result, Exception):
+            continue
+
+        action = result.get("action", "HOLD")
+        decision = {
+            "ticker": result.get("ticker"),
+            "action": action,
+            "confidence": result.get("combined_score", 50) / 100,
+            "combinedScore": result.get("combined_score", 50),
+            "aiScore": result.get("ai_score", 50),
+            "momentumScore": result.get("momentum_score", 50),
+            "strategy": result.get("strategy", "UNKNOWN"),
+            "urgency": result.get("urgency", "WAIT"),
+            "entryPrice": result.get("entry_price", 0),
+            "stopLoss": result.get("stop_loss", 0),
+            "takeProfit": result.get("take_profit", 0),
+        }
+
+        if action == "BUY":
+            buy_decisions.append(decision)
+        elif action == "SELL":
+            sell_decisions.append(decision)
+        else:
+            hold_decisions.append(decision)
+
+    # Sort each group by combined score (descending)
+    buy_decisions.sort(key=lambda x: x["combinedScore"], reverse=True)
+    hold_decisions.sort(key=lambda x: x["combinedScore"], reverse=True)
+    sell_decisions.sort(key=lambda x: x["combinedScore"], reverse=True)
+
+    response = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "total": len(buy_decisions) + len(hold_decisions) + len(sell_decisions),
+        "buy": buy_decisions,
+        "hold": hold_decisions,
+        "sell": sell_decisions,
+        "counts": {
+            "buy": len(buy_decisions),
+            "hold": len(hold_decisions),
+            "sell": len(sell_decisions),
+        }
+    }
+
+    # Cache the result
+    _all_decisions_cache = {"data": response, "timestamp": now}
+
+    return response
+
+
 # Rate limiting for trade execution
 _last_trade_execution: dict = {"time": 0, "ticker": None}
 TRADE_COOLDOWN_SECONDS = 60  # 1 minute between trades
 
 @app.post("/api/trading/execute")
-async def execute_trade(auto: bool = False):
-    """Execute the best trade on Alpaca paper trading."""
+async def execute_trade(auto: bool = False, ticker: Optional[str] = None):
+    """Execute a trade on Alpaca paper trading.
+
+    If ticker is provided, analyze and trade that specific ticker.
+    If ticker is not provided, use the best overall signal.
+    """
     global _last_trade_execution
 
     # Rate limiting check
@@ -902,13 +1132,24 @@ async def execute_trade(auto: bool = False):
             "cooldown_remaining": remaining
         }
 
-    # Get best signal
-    signal = await get_best_trading_signal()
+    # Get signal for specific ticker or best overall
+    if ticker:
+        # Analyze the specific ticker requested
+        signal = await _analyze_ticker_for_signal(ticker)
+        if signal is None:
+            return {
+                "status": "error",
+                "message": f"Failed to analyze {ticker}",
+            }
+        logger.info(f"[Execute] Analyzing specific ticker: {ticker} -> {signal.get('action')} ({signal.get('combined_score', 0):.1f})")
+    else:
+        # Get best signal from all candidates
+        signal = await get_best_trading_signal()
 
-    if signal.get("action") == "WAIT":
+    if signal.get("action") == "WAIT" or signal.get("action") == "HOLD":
         return {
             "status": "no_trade",
-            "message": "No actionable signal",
+            "message": f"No actionable signal for {signal.get('ticker', 'unknown')} (action: {signal.get('action')})",
             "signal": signal
         }
 
@@ -1316,6 +1557,186 @@ async def get_orders(
         }
 
 
+@app.get("/api/portfolio/history")
+async def get_portfolio_history(
+    period: str = Query("1M", description="Period: 1D, 1W, 1M, 3M, 1A, all"),
+    timeframe: str = Query("1D", description="Timeframe: 1Min, 5Min, 15Min, 1H, 1D")
+):
+    """Get portfolio value history from Alpaca."""
+    if not alpaca_trader.client:
+        return {"error": "No Alpaca connection", "data": []}
+
+    try:
+        from alpaca.trading.requests import GetPortfolioHistoryRequest
+
+        req = GetPortfolioHistoryRequest(period=period, timeframe=timeframe)
+        history = alpaca_trader.client.get_portfolio_history(req)
+
+        # Convert to list of data points
+        data_points = []
+        for i, ts in enumerate(history.timestamp):
+            data_points.append({
+                "timestamp": ts,
+                "date": datetime.fromtimestamp(ts).isoformat(),
+                "equity": history.equity[i] if history.equity else 0,
+                "profit_loss": history.profit_loss[i] if history.profit_loss else 0,
+                "profit_loss_pct": (history.profit_loss_pct[i] * 100) if history.profit_loss_pct else 0,
+            })
+
+        # Calculate summary stats
+        if data_points:
+            start_equity = data_points[0]["equity"]
+            end_equity = data_points[-1]["equity"]
+            total_return = ((end_equity - start_equity) / start_equity * 100) if start_equity else 0
+            max_equity = max(d["equity"] for d in data_points)
+            min_equity = min(d["equity"] for d in data_points)
+            max_drawdown = ((max_equity - min_equity) / max_equity * 100) if max_equity else 0
+
+            # Find best and worst days
+            best_day = max(data_points, key=lambda x: x["profit_loss_pct"])
+            worst_day = min(data_points, key=lambda x: x["profit_loss_pct"])
+
+            summary = {
+                "start_equity": start_equity,
+                "end_equity": end_equity,
+                "total_return_pct": round(total_return, 2),
+                "total_return_dollars": round(end_equity - start_equity, 2),
+                "max_equity": max_equity,
+                "min_equity": min_equity,
+                "max_drawdown_pct": round(max_drawdown, 2),
+                "best_day": {"date": best_day["date"], "pct": round(best_day["profit_loss_pct"], 2)},
+                "worst_day": {"date": worst_day["date"], "pct": round(worst_day["profit_loss_pct"], 2)},
+                "trading_days": len(data_points),
+            }
+        else:
+            summary = {}
+
+        return {
+            "data": data_points,
+            "summary": summary,
+            "period": period,
+            "timeframe": timeframe,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching portfolio history: {e}")
+        return {
+            "error": str(e),
+            "data": [],
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+
+@app.get("/api/trading/closed-trades")
+async def get_closed_trades(limit: int = Query(20, description="Maximum trades to return")):
+    """Get closed trades with P&L from activity log."""
+    try:
+        # Load activity log
+        activity_file = Path(__file__).parent.parent / "data" / "activity_log.json"
+        if not activity_file.exists():
+            return {"trades": [], "count": 0, "timestamp": datetime.utcnow().isoformat()}
+
+        with open(activity_file, "r") as f:
+            activities = json.load(f)
+
+        # Filter for EXIT entries (closed trades)
+        closed_trades = []
+        for activity in activities:
+            if activity.get("type") in ["EXIT", "AUTO_EXIT"] or activity.get("action") == "CLOSE":
+                details = activity.get("details", {})
+                # Skip if it was an error
+                if details.get("result") == "error":
+                    continue
+
+                trade = {
+                    "id": activity.get("id"),
+                    "symbol": activity.get("ticker"),
+                    "side": "sell",  # Exits are sells
+                    "timestamp": activity.get("timestamp"),
+                    "entry_price": details.get("entry"),
+                    "exit_price": details.get("exit_price"),
+                    "pnl_pct": details.get("pnl_pct"),
+                    "reason": details.get("reason", "Manual close"),
+                    "status": "closed"
+                }
+
+                # Calculate P&L in dollars if we have the data
+                if trade["entry_price"] and trade["exit_price"] and trade["pnl_pct"] is not None:
+                    # Estimate based on typical position size
+                    closed_trades.append(trade)
+
+        # Sort by timestamp descending (most recent first)
+        closed_trades.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+
+        # Calculate summary stats
+        total_pnl_pct = sum(t.get("pnl_pct", 0) for t in closed_trades)
+        wins = len([t for t in closed_trades if (t.get("pnl_pct") or 0) > 0])
+        losses = len([t for t in closed_trades if (t.get("pnl_pct") or 0) < 0])
+        win_rate = (wins / len(closed_trades) * 100) if closed_trades else 0
+
+        return {
+            "trades": closed_trades[:limit],
+            "count": len(closed_trades),
+            "summary": {
+                "total_trades": len(closed_trades),
+                "wins": wins,
+                "losses": losses,
+                "win_rate": round(win_rate, 1),
+                "total_pnl_pct": round(total_pnl_pct, 2)
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching closed trades: {e}")
+        return {"trades": [], "count": 0, "error": str(e), "timestamp": datetime.utcnow().isoformat()}
+
+
+@app.delete("/api/trading/orders")
+async def cancel_all_orders():
+    """Cancel all open orders."""
+    if not alpaca_trader.client:
+        return {"status": "simulated", "message": "No Alpaca connection"}
+
+    try:
+        alpaca_trader.client.cancel_orders()
+        return {
+            "status": "success",
+            "message": "All open orders cancelled",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error cancelling orders: {e}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+
+@app.delete("/api/trading/orders/{order_id}")
+async def cancel_order(order_id: str):
+    """Cancel a specific order by ID."""
+    if not alpaca_trader.client:
+        return {"status": "simulated", "message": "No Alpaca connection"}
+
+    try:
+        alpaca_trader.client.cancel_order_by_id(order_id)
+        return {
+            "status": "success",
+            "message": f"Order {order_id} cancelled",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Error cancelling order {order_id}: {e}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+
 # Activity log storage - persisted to file
 ACTIVITY_LOG_FILE = Path(__file__).parent.parent / "data" / "activity_log.json"
 _activity_log = []
@@ -1589,48 +2010,66 @@ async def get_momentum_analysis(ticker: str):
     momentum_score = 50
     signals = []
 
-    # Price momentum (heavily weighted for speed trading)
+    # Price momentum - continuous scaling based on daily change
     price_change = quote_data.get("change_percent", 0)
+
+    # Scale price change to momentum points (each 1% = ~8 points, capped)
+    price_momentum = price_change * 8
+    price_momentum = max(-30, min(30, price_momentum))  # Cap at +/- 30 points
+    momentum_score += price_momentum
+
+    # Add descriptive signals based on magnitude
     if price_change > 3:
-        momentum_score += 30
         signals.append("🚀 STRONG UPWARD MOMENTUM")
     elif price_change > 1.5:
-        momentum_score += 20
         signals.append("📈 POSITIVE MOMENTUM")
+    elif price_change > 0.5:
+        signals.append("📈 SLIGHT UPWARD")
     elif price_change < -3:
-        momentum_score -= 30
         signals.append("📉 STRONG DOWNWARD MOMENTUM")
     elif price_change < -1.5:
-        momentum_score -= 20
         signals.append("⬇️ NEGATIVE MOMENTUM")
+    elif price_change < -0.5:
+        signals.append("⬇️ SLIGHT DOWNWARD")
 
     # Breaking news momentum
     news_items = news.get("results", [])
     if news_items:
-        recent_news = [n for n in news_items if "min" in n.get("published_at", "") or "hour" in n.get("published_at", "")]
-        if recent_news:
-            momentum_score += 15
-            signals.append(f"📰 BREAKING: {len(recent_news)} news items")
+        # Count recent news (any news in last hour counts)
+        recent_count = len(news_items)
+        if recent_count > 0:
+            # More news = more momentum (capped)
+            news_boost = min(10, recent_count * 3)
+            momentum_score += news_boost
+            signals.append(f"📰 {recent_count} recent news items")
 
             # Check news sentiment quickly
-            for item in recent_news[:3]:
+            bullish_count = 0
+            bearish_count = 0
+            for item in news_items[:5]:
                 title = item.get("title", "").lower()
-                if any(word in title for word in ["surge", "soar", "jump", "breakthrough", "beat"]):
-                    momentum_score += 10
-                    signals.append("💥 BULLISH NEWS CATALYST")
-                    break
-                elif any(word in title for word in ["crash", "plunge", "fall", "miss", "warning"]):
-                    momentum_score -= 10
-                    signals.append("⚠️ BEARISH NEWS ALERT")
-                    break
+                if any(word in title for word in ["surge", "soar", "jump", "breakthrough", "beat", "upgrade", "bullish", "rally"]):
+                    bullish_count += 1
+                elif any(word in title for word in ["crash", "plunge", "fall", "miss", "warning", "downgrade", "bearish", "drop"]):
+                    bearish_count += 1
 
-    # Volume/activity indicators (simulated)
+            # Net news sentiment
+            net_sentiment = bullish_count - bearish_count
+            if net_sentiment > 0:
+                momentum_score += min(10, net_sentiment * 5)
+                signals.append(f"💥 {bullish_count} BULLISH headlines")
+            elif net_sentiment < 0:
+                momentum_score -= min(10, abs(net_sentiment) * 5)
+                signals.append(f"⚠️ {bearish_count} BEARISH headlines")
+
+    # Volatility indicator
     if abs(price_change) > 2:
-        signals.append("🔥 HIGH VOLATILITY DETECTED")
-        momentum_score += 5 if price_change > 0 else -5
+        signals.append("🔥 HIGH VOLATILITY")
+    elif abs(price_change) > 1:
+        signals.append("📊 MODERATE ACTIVITY")
 
     # Cap score
-    momentum_score = max(0, min(100, momentum_score))
+    momentum_score = max(10, min(90, momentum_score))  # Don't allow extreme 0 or 100
 
     # Generate instant trade decision
     if momentum_score >= 75:
@@ -2238,10 +2677,14 @@ async def get_watchlist():
         "tickers": settings.watchlist,
         "universe": settings.universe,
         "spicy": settings.spicy,
+        "high_volume": settings.high_volume,
+        "all": settings.all_tickers,
         "count": {
             "watchlist": len(settings.watchlist),
             "universe": len(settings.universe),
             "spicy": len(settings.spicy),
+            "high_volume": len(settings.high_volume),
+            "total_unique": len(settings.all_tickers),
         }
     }
 

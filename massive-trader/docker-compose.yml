@@ -1,0 +1,36 @@
+version: "3.8"
+
+services:
+  backend:
+    build: ./backend
+    container_name: trader-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - ALPACA_API_KEY_ID=${ALPACA_API_KEY_ID}
+      - ALPACA_API_SECRET_KEY=${ALPACA_API_SECRET_KEY}
+      - BENZINGA_API_KEY=${BENZINGA_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - backend_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build: ./frontend
+    container_name: trader-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    depends_on:
+      - backend
+
+volumes:
+  backend_data:

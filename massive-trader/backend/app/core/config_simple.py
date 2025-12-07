@@ -73,6 +73,7 @@ class Settings:
         self.WATCHLIST_TICKERS = os.getenv("WATCHLIST_TICKERS", "AAPL,MSFT,GOOGL")
         self.SCAN_UNIVERSE_TICKERS = os.getenv("SCAN_UNIVERSE_TICKERS", "")
         self.SPICY_TICKERS = os.getenv("SPICY_TICKERS", "")
+        self.HIGH_VOLUME_TICKERS = os.getenv("HIGH_VOLUME_TICKERS", "")
 
         # Print trading mode
         if self.ALPACA_ENV == "live":
@@ -108,6 +109,19 @@ class Settings:
         if not self.SPICY_TICKERS:
             return []
         return [ticker.strip() for ticker in self.SPICY_TICKERS.split(",") if ticker.strip()]
+
+    @property
+    def high_volume(self) -> list:
+        """Parse high volume runner tickers into a list."""
+        if not self.HIGH_VOLUME_TICKERS:
+            return []
+        return [ticker.strip() for ticker in self.HIGH_VOLUME_TICKERS.split(",") if ticker.strip()]
+
+    @property
+    def all_tickers(self) -> list:
+        """Get all unique tickers from all lists combined."""
+        all_ticks = set(self.watchlist + self.universe + self.spicy + self.high_volume)
+        return sorted(list(all_ticks))
 
     @property
     def is_paper_trading(self) -> bool:

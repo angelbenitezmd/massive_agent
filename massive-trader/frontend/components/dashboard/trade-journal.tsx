@@ -1,10 +1,11 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { BookOpen, TrendingUp, TrendingDown, Clock, Info } from "lucide-react";
+import { BookOpen, TrendingUp, TrendingDown, Clock, Info, XCircle, Loader2 } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -12,10 +13,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { Order } from "@/types";
+import { getClosedTrades, type ClosedTrade, type ClosedTradesResponse } from "@/lib/api";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface TradeJournalProps {
   orders?: Order[];
   isLoading?: boolean;
+  onOrdersCanceled?: () => void;
 }
 
 function formatTime(dateString: string | null): string {
@@ -33,18 +38,49 @@ function formatTime(dateString: string | null): string {
   return date.toLocaleDateString();
 }
 
-function formatPrice(price: number | null): string {
+function formatPrice(price: number | null | undefined): string {
   if (price === null || price === undefined) return "-";
   return `$${price.toFixed(2)}`;
 }
 
-export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading }: TradeJournalProps) {
-  // Calculate summary stats
-  const filledOrders = orders.filter((o) => o.status === "filled");
-  const totalTrades = filledOrders.length;
-  const winningTrades = filledOrders.filter((o) => (o.pnl || 0) > 0).length;
-  const totalPnl = filledOrders.reduce((sum, o) => sum + (o.pnl || 0), 0);
-  const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
+export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading, onOrdersCanceled }: TradeJournalProps) {
+  const [isCanceling, setIsCanceling] = useState(false);
+  const [closedTrades, setClosedTrades] = useState<ClosedTradesResponse | null>(null);
+
+  // Fetch closed trades with P&L
+  useEffect(() => {
+    getClosedTrades(20).then(setClosedTrades);
+  }, []);
+
+  // Count pending orders that can be canceled
+  const pendingOrders = orders.filter((o) =>
+    ["new", "held", "pending_new", "accepted", "partially_filled"].includes(o.status)
+  );
+
+  // Use closed trades data for summary
+  const summary = closedTrades?.summary || { total_trades: 0, wins: 0, losses: 0, win_rate: 0, total_pnl_pct: 0 };
+  const trades = closedTrades?.trades || [];
+
+  const handleCancelAllOrders = async () => {
+    if (!confirm(`Cancel all ${pendingOrders.length} pending orders?`)) return;
+
+    setIsCanceling(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/trading/orders`, {
+        method: "DELETE",
+      });
+      const result = await response.json();
+      if (result.status === "success" || result.status === "cancelled") {
+        onOrdersCanceled?.();
+      } else {
+        console.error("Failed to cancel orders:", result);
+      }
+    } catch (error) {
+      console.error("Error canceling orders:", error);
+    } finally {
+      setIsCanceling(false);
+    }
+  };
 
   return (
     <TooltipProvider>
@@ -60,21 +96,46 @@ export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading 
             <TooltipContent side="bottom" className="max-w-[280px] p-3">
               <div className="space-y-2 text-xs">
                 <p className="font-semibold">Trade Journal</p>
-                <p>Historical record of all executed trades from Alpaca.</p>
+                <p>Record of closed trades with realized P&L.</p>
                 <div className="space-y-1 pt-1">
-                  <p><strong>Win Rate:</strong> Percentage of profitable trades</p>
-                  <p><strong>Total P&L:</strong> Cumulative profit/loss</p>
+                  <p><strong>Win Rate:</strong> Percentage of profitable closed trades</p>
+                  <p><strong>Total P&L:</strong> Cumulative P&L percentage</p>
                   <p><strong>W/L:</strong> Wins vs losses count</p>
                 </div>
-                <p className="text-muted-foreground">Shows your 10 most recent trades with entry details.</p>
+                <p className="text-muted-foreground">Shows your most recent closed positions with entry/exit details.</p>
               </div>
             </TooltipContent>
           </Tooltip>
-          {totalTrades > 0 && (
-            <Badge variant="secondary" className="ml-auto text-xs">
-              {totalTrades} trades
-            </Badge>
-          )}
+          <div className="ml-auto flex items-center gap-2">
+            {summary.total_trades > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                {summary.total_trades} trades
+              </Badge>
+            )}
+            {pendingOrders.length > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCancelAllOrders}
+                    disabled={isCanceling}
+                    className="h-7 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10 border-red-500/30"
+                  >
+                    {isCanceling ? (
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                    ) : (
+                      <XCircle className="h-3 w-3 mr-1" />
+                    )}
+                    Cancel ({pendingOrders.length})
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Cancel all {pendingOrders.length} pending orders</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
@@ -84,28 +145,28 @@ export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading 
             <div className="text-xs text-muted-foreground">Win Rate</div>
             <div
               className={`text-sm font-semibold ${
-                winRate >= 50 ? "text-green-500" : "text-red-500"
+                summary.win_rate >= 50 ? "text-green-500" : summary.win_rate > 0 ? "text-red-500" : "text-muted-foreground"
               }`}
             >
-              {winRate.toFixed(0)}%
+              {summary.win_rate.toFixed(0)}%
             </div>
           </div>
           <div className="bg-muted/50 rounded-lg p-2">
             <div className="text-xs text-muted-foreground">Total P&L</div>
             <div
               className={`text-sm font-semibold ${
-                totalPnl >= 0 ? "text-green-500" : "text-red-500"
+                summary.total_pnl_pct >= 0 ? "text-green-500" : "text-red-500"
               }`}
             >
-              {totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}
+              {summary.total_pnl_pct >= 0 ? "+" : ""}{summary.total_pnl_pct.toFixed(1)}%
             </div>
           </div>
           <div className="bg-muted/50 rounded-lg p-2">
             <div className="text-xs text-muted-foreground">W/L</div>
             <div className="text-sm font-semibold">
-              <span className="text-green-500">{winningTrades}</span>
+              <span className="text-green-500">{summary.wins}</span>
               <span className="text-muted-foreground">/</span>
-              <span className="text-red-500">{totalTrades - winningTrades}</span>
+              <span className="text-red-500">{summary.losses}</span>
             </div>
           </div>
         </div>
@@ -116,58 +177,60 @@ export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading 
             <div className="flex items-center justify-center h-full text-muted-foreground">
               Loading trades...
             </div>
-          ) : orders.length === 0 ? (
+          ) : trades.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
               <BookOpen className="h-8 w-8 mb-2 opacity-50" />
-              <p className="text-sm">No trades yet</p>
+              <p className="text-sm">No closed trades yet</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {orders.slice(0, 10).map((order) => (
-                <div
-                  key={order.id}
-                  className="flex items-center justify-between p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-center gap-2">
-                    {order.side === "buy" ? (
-                      <TrendingUp className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <TrendingDown className="h-4 w-4 text-red-500" />
-                    )}
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm">{order.symbol}</span>
-                        <Badge
-                          variant={order.side === "buy" ? "default" : "destructive"}
-                          className="text-[10px] px-1.5 py-0"
-                        >
-                          {order.side.toUpperCase()}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{order.filled_qty} shares</span>
-                        <span>@</span>
-                        <span>{formatPrice(order.filled_avg_price)}</span>
+              {trades.slice(0, 10).map((trade) => {
+                const isProfit = (trade.pnl_pct || 0) > 0;
+
+                return (
+                  <div
+                    key={trade.id}
+                    className="flex items-center justify-between p-2 rounded-lg transition-colors bg-muted/30 hover:bg-muted/50"
+                  >
+                    <div className="flex items-center gap-2">
+                      {isProfit ? (
+                        <TrendingUp className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <TrendingDown className="h-4 w-4 text-red-500" />
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm">{trade.symbol}</span>
+                          <Badge
+                            variant={isProfit ? "default" : "destructive"}
+                            className="text-[10px] px-1.5 py-0"
+                          >
+                            {isProfit ? "WIN" : "LOSS"}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{formatPrice(trade.entry_price)}</span>
+                          <span>→</span>
+                          <span>{formatPrice(trade.exit_price)}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    {order.pnl !== undefined && (
+                    <div className="text-right">
                       <div
                         className={`text-sm font-medium ${
-                          order.pnl >= 0 ? "text-green-500" : "text-red-500"
+                          isProfit ? "text-green-500" : "text-red-500"
                         }`}
                       >
-                        {order.pnl >= 0 ? "+" : ""}${order.pnl.toFixed(2)}
+                        {isProfit ? "+" : ""}{trade.pnl_pct?.toFixed(1)}%
                       </div>
-                    )}
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Clock className="h-3 w-3" />
-                      {formatTime(order.filled_at || order.submitted_at)}
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3" />
+                        {formatTime(trade.timestamp)}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </ScrollArea>

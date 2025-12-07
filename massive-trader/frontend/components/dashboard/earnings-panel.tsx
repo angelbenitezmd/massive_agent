@@ -91,7 +91,7 @@ export function EarningsPanel({ earnings, isLoading }: EarningsPanelProps) {
           <div className="space-y-4">
             {recentEarnings.map((earning, index) => (
               <div
-                key={`${earning.fiscalQuarter}-${earning.fiscalYear}`}
+                key={`${earning.fiscalQuarter}-${earning.fiscalYear}-${index}`}
                 className="p-4 rounded-lg bg-secondary/30 space-y-3"
               >
                 <div className="flex items-center justify-between">

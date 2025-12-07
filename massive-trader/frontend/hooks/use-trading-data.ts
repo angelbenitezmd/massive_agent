@@ -131,12 +131,59 @@ export function useExecuteTrade() {
   });
 }
 
+export function usePanicClose() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.panicCloseAll(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["account"] });
+      queryClient.invalidateQueries({ queryKey: ["positions"] });
+      queryClient.invalidateQueries({ queryKey: ["risk"] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+  });
+}
+
+export function useCancelAllOrders() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.cancelAllOrders(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+    },
+  });
+}
+
+export function useCloseAllPositions() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.closeAllPositions(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["account"] });
+      queryClient.invalidateQueries({ queryKey: ["positions"] });
+      queryClient.invalidateQueries({ queryKey: ["risk"] });
+    },
+  });
+}
+
 export function useScanWatchlist() {
   return useQuery({
     queryKey: ["scan", "watchlist"],
     queryFn: api.scanWatchlist,
     staleTime: 90000,  // 1.5 min - backend caches for 1 min
     refetchInterval: 120000,  // Refresh every 2 min
+  });
+}
+
+export function useAllDecisions() {
+  return useQuery({
+    queryKey: ["trading", "all-decisions"],
+    queryFn: api.getAllDecisions,
+    staleTime: 60000,  // 1 min - backend caches for 1 min
+    refetchInterval: 90000,  // Refresh every 1.5 min
   });
 }
 
@@ -201,5 +248,14 @@ export function useActivityLog(limit: number = 50) {
     queryFn: () => api.getActivityLog(limit),
     refetchInterval: 10000,
     staleTime: 5000,
+  });
+}
+
+export function usePortfolioHistory(period: string = "1M", timeframe: string = "1D") {
+  return useQuery({
+    queryKey: ["portfolioHistory", period, timeframe],
+    queryFn: () => api.getPortfolioHistory(period, timeframe),
+    staleTime: 60000, // 1 minute
+    refetchInterval: 300000, // 5 minutes
   });
 }

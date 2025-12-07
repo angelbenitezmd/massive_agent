@@ -114,7 +114,7 @@ class RiskEngine:
         # Build successful decision
         decision.allowed = True
         decision.max_position_value = position_value
-        decision.suggested_shares = int(position_value / current_price)
+        decision.suggested_shares = int(position_value / current_price) if current_price > 0 else 0
         decision.risk_score = risk_score
         decision.reason = "Trade approved"
 
@@ -201,7 +201,7 @@ class RiskEngine:
         position_value = min(position_value, max_allowed)
 
         # Ensure we can buy at least 1 share
-        if position_value < current_price:
+        if current_price > 0 and position_value < current_price:
             position_value = current_price * 1.1  # Add 10% buffer
 
         return position_value

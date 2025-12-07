@@ -394,12 +394,12 @@ function generateTradeDecision(
     if (agent.direction === "bullish") {
       bullishScore += weightedConfidence;
       if (agent.confidence >= 0.6) {
-        contributingSignals.push(`${agent.agentName.split(" ")[0]} bullish (${Math.round(agent.confidence * 100)}%)`);
+        contributingSignals.push(`${agent.agentName.split(" ")[0]} bullish (${Math.round(agent.confidence * 100)}/100)`);
       }
     } else if (agent.direction === "bearish") {
       bearishScore += weightedConfidence;
       if (agent.confidence >= 0.6) {
-        contributingSignals.push(`${agent.agentName.split(" ")[0]} bearish (${Math.round(agent.confidence * 100)}%)`);
+        contributingSignals.push(`${agent.agentName.split(" ")[0]} bearish (${Math.round(agent.confidence * 100)}/100)`);
       }
     }
     // Neutral agents don't add to scores but don't block either
@@ -423,21 +423,21 @@ function generateTradeDecision(
     action = "BUY";
     confidence = Math.min(normalizedBullish + 0.1, 0.95);
     if (highConfidenceBullish && contributingSignals.length === 1) {
-      reasoning = `Strong signal: ${highConfidenceBullish.agentName} at ${Math.round(highConfidenceBullish.confidence * 100)}% confidence.`;
+      reasoning = `Strong signal: ${highConfidenceBullish.agentName} with score ${Math.round(highConfidenceBullish.confidence * 100)}/100.`;
     } else {
       reasoning = contributingSignals.length > 0
         ? `Bullish consensus: ${contributingSignals.join(", ")}.`
-        : `Weighted bullish score: ${Math.round(normalizedBullish * 100)}%`;
+        : `Weighted bullish score: ${Math.round(normalizedBullish * 100)}/100`;
     }
   } else if (normalizedBearish - normalizedBullish >= sellThreshold || highConfidenceBearish) {
     action = "SELL";
     confidence = Math.min(normalizedBearish + 0.1, 0.95);
     if (highConfidenceBearish && contributingSignals.length === 1) {
-      reasoning = `Strong signal: ${highConfidenceBearish.agentName} at ${Math.round(highConfidenceBearish.confidence * 100)}% confidence.`;
+      reasoning = `Strong signal: ${highConfidenceBearish.agentName} with score ${Math.round(highConfidenceBearish.confidence * 100)}/100.`;
     } else {
       reasoning = contributingSignals.length > 0
         ? `Bearish consensus: ${contributingSignals.join(", ")}.`
-        : `Weighted bearish score: ${Math.round(normalizedBearish * 100)}%`;
+        : `Weighted bearish score: ${Math.round(normalizedBearish * 100)}/100`;
     }
   } else {
     action = "HOLD";

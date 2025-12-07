@@ -282,7 +282,7 @@ export function RiskPanel({
                           ) : (
                             <TrendingDown className="h-3 w-3" />
                           )}
-                          {formatPercent(position.unrealizedPLPercent * 100)}
+                          {formatPercent(position.unrealizedPLPercent)}
                         </div>
                       </div>
                       <div className="grid grid-cols-4 gap-2 text-xs">

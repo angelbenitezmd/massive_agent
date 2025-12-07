@@ -2,15 +2,13 @@
 
 import { useState } from "react";
 import {
-  Search,
   Activity,
+  Circle,
   RefreshCw,
   Settings,
-  AlertTriangle,
-  Circle,
+  XOctagon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -18,8 +16,20 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useSystemStatus } from "@/hooks/use-trading-data";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useSystemStatus, usePanicClose } from "@/hooks/use-trading-data";
 import { cn } from "@/lib/utils";
+import { TickerSelector } from "./ticker-selector";
 
 interface HeaderProps {
   selectedTicker: string;
@@ -31,6 +41,11 @@ interface HeaderProps {
   onAnalyze: () => void;
   isAnalyzing: boolean;
   watchlist: string[];
+  activeSignal?: {
+    ticker: string;
+    action: string;
+    confidence: number;
+  };
 }
 
 export function Header({
@@ -43,19 +58,22 @@ export function Header({
   onAnalyze,
   isAnalyzing,
   watchlist,
+  activeSignal,
 }: HeaderProps) {
-  const [searchValue, setSearchValue] = useState(selectedTicker);
-  const [showWatchlist, setShowWatchlist] = useState(false);
   const { data: status } = useSystemStatus();
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchValue.trim()) {
-      onTickerChange(searchValue.trim().toUpperCase());
-    }
-  };
+  const panicMutation = usePanicClose();
+  const [panicDialogOpen, setPanicDialogOpen] = useState(false);
 
   const isLive = status?.tradingMode === "live";
+
+  const handlePanicClose = async () => {
+    try {
+      await panicMutation.mutateAsync();
+      setPanicDialogOpen(false);
+    } catch (error) {
+      console.error("Panic close failed:", error);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -109,37 +127,16 @@ export function Header({
         </div>
 
         {/* Ticker Search */}
-        <div className="flex items-center gap-4 flex-1 max-w-md mx-8">
-          <form onSubmit={handleSearch} className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value.toUpperCase())}
-              onFocus={() => setShowWatchlist(true)}
-              onBlur={() => setTimeout(() => setShowWatchlist(false), 200)}
-              placeholder="Search ticker..."
-              className="pl-10 bg-secondary/50"
-            />
-            {showWatchlist && watchlist.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1 bg-popover border rounded-md shadow-lg z-50">
-                {watchlist.map((ticker) => (
-                  <button
-                    key={ticker}
-                    type="button"
-                    onClick={() => {
-                      onTickerChange(ticker);
-                      setSearchValue(ticker);
-                    }}
-                    className="w-full px-4 py-2 text-left hover:bg-accent transition-colors first:rounded-t-md last:rounded-b-md"
-                  >
-                    {ticker}
-                  </button>
-                ))}
-              </div>
-            )}
-          </form>
+        <div className="flex items-center gap-3 flex-1 max-w-xl mx-8">
+          <TickerSelector
+            selectedTicker={selectedTicker}
+            onTickerChange={onTickerChange}
+            watchlist={watchlist}
+            activeSignal={activeSignal}
+            className="flex-1"
+          />
 
-          <Button onClick={onAnalyze} disabled={isAnalyzing} className="gap-2">
+          <Button onClick={onAnalyze} disabled={isAnalyzing} className="gap-2 shrink-0">
             {isAnalyzing ? (
               <>
                 <RefreshCw className="h-4 w-4 animate-spin" />
@@ -155,50 +152,105 @@ export function Header({
         </div>
 
         {/* Controls */}
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-3">
           {/* Auto-Refresh Toggle */}
-          <div className="flex items-center gap-2">
-            <label
-              htmlFor="auto-refresh"
-              className="text-sm text-muted-foreground"
-            >
-              Auto-refresh
-            </label>
-            <Switch
-              id="auto-refresh"
-              checked={autoRefresh}
-              onCheckedChange={onAutoRefreshChange}
-            />
-          </div>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-1.5">
+                <label
+                  htmlFor="auto-refresh"
+                  className="text-xs text-muted-foreground cursor-pointer"
+                >
+                  Refresh
+                </label>
+                <Switch
+                  id="auto-refresh"
+                  checked={autoRefresh}
+                  onCheckedChange={onAutoRefreshChange}
+                  className="scale-75"
+                />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>Auto-refresh data every 30s</TooltipContent>
+          </Tooltip>
 
           {/* Auto-Trade Toggle */}
-          <div className="flex items-center gap-2">
-            <label
-              htmlFor="auto-trade"
-              className="text-sm text-muted-foreground"
-            >
-              Auto-trade
-            </label>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-1.5">
+                <label
+                  htmlFor="auto-trade"
+                  className="text-xs text-muted-foreground cursor-pointer"
+                >
+                  Auto
+                </label>
+                <Switch
+                  id="auto-trade"
+                  checked={autoTrade}
+                  onCheckedChange={onAutoTradeChange}
+                  className={cn(
+                    "scale-75",
+                    autoTrade && "data-[state=checked]:bg-yellow-600"
+                  )}
+                />
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              {autoTrade
+                ? "Auto-trade ON - trades execute automatically"
+                : "Auto-trade OFF"}
+            </TooltipContent>
+          </Tooltip>
+
+          <div className="h-4 w-px bg-border" />
+
+          {/* Emergency Stop - Close all positions & cancel orders */}
+          <AlertDialog open={panicDialogOpen} onOpenChange={setPanicDialogOpen}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <div>
-                  <Switch
-                    id="auto-trade"
-                    checked={autoTrade}
-                    onCheckedChange={onAutoTradeChange}
-                    className={cn(
-                      autoTrade && "data-[state=checked]:bg-yellow-600"
-                    )}
-                  />
-                </div>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-red-600 hover:text-red-700 hover:bg-red-600/10"
+                  >
+                    <XOctagon className="h-4 w-4" />
+                  </Button>
+                </AlertDialogTrigger>
               </TooltipTrigger>
-              <TooltipContent>
-                {autoTrade
-                  ? "Auto-trade enabled - trades will execute automatically"
-                  : "Auto-trade disabled"}
-              </TooltipContent>
+              <TooltipContent>Emergency stop</TooltipContent>
             </Tooltip>
-          </div>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle className="flex items-center gap-2 text-red-600">
+                  <XOctagon className="h-5 w-5" />
+                  EMERGENCY STOP
+                </AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <span>This will immediately:</span>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>Close ALL open positions at market price</li>
+                      <li>Cancel ALL pending orders</li>
+                    </ul>
+                    <span className="block font-semibold text-red-500">
+                      This action cannot be undone.
+                    </span>
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Back</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handlePanicClose}
+                  disabled={panicMutation.isPending}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  {panicMutation.isPending ? "Stopping..." : "STOP EVERYTHING"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           <Button variant="ghost" size="icon">
             <Settings className="h-5 w-5" />

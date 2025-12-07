@@ -89,8 +89,8 @@ function AgentCard({
             agent.direction === "neutral" && "[&>div]:bg-yellow-500"
           )}
         />
-        <span className="text-xs font-medium w-8">
-          {Math.round(agent.confidence * 100)}%
+        <span className="text-xs font-medium w-10">
+          {Math.round(agent.confidence * 100)}
         </span>
       </div>
 

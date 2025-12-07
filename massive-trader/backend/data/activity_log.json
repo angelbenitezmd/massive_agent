@@ -1,5 +1,349 @@
 [
   {
+    "id": "02c03122",
+    "timestamp": "2025-12-07T12:53:16.931584",
+    "type": "EMERGENCY",
+    "ticker": "ALL",
+    "action": "CLOSE_ALL",
+    "details": {
+      "result": "all_closed"
+    }
+  },
+  {
+    "id": "f6b3734d",
+    "timestamp": "2025-12-07T12:51:41.560040",
+    "type": "EMERGENCY",
+    "ticker": "ALL",
+    "action": "CLOSE_ALL",
+    "details": {
+      "result": "all_closed"
+    }
+  },
+  {
+    "id": "5357e337",
+    "timestamp": "2025-12-07T12:50:07.692624",
+    "type": "EMERGENCY",
+    "ticker": "ALL",
+    "action": "CLOSE_ALL",
+    "details": {
+      "result": "all_closed"
+    }
+  },
+  {
+    "id": "1375c8d1",
+    "timestamp": "2025-12-05T22:07:21.692962",
+    "type": "EMERGENCY",
+    "ticker": "ALL",
+    "action": "CLOSE_ALL",
+    "details": {
+      "result": "all_closed"
+    }
+  },
+  {
+    "id": "e2d1d98b",
+    "timestamp": "2025-12-05T22:06:36.739723",
+    "type": "EMERGENCY",
+    "ticker": "ALL",
+    "action": "CLOSE_ALL",
+    "details": {
+      "result": "all_closed"
+    }
+  },
+  {
+    "id": "33787b5e",
+    "timestamp": "2025-12-05T21:59:15.712288",
+    "type": "TRADE",
+    "ticker": "MRVL",
+    "action": "BUY",
+    "details": {
+      "price": null,
+      "quantity": null,
+      "score": 72.5,
+      "reasoning": "",
+      "order_id": null,
+      "status": "executed"
+    }
+  },
+  {
+    "id": "0e427ed8",
+    "timestamp": "2025-12-05T21:58:11.146205",
+    "type": "TRADE",
+    "ticker": "MRVL",
+    "action": "BUY",
+    "details": {
+      "price": null,
+      "quantity": null,
+      "score": 72.5,
+      "reasoning": "",
+      "order_id": null,
+      "status": "executed"
+    }
+  },
+  {
+    "id": "334fd990",
+    "timestamp": "2025-12-05T21:54:54.579699",
+    "type": "EMERGENCY",
+    "ticker": "ALL",
+    "action": "CLOSE_ALL",
+    "details": {
+      "result": "all_closed"
+    }
+  },
+  {
+    "id": "ecffd586",
+    "timestamp": "2025-12-05T21:54:48.124326",
+    "type": "EMERGENCY",
+    "ticker": "ALL",
+    "action": "CLOSE_ALL",
+    "details": {
+      "result": "all_closed"
+    }
+  },
+  {
+    "id": "be249be7",
+    "timestamp": "2025-12-05T21:53:55.348834",
+    "type": "EMERGENCY",
+    "ticker": "ALL",
+    "action": "CLOSE_ALL",
+    "details": {
+      "result": "all_closed"
+    }
+  },
+  {
+    "id": "1aa1c935",
+    "timestamp": "2025-12-05T21:52:19.225715",
+    "type": "EMERGENCY",
+    "ticker": "ALL",
+    "action": "CLOSE_ALL",
+    "details": {
+      "result": "all_closed"
+    }
+  },
+  {
+    "id": "f4286760",
+    "timestamp": "2025-12-05T17:16:37.858119",
+    "type": "AUTO_EXIT",
+    "ticker": "ARKG",
+    "action": "CLOSE",
+    "details": {
+      "reason": "TRAILING_STOP (peak: $31.50, drawdown: 1.54%)",
+      "pnl_pct": 3.59030152315822,
+      "entry": 32.17,
+      "exit_price": 31.015,
+      "result": "closed"
+    }
+  },
+  {
+    "id": "06010147",
+    "timestamp": "2025-12-05T16:40:34.945511",
+    "type": "TRADE",
+    "ticker": "AMAT",
+    "action": "BUY",
+    "details": {
+      "price": null,
+      "quantity": null,
+      "score": 80.0,
+      "reasoning": "",
+      "order_id": null,
+      "status": "executed"
+    }
+  },
+  {
+    "id": "ae707c60",
+    "timestamp": "2025-12-05T16:39:34.059021",
+    "type": "TRADE",
+    "ticker": "AMAT",
+    "action": "BUY",
+    "details": {
+      "price": null,
+      "quantity": null,
+      "score": 80.0,
+      "reasoning": "",
+      "order_id": null,
+      "status": "executed"
+    }
+  },
+  {
+    "id": "ad15ca3f",
+    "timestamp": "2025-12-05T16:38:27.156345",
+    "type": "TRADE",
+    "ticker": "AMAT",
+    "action": "BUY",
+    "details": {
+      "price": null,
+      "quantity": null,
+      "score": 80.0,
+      "reasoning": "",
+      "order_id": null,
+      "status": "executed"
+    }
+  },
+  {
+    "id": "69789560",
+    "timestamp": "2025-12-05T16:37:25.290489",
+    "type": "TRADE",
+    "ticker": "AMAT",
+    "action": "BUY",
+    "details": {
+      "price": null,
+      "quantity": null,
+      "score": 80.0,
+      "reasoning": "",
+      "order_id": null,
+      "status": "executed"
+    }
+  },
+  {
+    "id": "de8e7273",
+    "timestamp": "2025-12-05T16:35:11.033123",
+    "type": "TRADE",
+    "ticker": "AMAT",
+    "action": "BUY",
+    "details": {
+      "price": null,
+      "quantity": null,
+      "score": 80.0,
+      "reasoning": "",
+      "order_id": null,
+      "status": "executed"
+    }
+  },
+  {
+    "id": "a1a3b3dc",
+    "timestamp": "2025-12-05T16:33:28.098358",
+    "type": "TRADE",
+    "ticker": "PNC",
+    "action": "BUY",
+    "details": {
+      "price": null,
+      "quantity": null,
+      "score": 80.0,
+      "reasoning": "",
+      "order_id": null,
+      "status": "executed"
+    }
+  },
+  {
+    "id": "4ba4e8f3",
+    "timestamp": "2025-12-05T16:32:22.385217",
+    "type": "TRADE",
+    "ticker": "AMAT",
+    "action": "BUY",
+    "details": {
+      "price": null,
+      "quantity": null,
+      "score": 80.0,
+      "reasoning": "",
+      "order_id": null,
+      "status": "executed"
+    }
+  },
+  {
+    "id": "584b75a2",
+    "timestamp": "2025-12-05T15:00:36.347713",
+    "type": "TRADE",
+    "ticker": "PNC",
+    "action": "BUY",
+    "details": {
+      "price": null,
+      "quantity": null,
+      "score": 80.0,
+      "reasoning": "",
+      "order_id": null,
+      "status": "executed"
+    }
+  },
+  {
+    "id": "f5a182b4",
+    "timestamp": "2025-12-05T14:59:38.064623",
+    "type": "TRADE",
+    "ticker": "PNC",
+    "action": "BUY",
+    "details": {
+      "price": null,
+      "quantity": null,
+      "score": 71.6,
+      "reasoning": "",
+      "order_id": null,
+      "status": "executed"
+    }
+  },
+  {
+    "id": "7df1d107",
+    "timestamp": "2025-12-05T13:10:46.007835",
+    "type": "TRADE",
+    "ticker": "AMAT",
+    "action": "BUY",
+    "details": {
+      "price": null,
+      "quantity": null,
+      "score": 80.0,
+      "reasoning": "",
+      "order_id": null,
+      "status": "executed"
+    }
+  },
+  {
+    "id": "e44e2d47",
+    "timestamp": "2025-12-05T13:04:34.203974",
+    "type": "TRADE",
+    "ticker": "META",
+    "action": "BUY",
+    "details": {
+      "price": null,
+      "quantity": null,
+      "score": 68.6,
+      "reasoning": "",
+      "order_id": null,
+      "status": "executed"
+    }
+  },
+  {
+    "id": "88bc8017",
+    "timestamp": "2025-12-05T13:03:33.604521",
+    "type": "TRADE",
+    "ticker": "META",
+    "action": "BUY",
+    "details": {
+      "price": null,
+      "quantity": null,
+      "score": 68.6,
+      "reasoning": "",
+      "order_id": null,
+      "status": "executed"
+    }
+  },
+  {
+    "id": "4d5cae8e",
+    "timestamp": "2025-12-05T13:01:47.620702",
+    "type": "TRADE",
+    "ticker": "META",
+    "action": "BUY",
+    "details": {
+      "price": null,
+      "quantity": null,
+      "score": 68.6,
+      "reasoning": "",
+      "order_id": null,
+      "status": "executed"
+    }
+  },
+  {
+    "id": "383d64af",
+    "timestamp": "2025-12-05T13:00:24.842090",
+    "type": "TRADE",
+    "ticker": "META",
+    "action": "BUY",
+    "details": {
+      "price": null,
+      "quantity": null,
+      "score": 68.6,
+      "reasoning": "",
+      "order_id": null,
+      "status": "executed"
+    }
+  },
+  {
     "id": "4ab2103d",
     "timestamp": "2025-12-05T03:00:27.111930",
     "type": "AUTO_EXIT",

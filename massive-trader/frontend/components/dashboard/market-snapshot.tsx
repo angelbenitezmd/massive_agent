@@ -175,6 +175,9 @@ export function MarketSnapshot({
   const [showVolume, setShowVolume] = useState(true);
   const [showSMA, setShowSMA] = useState(true);
 
+  // Debug logging
+  console.log("[MarketSnapshot] technicals prop:", technicals);
+
   const chartData = useMemo(() => {
     if (!bars || bars.length === 0) return [];
 
@@ -196,10 +199,11 @@ export function MarketSnapshot({
       } else if (timeframe === "1Week" || timeframe === "1Day" || timeframe === "1D") {
         return date.toLocaleDateString("en-US", { ...options, month: "numeric", day: "numeric" });
       } else if (timeframe === "4Hour" || timeframe === "1Hour" || timeframe === "1H") {
-        return date.toLocaleString("en-US", { ...options, month: "numeric", day: "numeric", hour: "numeric", hour12: false });
+        // Hourly bars: show date and hour in 12-hour format
+        return date.toLocaleString("en-US", { ...options, month: "numeric", day: "numeric", hour: "numeric", hour12: true });
       } else {
-        // Minute bars (1m, 5m, 15m, 30m)
-        return date.toLocaleTimeString("en-US", { ...options, hour: "2-digit", minute: "2-digit", hour12: false });
+        // Minute bars (1m, 5m, 15m, 30m) - show time in 12-hour format with AM/PM
+        return date.toLocaleTimeString("en-US", { ...options, hour: "numeric", minute: "2-digit", hour12: true });
       }
     };
 
@@ -262,8 +266,8 @@ export function MarketSnapshot({
 
   const isPositive = quote ? quote.changePercent >= 0 : false;
 
-  const getRsiStatus = (rsi: number | undefined) => {
-    if (!rsi) return { label: "N/A", color: "text-muted-foreground" };
+  const getRsiStatus = (rsi: number | null | undefined) => {
+    if (rsi == null) return { label: "N/A", color: "text-muted-foreground" };
     if (rsi > 70) return { label: "Overbought", color: "text-red-500" };
     if (rsi < 30) return { label: "Oversold", color: "text-green-500" };
     return { label: "Neutral", color: "text-yellow-500" };
@@ -271,6 +275,8 @@ export function MarketSnapshot({
 
   const getMacdStatus = (macd: Technicals["macd"] | undefined) => {
     if (!macd) return { label: "N/A", color: "text-muted-foreground" };
+    if (macd.histogram == null || macd.value == null || macd.signal == null)
+      return { label: "N/A", color: "text-muted-foreground" };
     if (macd.histogram > 0 && macd.value > macd.signal)
       return { label: "Bullish", color: "text-green-500" };
     if (macd.histogram < 0 && macd.value < macd.signal)
@@ -637,13 +643,13 @@ export function MarketSnapshot({
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Value:</span>
                   <span className={cn(
-                    technicals?.macd?.value
+                    technicals?.macd?.value != null
                       ? technicals.macd.value > 0
                         ? "text-green-500"
                         : "text-red-500"
                       : ""
                   )}>
-                    {technicals?.macd
+                    {technicals?.macd?.value != null
                       ? formatNumber(technicals.macd.value, 3)
                       : "---"}
                   </span>
@@ -651,7 +657,7 @@ export function MarketSnapshot({
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Signal:</span>
                   <span>
-                    {technicals?.macd
+                    {technicals?.macd?.signal != null
                       ? formatNumber(technicals.macd.signal, 3)
                       : "---"}
                   </span>
@@ -660,14 +666,14 @@ export function MarketSnapshot({
                   <span className="text-muted-foreground">Histogram:</span>
                   <span
                     className={cn(
-                      technicals?.macd?.histogram
+                      technicals?.macd?.histogram != null
                         ? technicals.macd.histogram > 0
                           ? "text-green-500"
                           : "text-red-500"
                         : ""
                     )}
                   >
-                    {technicals?.macd
+                    {technicals?.macd?.histogram != null
                       ? formatNumber(technicals.macd.histogram, 3)
                       : "---"}
                   </span>

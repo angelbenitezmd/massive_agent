@@ -138,10 +138,17 @@ export async function getEarnings(ticker: string): Promise<Earnings[]> {
 
 // AI Analysis - uses dashboard + best-signal endpoints for complete data
 export async function runAnalysis(ticker: string): Promise<AnalysisResponse> {
+  // Validate ticker before making API call
+  if (!ticker || typeof ticker !== "string" || ticker.trim() === "") {
+    throw new Error("Invalid ticker: ticker must be a non-empty string");
+  }
+
+  const normalizedTicker = ticker.trim().toUpperCase();
+
   try {
     // Fetch dashboard and best-signal in parallel
     const [dashboard, bestSignal] = await Promise.all([
-      fetchAPI<any>(`/api/dashboard/${ticker}`),
+      fetchAPI<any>(`/api/dashboard/${normalizedTicker}`),
       fetchAPI<any>(`/api/trading/best-signal`).catch(() => null),
     ]);
 
@@ -149,9 +156,37 @@ export async function runAnalysis(ticker: string): Promise<AnalysisResponse> {
     const agents = dashboard.consensus?.contributing_agents || {};
 
     // Use best-signal data if available and matches ticker
-    const signal = bestSignal?.ticker === ticker ? bestSignal : null;
+    const signal = bestSignal?.ticker === normalizedTicker ? bestSignal : null;
 
-    return {
+    // Transform technicals from backend format to frontend format
+    const rawTechnicals = dashboard.market?.technicals || {};
+    const currentPrice = dashboard.market?.quote?.last || dashboard.market?.quote?.price || 0;
+
+    const technicals: Technicals = {
+      rsi: rawTechnicals.rsi ?? null,
+      macd: {
+        value: rawTechnicals.macd ?? null,
+        signal: rawTechnicals.macd_signal ?? null,
+        histogram: rawTechnicals.macd_histogram ?? null,
+      },
+      sma20: rawTechnicals.sma_20 ?? null,
+      sma50: rawTechnicals.sma_50 ?? null,
+      sma200: rawTechnicals.sma_200 ?? null,
+      ema20: rawTechnicals.ema_20 ?? null,
+      ema50: rawTechnicals.ema_50 ?? null,
+      // Calculate price vs SMA relationships
+      priceVsSma20: rawTechnicals.sma_20 && currentPrice
+        ? (currentPrice > rawTechnicals.sma_20 ? "above" : "below")
+        : undefined,
+      priceVsSma50: rawTechnicals.sma_50 && currentPrice
+        ? (currentPrice > rawTechnicals.sma_50 ? "above" : "below")
+        : undefined,
+      priceVsSma200: rawTechnicals.sma_200 && currentPrice
+        ? (currentPrice > rawTechnicals.sma_200 ? "above" : "below")
+        : undefined,
+    };
+
+    const result = {
       agents: {
         news: agents.news || { score: 50, sentiment: 0, confidence: 0, notes: "No data" },
         earnings: agents.earnings || { score: 50, sentiment: 0, confidence: 0, notes: "No data" },
@@ -160,8 +195,8 @@ export async function runAnalysis(ticker: string): Promise<AnalysisResponse> {
       decision: {
         action: signal?.action || dashboard.consensus?.action || "HOLD",
         confidence: signal ? signal.combined_score / 100 : (dashboard.consensus?.final_score || 50) / 100,
-        ticker: ticker,
-        symbol: ticker,
+        ticker: normalizedTicker,
+        symbol: normalizedTicker,
         reasoning: `Score: ${signal?.combined_score?.toFixed(1) || dashboard.consensus?.final_score?.toFixed(1) || 50}/100`,
         stopLoss: signal?.stop_loss || dashboard.consensus?.stop_loss_pct || 0.03,
         takeProfit: signal?.take_profit || dashboard.consensus?.take_profit_pct || 0.03,
@@ -174,9 +209,12 @@ export async function runAnalysis(ticker: string): Promise<AnalysisResponse> {
         momentumScore: signal?.momentum_score,
         strategy: signal?.strategy,
       },
-      technicals: dashboard.market?.technicals || {},
+      technicals,
       raw: dashboard, // Keep raw response for debugging
-    } as any;
+    };
+
+    console.log("[API] Transformed technicals:", result.technicals);
+    return result as any;
   } catch (error) {
     console.error("Dashboard analysis failed:", error);
     // Return default empty response
@@ -189,14 +227,25 @@ export async function runAnalysis(ticker: string): Promise<AnalysisResponse> {
       decision: {
         action: "HOLD",
         confidence: 0.5,
-        ticker: ticker,
-        symbol: ticker,
+        ticker: normalizedTicker,
+        symbol: normalizedTicker,
         reasoning: "Analysis unavailable",
         stopLoss: 0.03,
         takeProfit: 0.03,
         contributingAgents: [],
       },
-      technicals: {},
+      technicals: {
+        rsi: null,
+        macd: { value: null, signal: null, histogram: null },
+        sma20: null,
+        sma50: null,
+        sma200: null,
+        ema20: null,
+        ema50: null,
+        priceVsSma20: undefined,
+        priceVsSma50: undefined,
+        priceVsSma200: undefined,
+      },
     } as any;
   }
 }
@@ -231,15 +280,27 @@ export async function getPositions(): Promise<Position[]> {
   try {
     const data = await fetchAPI<any>("/api/trading/positions");
     const positions = data.positions || data || [];
-    return positions.map((pos: any) => ({
-      symbol: pos.symbol,
-      quantity: parseFloat(pos.qty) || pos.quantity || 0,
-      avgEntryPrice: parseFloat(pos.entry) || parseFloat(pos.avg_entry_price) || 0,
-      currentPrice: parseFloat(pos.current) || parseFloat(pos.current_price) || 0,
-      marketValue: parseFloat(pos.market_value) || 0,
-      unrealizedPL: parseFloat(pos.pnl) || parseFloat(pos.unrealized_pl) || 0,
-      unrealizedPLPercent: parseFloat(pos.pnl_pct) / 100 || 0,
-    }));
+    return positions.map((pos: any) => {
+      // Calculate market value if not provided
+      const qty = parseFloat(pos.qty) || pos.quantity || 0;
+      const currentPrice = parseFloat(pos.current) || parseFloat(pos.current_price) || 0;
+      const marketValue = parseFloat(pos.market_value) || Math.abs(qty * currentPrice);
+
+      // pnl_pct from API is a ratio (0.03 = 3%), convert to percentage
+      const pnlPctRatio = parseFloat(pos.pnl_pct) || parseFloat(pos.unrealized_plpc) || 0;
+      const unrealizedPLPercent = pnlPctRatio * 100;
+
+      return {
+        symbol: pos.symbol,
+        qty, // Keep for heatmap compatibility
+        quantity: qty,
+        avgEntryPrice: parseFloat(pos.entry) || parseFloat(pos.avg_entry_price) || 0,
+        currentPrice,
+        marketValue,
+        unrealizedPL: parseFloat(pos.pnl) || parseFloat(pos.unrealized_pl) || 0,
+        unrealizedPLPercent,
+      };
+    });
   } catch {
     return [];
   }
@@ -284,14 +345,14 @@ export async function getRiskStatus(): Promise<RiskStatus> {
 }
 
 export async function executeTrade(decision: TradeDecision): Promise<any> {
-  // Use the trading execute endpoint
+  // Use the trading execute endpoint with specific ticker
   try {
-    const res = await fetch(`${API_BASE}/api/trading/execute?auto=true`, {
+    const ticker = decision.ticker;
+    const res = await fetch(`${API_BASE}/api/trading/execute?auto=true&ticker=${encodeURIComponent(ticker)}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ ticker: decision.ticker }),
     });
 
     if (!res.ok) {
@@ -317,6 +378,143 @@ export async function getWatchlist(): Promise<string[]> {
   } catch {
     return ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA"];
   }
+}
+
+// Closed trades with P&L
+export interface ClosedTrade {
+  id: string;
+  symbol: string;
+  side: string;
+  timestamp: string;
+  entry_price: number;
+  exit_price: number;
+  pnl_pct: number;
+  reason: string;
+  status: string;
+}
+
+export interface ClosedTradesResponse {
+  trades: ClosedTrade[];
+  count: number;
+  summary: {
+    total_trades: number;
+    wins: number;
+    losses: number;
+    win_rate: number;
+    total_pnl_pct: number;
+  };
+}
+
+export async function getClosedTrades(limit: number = 20): Promise<ClosedTradesResponse> {
+  try {
+    return await fetchAPI<ClosedTradesResponse>(`/api/trading/closed-trades?limit=${limit}`);
+  } catch {
+    return {
+      trades: [],
+      count: 0,
+      summary: { total_trades: 0, wins: 0, losses: 0, win_rate: 0, total_pnl_pct: 0 }
+    };
+  }
+}
+
+// Portfolio History
+export interface PortfolioHistoryPoint {
+  timestamp: number;
+  date: string;
+  equity: number;
+  profit_loss: number;
+  profit_loss_pct: number;
+}
+
+export interface PortfolioHistorySummary {
+  start_equity: number;
+  end_equity: number;
+  total_return_pct: number;
+  total_return_dollars: number;
+  max_equity: number;
+  min_equity: number;
+  max_drawdown_pct: number;
+  best_day: { date: string; pct: number };
+  worst_day: { date: string; pct: number };
+  trading_days: number;
+}
+
+export interface PortfolioHistoryResponse {
+  data: PortfolioHistoryPoint[];
+  summary: PortfolioHistorySummary;
+  period: string;
+  timeframe: string;
+  timestamp: string;
+}
+
+export async function getPortfolioHistory(
+  period: string = "1M",
+  timeframe: string = "1D"
+): Promise<PortfolioHistoryResponse> {
+  try {
+    return await fetchAPI<PortfolioHistoryResponse>(
+      `/api/portfolio/history?period=${period}&timeframe=${timeframe}`
+    );
+  } catch {
+    return {
+      data: [],
+      summary: {} as PortfolioHistorySummary,
+      period,
+      timeframe,
+      timestamp: new Date().toISOString(),
+    };
+  }
+}
+
+// Emergency: Close all positions and cancel all orders (PANIC)
+export async function panicCloseAll(): Promise<{ positions: any; orders: any }> {
+  const [positions, orders] = await Promise.all([
+    fetch(`${API_BASE}/api/trading/close-all`, { method: "POST" }).then(r => r.json()),
+    fetch(`${API_BASE}/api/trading/orders`, { method: "DELETE" }).then(r => r.json()),
+  ]);
+  return { positions, orders };
+}
+
+// Cancel all open orders only
+export async function cancelAllOrders(): Promise<any> {
+  return fetch(`${API_BASE}/api/trading/orders`, { method: "DELETE" }).then(r => r.json());
+}
+
+// Close all positions only
+export async function closeAllPositions(): Promise<any> {
+  return fetch(`${API_BASE}/api/trading/close-all`, { method: "POST" }).then(r => r.json());
+}
+
+// All Trade Decisions (BUY/HOLD/SELL grouped)
+export interface TradeDecisionItem {
+  ticker: string;
+  action: "BUY" | "HOLD" | "SELL";
+  confidence: number;
+  combinedScore: number;
+  aiScore: number;
+  momentumScore: number;
+  strategy: string;
+  urgency: string;
+  entryPrice: number;
+  stopLoss: number;
+  takeProfit: number;
+}
+
+export interface AllDecisionsResponse {
+  timestamp: string;
+  total: number;
+  buy: TradeDecisionItem[];
+  hold: TradeDecisionItem[];
+  sell: TradeDecisionItem[];
+  counts: {
+    buy: number;
+    hold: number;
+    sell: number;
+  };
+}
+
+export async function getAllDecisions(): Promise<AllDecisionsResponse> {
+  return fetchAPI("/api/trading/all-decisions");
 }
 
 // Scan endpoints
@@ -428,7 +626,7 @@ export async function getActivityLog(limit: number = 50): Promise<{
 export interface ActivityLogEntry {
   id: string;
   timestamp: string;
-  type: "ENTRY_SUCCESS" | "ENTRY_ERROR" | "EXIT_SIGNAL" | "EXIT_SUCCESS" | "EXIT_ERROR" | "EXIT_WARNING";
+  type: "ENTRY_SUCCESS" | "ENTRY_ERROR" | "EXIT_SIGNAL" | "EXIT_SUCCESS" | "EXIT_ERROR" | "EXIT_WARNING" | "TRADE" | "AUTO_EXIT";
   ticker: string;
   action: string;
   details: {
@@ -437,12 +635,19 @@ export interface ActivityLogEntry {
     order_id?: string;
     quantity?: number;
     entry_price?: number;
+    entry?: number;
+    exit_price?: number;
     current_price?: number;
+    price?: number;
     stop_loss?: number;
     take_profit?: number;
     pnl?: number;
     pnl_pct?: number;
     confidence?: number;
     momentum?: number;
+    score?: number;
+    reasoning?: string;
+    status?: string;  // "executed", "pending", "filled", "canceled", etc.
+    result?: string;  // "closed", etc.
   };
 }

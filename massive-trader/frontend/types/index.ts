@@ -22,20 +22,20 @@ export interface Bar {
 }
 
 export interface Technicals {
-  rsi: number;
+  rsi: number | null;
   macd: {
-    value: number;
-    signal: number;
-    histogram: number;
+    value: number | null;
+    signal: number | null;
+    histogram: number | null;
   };
-  sma20: number;
-  sma50: number;
-  sma200: number;
-  ema20: number;
-  ema50: number;
-  priceVsSma20: "above" | "below";
-  priceVsSma50: "above" | "below";
-  priceVsSma200: "above" | "below";
+  sma20: number | null;
+  sma50: number | null;
+  sma200: number | null;
+  ema20: number | null;
+  ema50: number | null;
+  priceVsSma20?: "above" | "below";
+  priceVsSma50?: "above" | "below";
+  priceVsSma200?: "above" | "below";
 }
 
 // News Types

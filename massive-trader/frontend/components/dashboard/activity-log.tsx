@@ -58,8 +58,35 @@ export const ActivityLog = memo(function ActivityLog({ logs, isLoading }: Activi
         return <Badge variant="danger" className="text-xs">EXIT FAIL</Badge>;
       case "EXIT_WARNING":
         return <Badge variant="warning" className="text-xs">WARNING</Badge>;
+      case "AUTO_EXIT":
+        return <Badge variant="default" className="text-xs bg-blue-500">AUTO_EXIT</Badge>;
+      case "TRADE":
+        return <Badge variant="success" className="text-xs">TRADE</Badge>;
       default:
         return <Badge variant="outline" className="text-xs">{type}</Badge>;
+    }
+  };
+
+  const getStatusBadge = (status: string | undefined) => {
+    if (!status) return null;
+    switch (status.toLowerCase()) {
+      case "executed":
+      case "filled":
+        return <Badge variant="outline" className="text-[10px] text-green-500 border-green-500/50">FILLED</Badge>;
+      case "pending":
+      case "new":
+      case "held":
+        return <Badge variant="outline" className="text-[10px] text-yellow-500 border-yellow-500/50">PENDING</Badge>;
+      case "closed":
+        return <Badge variant="outline" className="text-[10px] text-blue-500 border-blue-500/50">CLOSED</Badge>;
+      case "canceled":
+      case "cancelled":
+        return <Badge variant="outline" className="text-[10px] text-muted-foreground">CANCELED</Badge>;
+      case "rejected":
+      case "failed":
+        return <Badge variant="outline" className="text-[10px] text-red-500 border-red-500/50">FAILED</Badge>;
+      default:
+        return <Badge variant="outline" className="text-[10px]">{status.toUpperCase()}</Badge>;
     }
   };
 
@@ -164,6 +191,7 @@ export const ActivityLog = memo(function ActivityLog({ logs, isLoading }: Activi
                       <span className="text-xs text-muted-foreground">
                         {log.action}
                       </span>
+                      {getStatusBadge(log.details?.status || log.details?.result)}
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
                       {formatDetails(log)}

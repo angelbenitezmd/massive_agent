@@ -109,7 +109,7 @@ export function TradeDecisionPanel({
       return "Circuit breaker: ORANGE - No new positions";
     if (decision.action !== "BUY" && decision.action !== "SELL")
       return "No actionable signal";
-    if (decision.confidence < 0.6) return "Confidence too low (<60%)";
+    if (decision.confidence < 0.6) return "Signal strength too low (<60)";
     return null;
   };
 
@@ -143,7 +143,7 @@ export function TradeDecisionPanel({
                     <p><strong>HOLD:</strong> Mixed or neutral signals. Wait for clearer direction.</p>
                   </div>
                   <div className="pt-1 border-t border-border">
-                    <p className="text-muted-foreground">Confidence shows how aligned the AI agents are. Higher = stronger consensus.</p>
+                    <p className="text-muted-foreground">Signal Strength is a sentiment score (0-100), not a probability. Higher scores indicate more bullish signals from news, earnings, and analyst ratings.</p>
                   </div>
                 </div>
               </TooltipContent>
@@ -154,13 +154,13 @@ export function TradeDecisionPanel({
       <CardContent className="space-y-4">
         {decision ? (
           <>
-            {/* Action & Confidence */}
+            {/* Action & Signal Strength */}
             <div className="flex items-center justify-between">
               {getActionBadge(decision.action)}
               <div className="text-right">
-                <div className="text-sm text-muted-foreground">Confidence</div>
+                <div className="text-sm text-muted-foreground">Signal Strength</div>
                 <div className="text-2xl font-bold">
-                  {Math.round(decision.confidence * 100)}%
+                  {Math.round(decision.confidence * 100)}/100
                 </div>
               </div>
             </div>
@@ -189,7 +189,7 @@ export function TradeDecisionPanel({
                       (decision.aiScore || 0) >= 80 ? "text-green-500" :
                       (decision.aiScore || 0) >= 60 ? "text-yellow-500" : "text-red-500"
                     )}>
-                      {decision.aiScore || 0}
+                      {decision.aiScore || 0}/100
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs">
@@ -202,7 +202,7 @@ export function TradeDecisionPanel({
                       (decision.momentumScore || 0) >= 70 ? "text-green-500" :
                       (decision.momentumScore || 0) >= 50 ? "text-yellow-500" : "text-red-500"
                     )}>
-                      {decision.momentumScore || 0}
+                      {decision.momentumScore || 0}/100
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs pt-1 border-t border-border">
@@ -229,7 +229,7 @@ export function TradeDecisionPanel({
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <span className="font-bold">{decision.combinedScore || Math.round(decision.confidence * 100)}</span>
+                    <span className="font-bold">{decision.combinedScore || Math.round(decision.confidence * 100)}/100</span>
                   </div>
                   {decision.strategy && (
                     <div className="text-[10px] text-muted-foreground text-center">

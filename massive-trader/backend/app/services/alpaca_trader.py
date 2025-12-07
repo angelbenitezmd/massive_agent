@@ -104,33 +104,34 @@ class AlpacaTrader:
             if "BUY" in action.upper():
                 side = OrderSide.BUY
 
-                # MANDATORY: Calculate stop-loss and take-profit if not provided
-                # Default: 3% stop-loss, 6% take-profit (2:1 risk/reward)
+                # Calculate stop-loss and take-profit if not provided
+                # Default: 2% stop-loss, 2% take-profit (1:1 risk/reward for day trading)
                 if not stop_loss or not entry_price:
-                    stop_loss = entry_price * 0.97 if entry_price else None
-                    logger.warning(f"{ticker}: No stop-loss provided, using 3% default")
+                    stop_loss = entry_price * 0.98 if entry_price else None
+                    logger.info(f"{ticker}: Using 2% stop-loss default")
                 if not take_profit or not entry_price:
-                    take_profit = entry_price * 1.06 if entry_price else None
-                    logger.warning(f"{ticker}: No take-profit provided, using 6% default")
+                    take_profit = entry_price * 1.02 if entry_price else None
+                    logger.info(f"{ticker}: Using 2% take-profit default")
 
-                # Validate stops aren't too tight (< 1%) - would trigger immediately
+                # Validate stop-loss bounds
                 if entry_price and stop_loss:
                     stop_pct = abs(entry_price - stop_loss) / entry_price * 100
-                    if stop_pct < 1.5:
-                        logger.warning(f"{ticker}: Stop-loss too tight ({stop_pct:.1f}%), widening to 3%")
-                        stop_loss = entry_price * 0.97
-                    elif stop_pct > 15:
-                        logger.warning(f"{ticker}: Stop-loss too wide ({stop_pct:.1f}%), tightening to 10%")
-                        stop_loss = entry_price * 0.90
+                    if stop_pct < 0.5:
+                        logger.warning(f"{ticker}: Stop-loss too tight ({stop_pct:.1f}%), widening to 1.5%")
+                        stop_loss = entry_price * 0.985
+                    elif stop_pct > 10:
+                        logger.warning(f"{ticker}: Stop-loss too wide ({stop_pct:.1f}%), tightening to 5%")
+                        stop_loss = entry_price * 0.95
 
+                # Validate take-profit bounds - allow tighter targets for day trading
                 if entry_price and take_profit:
                     profit_pct = abs(take_profit - entry_price) / entry_price * 100
-                    if profit_pct < 1.5:
-                        logger.warning(f"{ticker}: Take-profit too tight ({profit_pct:.1f}%), widening to 6%")
-                        take_profit = entry_price * 1.06
-                    elif profit_pct > 30:
-                        logger.warning(f"{ticker}: Take-profit too wide ({profit_pct:.1f}%), tightening to 15%")
-                        take_profit = entry_price * 1.15
+                    if profit_pct < 0.5:
+                        logger.warning(f"{ticker}: Take-profit too tight ({profit_pct:.1f}%), widening to 1.5%")
+                        take_profit = entry_price * 1.015
+                    elif profit_pct > 10:
+                        logger.warning(f"{ticker}: Take-profit too wide ({profit_pct:.1f}%), tightening to 5%")
+                        take_profit = entry_price * 1.05
 
             elif "SELL" in action.upper():
                 # Check if we have a position to sell
@@ -340,11 +341,46 @@ class AlpacaTrader:
             return {"status": "simulated"}
 
         try:
-            # Alpaca has a built-in method for this
+            # Check if market is open
+            clock = self.client.get_clock()
+            market_open = clock.is_open
+
+            # Get current positions before closing
+            positions = self.client.get_all_positions()
+            position_count = len(positions)
+
+            if position_count == 0:
+                return {
+                    "status": "no_positions",
+                    "message": "No positions to close",
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+
+            if not market_open:
+                # Market is closed - can't execute market orders
+                # Cancel any pending orders first
+                try:
+                    self.client.cancel_orders()
+                except Exception:
+                    pass
+
+                return {
+                    "status": "market_closed",
+                    "message": f"Market is CLOSED. Cannot close {position_count} positions until market opens.",
+                    "positions_count": position_count,
+                    "positions": [p.symbol for p in positions],
+                    "market_open": False,
+                    "next_open": clock.next_open.isoformat() if clock.next_open else None,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+
+            # Market is open - close immediately
             self.client.close_all_positions(cancel_orders=True)
             return {
                 "status": "all_closed",
-                "message": "All positions closed",
+                "message": f"All {position_count} positions closed",
+                "positions_closed": position_count,
+                "market_open": True,
                 "timestamp": datetime.utcnow().isoformat()
             }
         except Exception as e:
