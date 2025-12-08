@@ -268,7 +268,7 @@ export default function DashboardPage() {
         onAnalyze={runAnalysis}
         isAnalyzing={analysisMutation.isPending}
         watchlist={watchlist || []}
-        activeSignal={selectedTickerDecision ? {
+        activeSignal={selectedTickerDecision?.ticker ? {
           ticker: selectedTickerDecision.ticker,
           action: selectedTickerDecision.action,
           confidence: selectedTickerDecision.confidence,
