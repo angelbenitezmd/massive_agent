@@ -50,7 +50,7 @@ export default function DashboardPage() {
   const [selectedTicker, setSelectedTicker] = useState("AAPL");
   const [selectedTimeframe, setSelectedTimeframe] = useState("1Min");
   const [autoRefresh, setAutoRefresh] = useState(false);
-  const [autoTrade, setAutoTrade] = useState(false);
+  // Note: autoTrade state is now managed by the backend (24/7 operation)
   const [analysisResult, setAnalysisResult] = useState<{
     agents: {
       news: AgentSignal;
@@ -194,67 +194,8 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [autoRefresh, runAnalysis]);
 
-  // Auto-trade effect - with robust duplicate prevention
-  useEffect(() => {
-    // Early exits - must pass ALL checks
-    if (!autoTrade) return;
-    if (!selectedTickerDecision) return;
-    if (isExecutingRef.current) return; // Already executing
-    if (executeTradeMutation.isPending) return; // Mutation in progress
-
-    const decision = selectedTickerDecision;
-    const now = Date.now();
-
-    // Cooldown check - prevent rapid executions
-    const timeSinceLastExecution = now - lastExecutionTimeRef.current;
-    if (timeSinceLastExecution < EXECUTION_COOLDOWN_MS) {
-      console.log(`[AutoTrade] Cooldown active: ${Math.ceil((EXECUTION_COOLDOWN_MS - timeSinceLastExecution) / 1000)}s remaining`);
-      return;
-    }
-
-    // Create unique signal ID - only changes when ticker or action changes
-    const signalId = `${decision.ticker}-${decision.action}`;
-
-    // Skip if we already executed this exact signal
-    if (lastExecutedSignalRef.current === signalId) {
-      return;
-    }
-
-    // Check trade conditions
-    const shouldTrade =
-      decision.action === "BUY" &&
-      decision.confidence >= 0.7 &&
-      riskStatus?.circuitBreaker === "GREEN";
-
-    if (!shouldTrade) return;
-
-    // Lock execution
-    isExecutingRef.current = true;
-    lastExecutedSignalRef.current = signalId;
-    lastExecutionTimeRef.current = now;
-
-    console.log(`[AutoTrade] Executing: ${decision.ticker} ${decision.action} (confidence: ${decision.confidence})`);
-
-    // Execute trade
-    executeTradeMutation.mutateAsync(decision)
-      .then((result) => {
-        console.log(`[AutoTrade] Success:`, result);
-      })
-      .catch((error) => {
-        console.error(`[AutoTrade] Failed:`, error);
-        // Reset signal ID on failure so it can retry
-        lastExecutedSignalRef.current = null;
-      })
-      .finally(() => {
-        isExecutingRef.current = false;
-      });
-
-  }, [autoTrade, selectedTickerDecision, riskStatus?.circuitBreaker, executeTradeMutation]);
-
-  // Reset signal tracking when ticker changes (allow new trades for new ticker)
-  useEffect(() => {
-    lastExecutedSignalRef.current = null;
-  }, [selectedTicker]);
+  // Note: Auto-trade is now handled by the backend 24/7
+  // The frontend toggle just enables/disables the backend auto-trade loop
 
   return (
     <div className="min-h-screen bg-background">
@@ -263,8 +204,6 @@ export default function DashboardPage() {
         onTickerChange={setSelectedTicker}
         autoRefresh={autoRefresh}
         onAutoRefreshChange={setAutoRefresh}
-        autoTrade={autoTrade}
-        onAutoTradeChange={setAutoTrade}
         onAnalyze={runAnalysis}
         isAnalyzing={analysisMutation.isPending}
         watchlist={watchlist || []}

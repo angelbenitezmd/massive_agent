@@ -32,6 +32,37 @@ SENTIMENT_CACHE_TTL = 120  # Cache sentiment for 2 minutes
 MOMENTUM_CACHE_TTL = 60    # Cache momentum for 1 minute
 SCAN_CACHE_TTL = 60        # Cache scan results for 1 minute
 
+# Auto-trade state (persisted to file for restarts)
+AUTO_TRADE_STATE_FILE = Path(__file__).parent.parent / "data" / "auto_trade_state.json"
+_auto_trade_enabled = False
+_auto_trade_interval = 60  # seconds between trade scans
+
+def load_auto_trade_state():
+    """Load auto-trade state from disk."""
+    global _auto_trade_enabled, _auto_trade_interval
+    try:
+        if AUTO_TRADE_STATE_FILE.exists():
+            with open(AUTO_TRADE_STATE_FILE, "r") as f:
+                state = json.load(f)
+                _auto_trade_enabled = state.get("enabled", False)
+                _auto_trade_interval = state.get("interval", 60)
+                logger.info(f"Loaded auto-trade state: enabled={_auto_trade_enabled}, interval={_auto_trade_interval}s")
+    except Exception as e:
+        logger.error(f"Failed to load auto-trade state: {e}")
+
+def save_auto_trade_state():
+    """Save auto-trade state to disk."""
+    try:
+        AUTO_TRADE_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(AUTO_TRADE_STATE_FILE, "w") as f:
+            json.dump({
+                "enabled": _auto_trade_enabled,
+                "interval": _auto_trade_interval,
+                "updated_at": datetime.utcnow().isoformat()
+            }, f)
+    except Exception as e:
+        logger.error(f"Failed to save auto-trade state: {e}")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -62,6 +93,11 @@ async def lifespan(app: FastAPI):
     # Start position monitoring background task
     asyncio.create_task(auto_monitor_positions())
     logger.info("✅ Position monitoring started")
+
+    # Load auto-trade state and start background loop
+    load_auto_trade_state()
+    asyncio.create_task(auto_trade_loop())
+    logger.info(f"✅ Auto-trade loop started (enabled={_auto_trade_enabled})")
 
     logger.info("="*60)
 
@@ -1977,6 +2013,119 @@ async def auto_monitor_positions():
             await asyncio.sleep(30)
 
 # Start position monitoring on startup (integrated into lifespan)
+
+# ============= AUTO-TRADE BACKGROUND LOOP =============
+
+async def auto_trade_loop():
+    """Background task that automatically scans and trades when enabled."""
+    global _auto_trade_enabled
+
+    while True:
+        try:
+            if _auto_trade_enabled and is_market_open():
+                logger.info("🤖 [AUTO-TRADE] Running automatic trade scan...")
+
+                # Get best signal from watchlist
+                try:
+                    signal = await get_best_trading_signal()
+
+                    if signal and signal.get("action") == "BUY" and signal.get("combined_score", 0) >= 70:
+                        ticker = signal.get("ticker")
+                        score = signal.get("combined_score", 0)
+
+                        # Check if we already have a position
+                        positions = alpaca_trader.get_positions() if alpaca_trader else []
+                        existing = next((p for p in positions if p["symbol"] == ticker), None)
+
+                        if existing:
+                            logger.info(f"🤖 [AUTO-TRADE] Skipping {ticker} - already have position")
+                        else:
+                            # Execute the trade
+                            logger.info(f"🤖 [AUTO-TRADE] Executing BUY on {ticker} (score: {score:.1f})")
+                            result = alpaca_trader.execute_trade(signal)
+
+                            # Log the trade
+                            log_activity(
+                                log_type="AUTO_TRADE",
+                                ticker=ticker,
+                                action="BUY",
+                                details={
+                                    "price": signal.get("price"),
+                                    "quantity": result.get("qty") if result else None,
+                                    "score": score,
+                                    "reasoning": signal.get("reasoning", "")[:200],
+                                    "order_id": result.get("id") if result else None,
+                                    "auto": True
+                                }
+                            )
+                            logger.info(f"🤖 [AUTO-TRADE] ✅ Trade executed: {result}")
+                    else:
+                        action = signal.get("action", "NONE") if signal else "NO_SIGNAL"
+                        score = signal.get("combined_score", 0) if signal else 0
+                        logger.info(f"🤖 [AUTO-TRADE] No trade - best signal: {action} (score: {score:.1f})")
+
+                except Exception as e:
+                    logger.error(f"🤖 [AUTO-TRADE] Error getting signal: {e}")
+
+            elif _auto_trade_enabled and not is_market_open():
+                logger.debug("🤖 [AUTO-TRADE] Market closed, skipping scan")
+
+            # Wait for next interval
+            await asyncio.sleep(_auto_trade_interval)
+
+        except Exception as e:
+            logger.error(f"🤖 [AUTO-TRADE] Loop error: {e}")
+            await asyncio.sleep(_auto_trade_interval)
+
+
+# ============= AUTO-TRADE API ENDPOINTS =============
+
+@app.get("/api/auto-trade/status")
+async def get_auto_trade_status():
+    """Get current auto-trade status."""
+    return {
+        "enabled": _auto_trade_enabled,
+        "interval": _auto_trade_interval,
+        "market_open": is_market_open(),
+        "updated_at": datetime.utcnow().isoformat()
+    }
+
+
+@app.post("/api/auto-trade/enable")
+async def enable_auto_trade(interval: int = 60):
+    """Enable auto-trading with specified interval (seconds)."""
+    global _auto_trade_enabled, _auto_trade_interval
+
+    _auto_trade_enabled = True
+    _auto_trade_interval = max(30, min(300, interval))  # Clamp between 30s and 5min
+    save_auto_trade_state()
+
+    logger.info(f"🤖 [AUTO-TRADE] ENABLED with {_auto_trade_interval}s interval")
+
+    return {
+        "status": "enabled",
+        "enabled": True,
+        "interval": _auto_trade_interval,
+        "message": f"Auto-trading enabled. Will scan every {_auto_trade_interval}s when market is open."
+    }
+
+
+@app.post("/api/auto-trade/disable")
+async def disable_auto_trade():
+    """Disable auto-trading."""
+    global _auto_trade_enabled
+
+    _auto_trade_enabled = False
+    save_auto_trade_state()
+
+    logger.info("🤖 [AUTO-TRADE] DISABLED")
+
+    return {
+        "status": "disabled",
+        "enabled": False,
+        "message": "Auto-trading disabled. No automatic trades will be executed."
+    }
+
 
 # ============= MOMENTUM TRADING & FLASH SIGNALS =============
 

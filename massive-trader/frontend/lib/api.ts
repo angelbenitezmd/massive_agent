@@ -651,3 +651,36 @@ export interface ActivityLogEntry {
     result?: string;  // "closed", etc.
   };
 }
+
+// Auto-Trade Status
+export interface AutoTradeStatus {
+  enabled: boolean;
+  interval: number;
+  market_open: boolean;
+  updated_at: string;
+}
+
+export async function getAutoTradeStatus(): Promise<AutoTradeStatus> {
+  try {
+    return await fetchAPI<AutoTradeStatus>("/api/auto-trade/status");
+  } catch {
+    return {
+      enabled: false,
+      interval: 60,
+      market_open: false,
+      updated_at: new Date().toISOString(),
+    };
+  }
+}
+
+export async function enableAutoTrade(interval: number = 60): Promise<AutoTradeStatus> {
+  return fetchAPI<AutoTradeStatus>(`/api/auto-trade/enable?interval=${interval}`, {
+    method: "POST",
+  });
+}
+
+export async function disableAutoTrade(): Promise<AutoTradeStatus> {
+  return fetchAPI<AutoTradeStatus>("/api/auto-trade/disable", {
+    method: "POST",
+  });
+}

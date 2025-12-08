@@ -259,3 +259,33 @@ export function usePortfolioHistory(period: string = "1M", timeframe: string = "
     refetchInterval: 300000, // 5 minutes
   });
 }
+
+// Auto-Trade hooks (backend-controlled 24/7 trading)
+export function useAutoTradeStatus() {
+  return useQuery({
+    queryKey: ["autoTradeStatus"],
+    queryFn: api.getAutoTradeStatus,
+    refetchInterval: 10000, // Check status every 10s
+    staleTime: 5000,
+  });
+}
+
+export function useEnableAutoTrade() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (interval: number = 60) => api.enableAutoTrade(interval),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["autoTradeStatus"] });
+    },
+  });
+}
+
+export function useDisableAutoTrade() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.disableAutoTrade,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["autoTradeStatus"] });
+    },
+  });
+}

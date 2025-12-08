@@ -28,7 +28,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useSystemStatus, usePanicClose } from "@/hooks/use-trading-data";
+import { useSystemStatus, usePanicClose, useAutoTradeStatus, useEnableAutoTrade, useDisableAutoTrade } from "@/hooks/use-trading-data";
 import { cn } from "@/lib/utils";
 import { TickerSelector } from "./ticker-selector";
 
@@ -37,8 +37,6 @@ interface HeaderProps {
   onTickerChange: (ticker: string) => void;
   autoRefresh: boolean;
   onAutoRefreshChange: (value: boolean) => void;
-  autoTrade: boolean;
-  onAutoTradeChange: (value: boolean) => void;
   onAnalyze: () => void;
   isAnalyzing: boolean;
   watchlist: string[];
@@ -54,18 +52,28 @@ export function Header({
   onTickerChange,
   autoRefresh,
   onAutoRefreshChange,
-  autoTrade,
-  onAutoTradeChange,
   onAnalyze,
   isAnalyzing,
   watchlist,
   activeSignal,
 }: HeaderProps) {
   const { data: status } = useSystemStatus();
+  const { data: autoTradeStatus } = useAutoTradeStatus();
+  const enableAutoTrade = useEnableAutoTrade();
+  const disableAutoTrade = useDisableAutoTrade();
   const panicMutation = usePanicClose();
   const [panicDialogOpen, setPanicDialogOpen] = useState(false);
 
   const isLive = status?.tradingMode === "live";
+  const autoTrade = autoTradeStatus?.enabled ?? false;
+
+  const handleAutoTradeChange = (checked: boolean) => {
+    if (checked) {
+      enableAutoTrade.mutate(60); // 60 second interval
+    } else {
+      disableAutoTrade.mutate();
+    }
+  };
 
   const handlePanicClose = async () => {
     try {
@@ -183,7 +191,7 @@ export function Header({
             <TooltipContent>Auto-refresh data every 30s</TooltipContent>
           </Tooltip>
 
-          {/* Auto-Trade Toggle */}
+          {/* Auto-Trade Toggle (Backend-controlled 24/7) */}
           <Tooltip>
             <TooltipTrigger asChild>
               <div className="flex items-center gap-1.5">
@@ -196,7 +204,8 @@ export function Header({
                 <Switch
                   id="auto-trade"
                   checked={autoTrade}
-                  onCheckedChange={onAutoTradeChange}
+                  onCheckedChange={handleAutoTradeChange}
+                  disabled={enableAutoTrade.isPending || disableAutoTrade.isPending}
                   className={cn(
                     "scale-75",
                     autoTrade && "data-[state=checked]:bg-yellow-600"
@@ -206,8 +215,8 @@ export function Header({
             </TooltipTrigger>
             <TooltipContent>
               {autoTrade
-                ? "Auto-trade ON - trades execute automatically"
-                : "Auto-trade OFF"}
+                ? "Auto-trade ON (24/7) - server executes trades automatically"
+                : "Auto-trade OFF - enable for 24/7 automated trading"}
             </TooltipContent>
           </Tooltip>
 
