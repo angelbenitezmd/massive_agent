@@ -133,7 +133,7 @@ export const PortfolioHeatmap = memo(function PortfolioHeatmap({
                       <div className="font-bold">{position.symbol}</div>
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                         <span className="text-muted-foreground">Qty:</span>
-                        <span>{position.qty}</span>
+                        <span>{position.quantity}</span>
                         <span className="text-muted-foreground">Value:</span>
                         <span>{formatCurrency(position.marketValue)}</span>
                         <span className="text-muted-foreground">P&L:</span>
