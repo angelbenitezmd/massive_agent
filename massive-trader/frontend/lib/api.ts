@@ -347,7 +347,7 @@ export async function getRiskStatus(): Promise<RiskStatus> {
 export async function executeTrade(decision: TradeDecision): Promise<any> {
   // Use the trading execute endpoint with specific ticker
   try {
-    const ticker = decision.ticker;
+    const ticker = decision.ticker || decision.symbol;
     const res = await fetch(`${API_BASE}/api/trading/execute?auto=true&ticker=${encodeURIComponent(ticker)}`, {
       method: "POST",
       headers: {
