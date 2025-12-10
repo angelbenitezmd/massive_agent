@@ -7,6 +7,9 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     environment:
       - ALPACA_API_KEY_ID=${ALPACA_API_KEY_ID}
       - ALPACA_API_SECRET_KEY=${ALPACA_API_SECRET_KEY}

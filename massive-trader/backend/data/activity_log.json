@@ -1,5 +1,15 @@
 [
   {
+    "id": "65450637",
+    "timestamp": "2025-12-10T19:40:11.799753",
+    "type": "EMERGENCY",
+    "ticker": "ALL",
+    "action": "CLOSE_ALL",
+    "details": {
+      "result": "all_closed"
+    }
+  },
+  {
     "id": "02c03122",
     "timestamp": "2025-12-07T12:53:16.931584",
     "type": "EMERGENCY",
