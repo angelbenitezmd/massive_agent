@@ -19,3 +19,4 @@ export { PortfolioHeatmap } from "./portfolio-heatmap";
 export { PortfolioChart } from "./portfolio-chart";
 export { TickerSelector } from "./ticker-selector";
 export { TradeSignalCard } from "./trade-signal-card";
+export { ManualTradePanel } from "./manual-trade-panel";

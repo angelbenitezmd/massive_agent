@@ -1235,6 +1235,154 @@ async def execute_trade(auto: bool = False, ticker: Optional[str] = None):
             "message": "Signal ready - confirm to execute"
         }
 
+
+class ManualTradeRequest(BaseModel):
+    """Request model for manual trades with full control."""
+    ticker: str
+    side: str  # "buy" or "sell"
+    quantity: float
+    order_type: str = "market"  # "market", "limit", "stop", "bracket"
+    limit_price: Optional[float] = None
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
+    time_in_force: str = "day"  # "day", "gtc", "ioc", "fok"
+
+
+@app.post("/api/trading/manual")
+async def execute_manual_trade(trade: ManualTradeRequest):
+    """
+    Execute a manual trade with full user control.
+
+    This bypasses AI recommendations and executes exactly what the user specifies.
+    Supports market, limit, stop, and bracket orders.
+    """
+    global _last_trade_execution
+
+    # Rate limiting check
+    now = datetime.utcnow().timestamp()
+    time_since_last = now - _last_trade_execution["time"]
+    if time_since_last < TRADE_COOLDOWN_SECONDS:
+        remaining = int(TRADE_COOLDOWN_SECONDS - time_since_last)
+        return {
+            "status": "rate_limited",
+            "message": f"Please wait {remaining}s before next trade",
+            "cooldown_remaining": remaining
+        }
+
+    # Validate inputs
+    if trade.side not in ["buy", "sell"]:
+        return {"status": "error", "message": "Side must be 'buy' or 'sell'"}
+
+    if trade.quantity <= 0:
+        return {"status": "error", "message": "Quantity must be positive"}
+
+    if trade.order_type == "limit" and trade.limit_price is None:
+        return {"status": "error", "message": "Limit price required for limit orders"}
+
+    # Get current price for validation
+    try:
+        quote = alpaca_trader.get_quote(trade.ticker)
+        current_price = quote.get("price", 0) if quote else 0
+    except Exception:
+        current_price = 0
+
+    # Check if we have enough buying power
+    account = alpaca_trader.get_account()
+    if account:
+        buying_power = float(account.get("buying_power", 0))
+        estimated_cost = trade.quantity * (trade.limit_price or current_price or 100)
+        if trade.side == "buy" and estimated_cost > buying_power:
+            return {
+                "status": "error",
+                "message": f"Insufficient buying power. Need ${estimated_cost:,.2f}, have ${buying_power:,.2f}"
+            }
+
+    # Build order based on type
+    if trade.order_type == "bracket" and trade.stop_loss and trade.take_profit:
+        # Bracket order with stop loss and take profit
+        order_payload = {
+            "symbol": trade.ticker,
+            "qty": trade.quantity,
+            "side": trade.side,
+            "type": "market",
+            "time_in_force": trade.time_in_force,
+            "order_class": "bracket",
+            "take_profit": {"limit_price": trade.take_profit},
+            "stop_loss": {"stop_price": trade.stop_loss}
+        }
+    elif trade.order_type == "limit":
+        order_payload = {
+            "symbol": trade.ticker,
+            "qty": trade.quantity,
+            "side": trade.side,
+            "type": "limit",
+            "limit_price": trade.limit_price,
+            "time_in_force": trade.time_in_force
+        }
+    elif trade.order_type == "stop":
+        order_payload = {
+            "symbol": trade.ticker,
+            "qty": trade.quantity,
+            "side": trade.side,
+            "type": "stop",
+            "stop_price": trade.stop_loss or trade.limit_price,
+            "time_in_force": trade.time_in_force
+        }
+    else:
+        # Market order
+        order_payload = {
+            "symbol": trade.ticker,
+            "qty": trade.quantity,
+            "side": trade.side,
+            "type": "market",
+            "time_in_force": trade.time_in_force
+        }
+
+    # Update rate limit tracker
+    _last_trade_execution = {"time": now, "ticker": trade.ticker}
+
+    # Execute the order
+    try:
+        result = alpaca_trader.client.submit_order(**order_payload)
+
+        # Log the manual trade
+        log_activity(
+            log_type="MANUAL_TRADE",
+            ticker=trade.ticker,
+            action=trade.side.upper(),
+            details={
+                "quantity": trade.quantity,
+                "order_type": trade.order_type,
+                "limit_price": trade.limit_price,
+                "stop_loss": trade.stop_loss,
+                "take_profit": trade.take_profit,
+                "order_id": result.id if result else None,
+                "status": "submitted"
+            }
+        )
+
+        return {
+            "status": "executed",
+            "order": {
+                "id": result.id,
+                "symbol": result.symbol,
+                "qty": str(result.qty),
+                "side": result.side.value if hasattr(result.side, 'value') else str(result.side),
+                "type": result.type.value if hasattr(result.type, 'value') else str(result.type),
+                "status": result.status.value if hasattr(result.status, 'value') else str(result.status),
+                "created_at": str(result.created_at)
+            },
+            "message": f"Manual {trade.side.upper()} order submitted for {trade.quantity} {trade.ticker}",
+            "mode": "PAPER TRADING" if alpaca_trader.is_paper else "LIVE TRADING"
+        }
+    except Exception as e:
+        logger.error(f"Manual trade failed: {e}")
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
+
 @app.get("/api/trading/positions")
 async def get_positions():
     """Get all open positions from Alpaca."""

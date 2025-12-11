@@ -289,3 +289,29 @@ export function useDisableAutoTrade() {
     },
   });
 }
+
+// Manual Trade hook
+export interface ManualTradeRequest {
+  ticker: string;
+  side: "buy" | "sell";
+  quantity: number;
+  order_type: "market" | "limit" | "stop" | "bracket";
+  limit_price?: number;
+  stop_loss?: number;
+  take_profit?: number;
+  time_in_force: "day" | "gtc";
+}
+
+export function useManualTrade() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (trade: ManualTradeRequest) => api.executeManualTrade(trade),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["account"] });
+      queryClient.invalidateQueries({ queryKey: ["positions"] });
+      queryClient.invalidateQueries({ queryKey: ["risk"] });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["activityLog"] });
+    },
+  });
+}

@@ -370,6 +370,42 @@ export async function executeTrade(decision: TradeDecision): Promise<any> {
   }
 }
 
+// Manual Trade Execution
+export interface ManualTradeRequest {
+  ticker: string;
+  side: "buy" | "sell";
+  quantity: number;
+  order_type: "market" | "limit" | "stop" | "bracket";
+  limit_price?: number;
+  stop_loss?: number;
+  take_profit?: number;
+  time_in_force: "day" | "gtc";
+}
+
+export async function executeManualTrade(trade: ManualTradeRequest): Promise<any> {
+  try {
+    const res = await fetch(`${API_BASE}/api/trading/manual`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(trade),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Manual trade failed: ${res.status} ${res.statusText} - ${text}`);
+    }
+
+    return res.json();
+  } catch (error) {
+    if (error instanceof TypeError && error.message === "Failed to fetch") {
+      throw new Error("Cannot connect to trading server. Please check if the backend is running.");
+    }
+    throw error;
+  }
+}
+
 // Watchlist
 export async function getWatchlist(): Promise<string[]> {
   try {

@@ -22,6 +22,7 @@ import {
   PortfolioHeatmap,
   PortfolioChart,
   TradeSignalCard,
+  ManualTradePanel,
 } from "@/components/dashboard";
 import {
   useQuote,
@@ -43,6 +44,7 @@ import {
   useLatestNews,
   useNews,
   useAllDecisions,
+  useManualTrade,
 } from "@/hooks/use-trading-data";
 import type { AgentSignal, TradeDecision, Technicals } from "@/types";
 
@@ -83,6 +85,7 @@ export default function DashboardPage() {
   const analysisMutation = useAnalysis(selectedTicker);
   const executeTradeMutation = useExecuteTrade();
   const deepAnalysisMutation = useDeepAnalysis(selectedTicker);
+  const manualTradeMutation = useManualTrade();
 
   // Deep analysis result state
   const [deepAnalysisResult, setDeepAnalysisResult] = useState<any>(null);
@@ -264,8 +267,8 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* Middle Row: Chart + Deep Analysis + Trade Decision */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 mb-3">
+        {/* Middle Row: Chart + Deep Analysis + Trade Decision + Manual Trade */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 mb-3">
           {/* Market Snapshot - spans 2 columns */}
           <div className="lg:col-span-2">
             <MarketSnapshot
@@ -290,6 +293,15 @@ export default function DashboardPage() {
             riskStatus={riskStatus}
             onExecuteTrade={executeTrade}
             isExecuting={executeTradeMutation.isPending}
+            tradingMode={status?.tradingMode || "paper"}
+          />
+          {/* Manual Trade */}
+          <ManualTradePanel
+            ticker={selectedTicker}
+            currentPrice={quote?.price || 0}
+            buyingPower={account?.buyingPower || 0}
+            onTrade={manualTradeMutation.mutateAsync}
+            isExecuting={manualTradeMutation.isPending}
             tradingMode={status?.tradingMode || "paper"}
           />
         </div>
