@@ -1288,7 +1288,7 @@ async def execute_manual_trade(trade: ManualTradeRequest):
         current_price = 0
 
     # Check if we have enough buying power
-    account = alpaca_trader.get_account()
+    account = alpaca_trader.get_account_status()
     if account:
         buying_power = float(account.get("buying_power", 0))
         estimated_cost = trade.quantity * (trade.limit_price or current_price or 100)
