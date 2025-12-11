@@ -52,8 +52,11 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = Field(default="INFO")
     LOG_FILE: str = Field(default="trading_system.log")
 
-    # Watchlist
-    WATCHLIST_TICKERS: str = Field(default="AAPL,MSFT,GOOGL")
+    # Watchlist & Ticker Lists
+    WATCHLIST_TICKERS: str = Field(default="AAPL,MSFT,GOOGL,NVDA,AMZN,META,TSLA")
+    SCAN_UNIVERSE_TICKERS: str = Field(default="")
+    SPICY_TICKERS: str = Field(default="")
+    HIGH_VOLUME_TICKERS: str = Field(default="")
 
     @property
     def alpaca_base_url(self) -> str:
@@ -70,6 +73,27 @@ class Settings(BaseSettings):
     def watchlist(self) -> List[str]:
         """Parse watchlist tickers into a list."""
         return [ticker.strip() for ticker in self.WATCHLIST_TICKERS.split(",") if ticker.strip()]
+
+    @property
+    def universe(self) -> List[str]:
+        """Parse universe tickers into a list."""
+        return [ticker.strip() for ticker in self.SCAN_UNIVERSE_TICKERS.split(",") if ticker.strip()]
+
+    @property
+    def spicy(self) -> List[str]:
+        """Parse spicy/volatile tickers into a list."""
+        return [ticker.strip() for ticker in self.SPICY_TICKERS.split(",") if ticker.strip()]
+
+    @property
+    def high_volume(self) -> List[str]:
+        """Parse high volume tickers into a list."""
+        return [ticker.strip() for ticker in self.HIGH_VOLUME_TICKERS.split(",") if ticker.strip()]
+
+    @property
+    def all_tickers(self) -> List[str]:
+        """Return all unique tickers from all lists."""
+        all_set = set(self.watchlist + self.universe + self.spicy + self.high_volume)
+        return sorted(list(all_set))
 
     @property
     def is_paper_trading(self) -> bool:
