@@ -75,19 +75,29 @@ export function ManualTradePanel({
   const [riskPercent, setRiskPercent] = useState<string>("1");
   const [useRiskCalc, setUseRiskCalc] = useState(false);
 
+  // Stop loss / take profit percentages
+  const [stopLossPercent, setStopLossPercent] = useState<number>(2);
+  const [takeProfitPercent, setTakeProfitPercent] = useState<number>(4);
+
   // Confirmation dialog
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [tradeResult, setTradeResult] = useState<any>(null);
 
-  // Update limit price when ticker changes
+  // Update prices when ticker/price changes
   useEffect(() => {
     if (currentPrice > 0) {
       setLimitPrice(currentPrice.toFixed(2));
-      // Set default stop loss at 2% below and take profit at 4% above
-      setStopLoss((currentPrice * 0.98).toFixed(2));
-      setTakeProfit((currentPrice * 1.04).toFixed(2));
+      // Calculate stop loss and take profit based on percentages
+      if (side === "buy") {
+        setStopLoss((currentPrice * (1 - stopLossPercent / 100)).toFixed(2));
+        setTakeProfit((currentPrice * (1 + takeProfitPercent / 100)).toFixed(2));
+      } else {
+        // For sell/short, reverse the direction
+        setStopLoss((currentPrice * (1 + stopLossPercent / 100)).toFixed(2));
+        setTakeProfit((currentPrice * (1 - takeProfitPercent / 100)).toFixed(2));
+      }
     }
-  }, [currentPrice, ticker]);
+  }, [currentPrice, ticker, side, stopLossPercent, takeProfitPercent]);
 
   // Calculate position size based on risk
   useEffect(() => {
@@ -307,32 +317,67 @@ export function ManualTradePanel({
 
         {/* Stop Loss & Take Profit (for bracket or optional) */}
         {(orderType === "bracket" || orderType === "market") && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-3">
+            {/* Stop Loss */}
             <div className="space-y-2">
-              <label className="text-sm text-muted-foreground flex items-center gap-2">
-                <Shield className="h-3.5 w-3.5 text-red-500" />
-                Stop Loss
-              </label>
-              <Input
-                type="number"
-                value={stopLoss}
-                onChange={(e) => setStopLoss(e.target.value)}
-                step="0.01"
-                className="border-red-500/30"
-              />
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-muted-foreground flex items-center gap-2">
+                  <Shield className="h-3.5 w-3.5 text-red-500" />
+                  Stop Loss
+                </label>
+                <span className="text-xs text-muted-foreground">-{stopLossPercent}%</span>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  value={stopLoss}
+                  onChange={(e) => setStopLoss(e.target.value)}
+                  step="0.01"
+                  className="flex-1 border-red-500/30"
+                />
+                {[1, 2, 3, 5].map((pct) => (
+                  <Button
+                    key={pct}
+                    variant={stopLossPercent === pct ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setStopLossPercent(pct)}
+                    className="px-2 text-xs"
+                  >
+                    {pct}%
+                  </Button>
+                ))}
+              </div>
             </div>
+
+            {/* Take Profit */}
             <div className="space-y-2">
-              <label className="text-sm text-muted-foreground flex items-center gap-2">
-                <Target className="h-3.5 w-3.5 text-green-500" />
-                Take Profit
-              </label>
-              <Input
-                type="number"
-                value={takeProfit}
-                onChange={(e) => setTakeProfit(e.target.value)}
-                step="0.01"
-                className="border-green-500/30"
-              />
+              <div className="flex items-center justify-between">
+                <label className="text-sm text-muted-foreground flex items-center gap-2">
+                  <Target className="h-3.5 w-3.5 text-green-500" />
+                  Take Profit
+                </label>
+                <span className="text-xs text-muted-foreground">+{takeProfitPercent}%</span>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  value={takeProfit}
+                  onChange={(e) => setTakeProfit(e.target.value)}
+                  step="0.01"
+                  className="flex-1 border-green-500/30"
+                />
+                {[2, 4, 6, 10].map((pct) => (
+                  <Button
+                    key={pct}
+                    variant={takeProfitPercent === pct ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setTakeProfitPercent(pct)}
+                    className="px-2 text-xs"
+                  >
+                    {pct}%
+                  </Button>
+                ))}
+              </div>
             </div>
           </div>
         )}
