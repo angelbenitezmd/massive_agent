@@ -101,10 +101,10 @@ export function PortfolioChart() {
   // Daily P&L bars data
   const dailyPnL = useMemo(() => {
     if (!chartData.length) return [];
-    const maxAbsPnL = Math.max(...chartData.map((d) => Math.abs(d.profit_loss_pct)));
+    const maxAbsPnL = Math.max(...chartData.map((d) => Math.abs(d.profit_loss_pct ?? 0)));
     return chartData.map((d) => ({
       ...d,
-      barHeight: maxAbsPnL > 0 ? (Math.abs(d.profit_loss_pct) / maxAbsPnL) * 100 : 0,
+      barHeight: maxAbsPnL > 0 ? (Math.abs(d.profit_loss_pct ?? 0) / maxAbsPnL) * 100 : 0,
     }));
   }, [chartData]);
 
@@ -170,11 +170,11 @@ export function PortfolioChart() {
                     isPositive ? "text-green-500" : "text-red-500"
                   )}
                 >
-                  {summary.total_return_pct >= 0 ? "+" : ""}
-                  {summary.total_return_pct.toFixed(2)}%
+                  {(summary.total_return_pct ?? 0) >= 0 ? "+" : ""}
+                  {(summary.total_return_pct ?? 0).toFixed(2)}%
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {formatCurrency(summary.total_return_dollars)}
+                  {formatCurrency(summary.total_return_dollars ?? 0)}
                 </div>
               </div>
 
@@ -185,7 +185,7 @@ export function PortfolioChart() {
                   Max Drawdown
                 </div>
                 <div className="text-lg font-bold text-orange-500">
-                  -{summary.max_drawdown_pct.toFixed(2)}%
+                  -{(summary.max_drawdown_pct ?? 0).toFixed(2)}%
                 </div>
                 <div className="text-xs text-muted-foreground">
                   Peak to trough
@@ -199,10 +199,10 @@ export function PortfolioChart() {
                   Best Day
                 </div>
                 <div className="text-lg font-bold text-green-500">
-                  +{summary.best_day.pct.toFixed(2)}%
+                  +{(summary.best_day?.pct ?? 0).toFixed(2)}%
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {formatDate(summary.best_day.date)}
+                  {summary.best_day?.date ? formatDate(summary.best_day.date) : "N/A"}
                 </div>
               </div>
 
@@ -213,10 +213,10 @@ export function PortfolioChart() {
                   Worst Day
                 </div>
                 <div className="text-lg font-bold text-red-500">
-                  {summary.worst_day.pct.toFixed(2)}%
+                  {(summary.worst_day?.pct ?? 0).toFixed(2)}%
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {formatDate(summary.worst_day.date)}
+                  {summary.worst_day?.date ? formatDate(summary.worst_day.date) : "N/A"}
                 </div>
               </div>
             </div>
@@ -256,7 +256,7 @@ export function PortfolioChart() {
                       <div
                         className={cn(
                           "flex-1 min-w-[3px] max-w-[12px] rounded-t-sm cursor-pointer transition-opacity hover:opacity-80",
-                          day.profit_loss_pct >= 0 ? "bg-green-500" : "bg-red-500"
+                          (day.profit_loss_pct ?? 0) >= 0 ? "bg-green-500" : "bg-red-500"
                         )}
                         style={{ height: `${Math.max(day.barHeight, 5)}%` }}
                       />
@@ -266,12 +266,12 @@ export function PortfolioChart() {
                         <div className="font-semibold">{formatDate(day.date)}</div>
                         <div
                           className={cn(
-                            day.profit_loss >= 0 ? "text-green-500" : "text-red-500"
+                            (day.profit_loss ?? 0) >= 0 ? "text-green-500" : "text-red-500"
                           )}
                         >
-                          {day.profit_loss >= 0 ? "+" : ""}
-                          {formatCurrency(day.profit_loss)} ({day.profit_loss_pct >= 0 ? "+" : ""}
-                          {day.profit_loss_pct.toFixed(2)}%)
+                          {(day.profit_loss ?? 0) >= 0 ? "+" : ""}
+                          {formatCurrency(day.profit_loss ?? 0)} ({(day.profit_loss_pct ?? 0) >= 0 ? "+" : ""}
+                          {(day.profit_loss_pct ?? 0).toFixed(2)}%)
                         </div>
                         <div className="text-muted-foreground">
                           Equity: {formatCurrency(day.equity)}
