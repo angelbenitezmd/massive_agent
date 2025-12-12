@@ -1381,7 +1381,7 @@ async def execute_manual_trade(trade: ManualTradeRequest):
                 "created_at": str(result.created_at)
             },
             "message": f"Manual {trade.side.upper()} order submitted for {trade.quantity} {trade.ticker}",
-            "mode": "PAPER TRADING" if alpaca_trader.is_paper else "LIVE TRADING"
+            "mode": "PAPER TRADING"  # Always paper trading for safety
         }
     except Exception as e:
         logger.error(f"Manual trade failed: {e}")
