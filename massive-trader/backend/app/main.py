@@ -1298,53 +1298,60 @@ async def execute_manual_trade(trade: ManualTradeRequest):
                 "message": f"Insufficient buying power. Need ${estimated_cost:,.2f}, have ${buying_power:,.2f}"
             }
 
+    # Import Alpaca order types
+    from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest, StopOrderRequest
+    from alpaca.trading.requests import StopLossRequest, TakeProfitRequest
+    from alpaca.trading.enums import OrderSide, TimeInForce, OrderClass
+
+    # Convert side string to enum
+    order_side = OrderSide.BUY if trade.side.lower() == "buy" else OrderSide.SELL
+
+    # Convert time_in_force string to enum
+    tif = TimeInForce.DAY if trade.time_in_force.lower() == "day" else TimeInForce.GTC
+
     # Build order based on type
     if trade.order_type == "bracket" and trade.stop_loss and trade.take_profit:
         # Bracket order with stop loss and take profit
-        order_payload = {
-            "symbol": trade.ticker,
-            "qty": trade.quantity,
-            "side": trade.side,
-            "type": "market",
-            "time_in_force": trade.time_in_force,
-            "order_class": "bracket",
-            "take_profit": {"limit_price": trade.take_profit},
-            "stop_loss": {"stop_price": trade.stop_loss}
-        }
+        order_request = MarketOrderRequest(
+            symbol=trade.ticker,
+            qty=trade.quantity,
+            side=order_side,
+            time_in_force=tif,
+            order_class=OrderClass.BRACKET,
+            stop_loss=StopLossRequest(stop_price=round(trade.stop_loss, 2)),
+            take_profit=TakeProfitRequest(limit_price=round(trade.take_profit, 2))
+        )
     elif trade.order_type == "limit":
-        order_payload = {
-            "symbol": trade.ticker,
-            "qty": trade.quantity,
-            "side": trade.side,
-            "type": "limit",
-            "limit_price": trade.limit_price,
-            "time_in_force": trade.time_in_force
-        }
+        order_request = LimitOrderRequest(
+            symbol=trade.ticker,
+            qty=trade.quantity,
+            side=order_side,
+            time_in_force=tif,
+            limit_price=round(trade.limit_price, 2)
+        )
     elif trade.order_type == "stop":
-        order_payload = {
-            "symbol": trade.ticker,
-            "qty": trade.quantity,
-            "side": trade.side,
-            "type": "stop",
-            "stop_price": trade.stop_loss or trade.limit_price,
-            "time_in_force": trade.time_in_force
-        }
+        order_request = StopOrderRequest(
+            symbol=trade.ticker,
+            qty=trade.quantity,
+            side=order_side,
+            time_in_force=tif,
+            stop_price=round(trade.stop_loss or trade.limit_price, 2)
+        )
     else:
         # Market order
-        order_payload = {
-            "symbol": trade.ticker,
-            "qty": trade.quantity,
-            "side": trade.side,
-            "type": "market",
-            "time_in_force": trade.time_in_force
-        }
+        order_request = MarketOrderRequest(
+            symbol=trade.ticker,
+            qty=trade.quantity,
+            side=order_side,
+            time_in_force=tif
+        )
 
     # Update rate limit tracker
     _last_trade_execution = {"time": now, "ticker": trade.ticker}
 
     # Execute the order
     try:
-        result = alpaca_trader.client.submit_order(**order_payload)
+        result = alpaca_trader.client.submit_order(order_data=order_request)
 
         # Log the manual trade
         log_activity(
