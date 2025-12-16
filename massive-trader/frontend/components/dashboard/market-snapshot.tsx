@@ -299,7 +299,7 @@ export function MarketSnapshot({
 
   if (isLoading) {
     return (
-      <Card className="col-span-2">
+      <Card className="w-full">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
@@ -317,7 +317,7 @@ export function MarketSnapshot({
 
   return (
     <TooltipProvider>
-    <Card className="col-span-2 card-hover">
+    <Card className="w-full card-hover">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">

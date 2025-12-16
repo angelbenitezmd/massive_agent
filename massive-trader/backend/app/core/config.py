@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     # AI / LLM
     ANTHROPIC_API_KEY: str = Field(default="")
     OPENAI_API_KEY: Optional[str] = Field(default=None)
+    AGENT_DESIGN_MODE: bool = Field(default=False, description="Enable design mode for agents (testing/development)")
 
     # Trading Engine
     TRADING_HYBRID_INTERVAL_SECONDS: int = Field(default=60)

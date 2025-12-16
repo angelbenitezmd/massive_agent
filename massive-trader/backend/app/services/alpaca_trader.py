@@ -1,8 +1,9 @@
 """Alpaca paper trading integration for production trading."""
 import os
 import logging
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 from datetime import datetime, timedelta
+from types import MethodType
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import (
     MarketOrderRequest,
@@ -13,6 +14,7 @@ from alpaca.trading.requests import (
 )
 from alpaca.trading.enums import OrderSide, TimeInForce, OrderType, OrderClass
 from alpaca.data.live import StockDataStream
+from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockLatestQuoteRequest
 
 logger = logging.getLogger(__name__)
@@ -25,6 +27,8 @@ class AlpacaTrader:
         """Initialize Alpaca client for PAPER trading."""
         self.api_key = os.getenv("ALPACA_API_KEY_ID")
         self.secret_key = os.getenv("ALPACA_API_SECRET_KEY")
+        self.is_paper = True  # We always default to paper mode for safety
+        self.data_client = None
 
         if not self.api_key or not self.secret_key:
             logger.warning("Alpaca API keys not configured - running in simulation mode")
@@ -38,6 +42,14 @@ class AlpacaTrader:
                 paper=True  # ALWAYS PAPER TRADING
             )
             logger.info("✅ Alpaca PAPER trading client initialized")
+            try:
+                self.data_client = StockHistoricalDataClient(self.api_key, self.secret_key)
+            except Exception as e:  # pragma: no cover - best-effort init
+                logger.warning(f"Could not initialize Alpaca data client: {e}")
+                self.data_client = None
+
+            # Backward compatibility: allow legacy submit_order(symbol=..., qty=...) calls
+            self._attach_submit_order_adapter()
 
             # Get account info
             try:
@@ -46,6 +58,99 @@ class AlpacaTrader:
                 logger.info(f"Buying Power: ${account.buying_power}")
             except Exception as e:
                 logger.error(f"Error getting account: {e}")
+
+    def _attach_submit_order_adapter(self) -> None:
+        """Wrap submit_order to support legacy keyword args (symbol, qty, etc.)."""
+        if not self.client:
+            return
+
+        original_submit = self.client.submit_order
+
+        def submit_order_compat(client_self, *args: Any, **kwargs: Any):
+            # Legacy style calls pass symbol/qty instead of order_data
+            if kwargs and "order_data" not in kwargs and "symbol" in kwargs:
+                try:
+                    order_request = self._build_order_request_from_kwargs(**kwargs)
+                    return original_submit(order_data=order_request)
+                except Exception as exc:
+                    logger.error(f"Failed to adapt legacy order params: {exc}")
+                    raise
+            return original_submit(*args, **kwargs)
+
+        # Bind the compatibility wrapper to this client instance
+        self.client.submit_order = MethodType(submit_order_compat, self.client)
+
+    def _build_order_request_from_kwargs(self, **kwargs: Any):
+        """Convert legacy submit_order kwargs to the new OrderRequest object."""
+        symbol = kwargs.get("symbol") or kwargs.get("ticker")
+        qty = kwargs.get("qty") or kwargs.get("quantity")
+        side = kwargs.get("side") or kwargs.get("order_side")
+        order_type = kwargs.get("type") or kwargs.get("order_type") or OrderType.MARKET
+        tif = kwargs.get("time_in_force") or kwargs.get("tif") or TimeInForce.GTC
+        limit_price = kwargs.get("limit_price")
+        stop_price = kwargs.get("stop_price") or kwargs.get("stop_loss")
+        order_class = kwargs.get("order_class")
+        take_profit = kwargs.get("take_profit")
+
+        if isinstance(side, str):
+            side = OrderSide(side.lower())
+        if isinstance(order_type, str):
+            order_type = OrderType(order_type.lower())
+        if isinstance(tif, str):
+            tif = TimeInForce(tif.lower())
+
+        # Build the appropriate order request type
+        if order_type == OrderType.LIMIT and limit_price is not None:
+            order_request = LimitOrderRequest(
+                symbol=symbol,
+                qty=qty,
+                side=side,
+                time_in_force=tif,
+                limit_price=round(float(limit_price), 2)
+            )
+        elif order_type == OrderType.STOP and stop_price is not None:
+            order_request = StopOrderRequest(
+                symbol=symbol,
+                qty=qty,
+                side=side,
+                time_in_force=tif,
+                stop_price=round(float(stop_price), 2)
+            )
+        else:
+            order_request = MarketOrderRequest(
+                symbol=symbol,
+                qty=qty,
+                side=side,
+                time_in_force=tif
+            )
+
+        # Optional bracket handling for legacy callers
+        if order_class and str(order_class).lower() == "bracket":
+            tp_req = None
+            if take_profit:
+                if isinstance(take_profit, TakeProfitRequest):
+                    tp_req = take_profit
+                elif isinstance(take_profit, dict):
+                    tp_req = TakeProfitRequest(**take_profit)
+                else:
+                    tp_req = TakeProfitRequest(limit_price=round(float(take_profit), 2))
+
+            sl_req = None
+            if stop_price:
+                if isinstance(stop_price, dict):
+                    stop_val = stop_price.get("stop_price") or stop_price.get("limit_price") or stop_price.get("price")
+                    if stop_val:
+                        sl_req = StopLossRequest(stop_price=round(float(stop_val), 2))
+                else:
+                    sl_req = StopLossRequest(stop_price=round(float(stop_price), 2))
+
+            order_request.order_class = OrderClass.BRACKET
+            if tp_req:
+                order_request.take_profit = tp_req
+            if sl_req:
+                order_request.stop_loss = sl_req
+
+        return order_request
 
     def get_account_status(self) -> Dict:
         """Get current account status."""
@@ -82,6 +187,32 @@ class AlpacaTrader:
         except Exception as e:
             logger.error(f"Error getting account status: {e}")
             return {"status": "error", "message": str(e)}
+
+    def get_quote(self, ticker: str) -> Dict:
+        """Fetch the latest quote for a ticker using the data client."""
+        if not self.data_client:
+            return {"symbol": ticker.upper(), "price": 0, "bid": 0, "ask": 0}
+
+        try:
+            request = StockLatestQuoteRequest(symbol_or_symbols=ticker)
+            quote = self.data_client.get_stock_latest_quote(request)
+            if isinstance(quote, dict):
+                quote = quote.get(ticker) or next(iter(quote.values()), None)
+
+            bid = float(getattr(quote, "bid_price", 0) or 0)
+            ask = float(getattr(quote, "ask_price", 0) or 0)
+            price = float(getattr(quote, "last_price", 0) or (ask or bid))
+
+            return {
+                "symbol": ticker.upper(),
+                "bid": bid,
+                "ask": ask,
+                "price": price,
+                "timestamp": getattr(quote, "timestamp", None)
+            }
+        except Exception as e:
+            logger.error(f"Error fetching quote for {ticker}: {e}")
+            return {"symbol": ticker.upper(), "price": 0, "bid": 0, "ask": 0}
 
     def execute_trade(self, signal: Dict) -> Dict:
         """Execute a trade with MANDATORY bracket order (stop-loss + take-profit)."""

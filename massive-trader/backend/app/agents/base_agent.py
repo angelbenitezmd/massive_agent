@@ -27,19 +27,25 @@ class BaseAgent(ABC):
         """
         self.name = name
         self.settings = get_settings()
+        self.design_mode = self.settings.AGENT_DESIGN_MODE
 
-        # Initialize LLM
-        self.llm = ChatAnthropic(
-            anthropic_api_key=self.settings.ANTHROPIC_API_KEY,
-            model=model,
-            temperature=0.3,  # Lower temperature for more consistent outputs
-            max_tokens=1000
-        )
+        # Initialize LLM (skip in design mode)
+        if not self.design_mode:
+            self.llm = ChatAnthropic(
+                anthropic_api_key=self.settings.ANTHROPIC_API_KEY,
+                model=model,
+                temperature=0.3,  # Lower temperature for more consistent outputs
+                max_tokens=1000
+            )
+        else:
+            self.llm = None
+            logger.info(f"🔧 Design mode enabled for {name} - LLM calls will be mocked")
 
         # Output parser for structured responses
         self.output_parser = PydanticOutputParser(pydantic_object=AgentScore)
 
-        logger.info(f"Initialized {name} agent with model {model}")
+        mode_str = " (DESIGN MODE)" if self.design_mode else ""
+        logger.info(f"Initialized {name} agent with model {model}{mode_str}")
 
     @abstractmethod
     def get_system_prompt(self) -> str:
@@ -74,6 +80,11 @@ class BaseAgent(ABC):
         Returns:
             AgentScore with analysis results
         """
+        # Design mode: return mock response for testing
+        if self.design_mode:
+            logger.info(f"🔧 [DESIGN MODE] {self.name} returning mock analysis")
+            return self._get_design_mode_response(data)
+
         try:
             # Prepare messages
             system_message = SystemMessage(content=self.get_system_prompt())
@@ -121,6 +132,25 @@ Remember to:
                 urgency=0.0,
                 notes=f"Error in analysis: {str(e)}"
             )
+
+    def _get_design_mode_response(self, data: Dict[str, Any]) -> AgentScore:
+        """
+        Return a mock response when in design mode.
+        Override this in subclasses for custom mock behavior.
+
+        Args:
+            data: Input data (for context)
+
+        Returns:
+            Mock AgentScore
+        """
+        return AgentScore(
+            score=65.0,
+            sentiment=0.3,
+            confidence=0.7,
+            urgency=0.5,
+            notes=f"[DESIGN MODE] Mock response from {self.name}. Data keys: {list(data.keys())}"
+        )
 
     def calculate_weighted_score(
         self,

@@ -267,19 +267,20 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* Middle Row: Chart + Deep Analysis + Trade Decision + Manual Trade */}
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 mb-3">
-          {/* Market Snapshot - spans 2 columns */}
-          <div className="lg:col-span-2">
-            <MarketSnapshot
-              quote={quote}
-              technicals={analysisResult?.technicals}
-              bars={bars}
-              isLoading={quoteLoading || barsLoading}
-              timeframe={selectedTimeframe}
-              onTimeframeChange={setSelectedTimeframe}
-            />
-          </div>
+        {/* Chart Row - Full Width */}
+        <div className="mb-3">
+          <MarketSnapshot
+            quote={quote}
+            technicals={analysisResult?.technicals}
+            bars={bars}
+            isLoading={quoteLoading || barsLoading}
+            timeframe={selectedTimeframe}
+            onTimeframeChange={setSelectedTimeframe}
+          />
+        </div>
+
+        {/* Analysis & Trade Row: Deep Analysis + Trade Decision + Manual Trade */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3">
           {/* Deep Analysis */}
           <DeepAnalysisPanel
             ticker={selectedTicker}
