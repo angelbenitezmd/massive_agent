@@ -31,6 +31,8 @@ import {
 import { useSystemStatus, usePanicClose, useAutoTradeStatus, useEnableAutoTrade, useDisableAutoTrade } from "@/hooks/use-trading-data";
 import { cn } from "@/lib/utils";
 import { TickerSelector } from "./ticker-selector";
+import { LayoutEditor, type LayoutItem } from "./layout-editor";
+import { useDashboardLayout } from "@/hooks/use-dashboard-layout";
 
 interface HeaderProps {
   selectedTicker: string;
@@ -63,6 +65,7 @@ export function Header({
   const disableAutoTrade = useDisableAutoTrade();
   const panicMutation = usePanicClose();
   const [panicDialogOpen, setPanicDialogOpen] = useState(false);
+  const { layout, saveLayout } = useDashboardLayout();
 
   const isLive = status?.tradingMode === "live";
   const autoTrade = autoTradeStatus?.enabled ?? false;
@@ -269,6 +272,34 @@ export function Header({
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+
+          {/* Layout Editor */}
+          <LayoutEditor
+            items={layout}
+            onLayoutChange={saveLayout}
+            availableComponents={[
+              { id: "market-status", name: "Market Status", description: "Market open/close status" },
+              { id: "todays-summary", name: "Today's Summary", description: "Daily trading summary" },
+              { id: "trade-signals", name: "AI Trade Decisions", description: "AI-generated trade signals" },
+              { id: "news-feed-global", name: "Global News Feed", description: "Market-wide news" },
+              { id: "news-feed-ticker", name: "Ticker News Feed", description: "Ticker-specific news" },
+              { id: "scanner", name: "Scanner Panel", description: "Stock scanner" },
+              { id: "ai-agents", name: "AI Agents Panel", description: "AI agent analysis" },
+              { id: "market-snapshot", name: "Market Snapshot", description: "Price chart and technicals" },
+              { id: "deep-analysis", name: "Deep Analysis", description: "Deep AI analysis" },
+              { id: "trade-decision", name: "Trade Decision", description: "Trade decision panel" },
+              { id: "manual-trade", name: "Manual Trade", description: "Manual trade execution" },
+              { id: "portfolio-heatmap", name: "Portfolio Heatmap", description: "Portfolio visualization" },
+              { id: "portfolio-chart", name: "Portfolio Chart", description: "Portfolio performance chart" },
+              { id: "trade-journal", name: "Trade Journal", description: "Trade history" },
+              { id: "analyst-ratings", name: "Analyst Ratings", description: "Analyst rating changes" },
+              { id: "activity-log", name: "Activity Log", description: "System activity log" },
+              { id: "earnings", name: "Earnings Panel", description: "Earnings calendar" },
+              { id: "performance", name: "Performance Stats", description: "Performance metrics" },
+              { id: "market-movers", name: "Market Movers", description: "Top movers" },
+              { id: "risk-panel", name: "Risk Panel", description: "Risk management" },
+            ]}
+          />
 
           <Button variant="ghost" size="icon">
             <Settings className="h-5 w-5" />
