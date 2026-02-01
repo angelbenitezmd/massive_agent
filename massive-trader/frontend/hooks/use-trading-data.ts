@@ -96,8 +96,9 @@ export function usePositions() {
   return useQuery({
     queryKey: ["positions"],
     queryFn: api.getPositions,
-    refetchInterval: 10000,
-    staleTime: 5000,
+    refetchInterval: 5000,  // Every 5 sec for real-time P&L
+    staleTime: 2000,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -169,12 +170,26 @@ export function useCloseAllPositions() {
   });
 }
 
+export function useClosePosition() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (ticker: string) => api.closePosition(ticker),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["account"] });
+      queryClient.invalidateQueries({ queryKey: ["positions"] });
+      queryClient.invalidateQueries({ queryKey: ["risk"] });
+    },
+  });
+}
+
 export function useScanWatchlist() {
   return useQuery({
     queryKey: ["scan", "watchlist"],
     queryFn: api.scanWatchlist,
-    staleTime: 90000,  // 1.5 min - backend caches for 1 min
-    refetchInterval: 120000,  // Refresh every 2 min
+    staleTime: 10000,  // 10 sec
+    refetchInterval: 20000,  // Refresh every 20 sec
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -182,8 +197,9 @@ export function useAllDecisions() {
   return useQuery({
     queryKey: ["trading", "all-decisions"],
     queryFn: api.getAllDecisions,
-    staleTime: 60000,  // 1 min - backend caches for 1 min
-    refetchInterval: 90000,  // Refresh every 1.5 min
+    staleTime: 10000,  // 10 sec - stay fresh
+    refetchInterval: 20000,  // Refresh every 20 sec for real-time
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -191,8 +207,9 @@ export function useScanUniverse() {
   return useQuery({
     queryKey: ["scan", "universe"],
     queryFn: api.scanUniverse,
-    staleTime: 90000,
-    refetchInterval: 120000,
+    staleTime: 10000,
+    refetchInterval: 20000,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -200,8 +217,9 @@ export function useScanSpicy() {
   return useQuery({
     queryKey: ["scan", "spicy"],
     queryFn: api.scanSpicy,
-    staleTime: 90000,
-    refetchInterval: 120000,
+    staleTime: 10000,
+    refetchInterval: 20000,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -313,5 +331,79 @@ export function useManualTrade() {
       queryClient.invalidateQueries({ queryKey: ["orders"] });
       queryClient.invalidateQueries({ queryKey: ["activityLog"] });
     },
+  });
+}
+
+// ============= DEBATE SYSTEM HOOKS =============
+
+// Run multi-agent debate for a ticker (mutation - expensive operation)
+export function useDebate(ticker: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => api.getDebate(ticker),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["debate", ticker], data);
+    },
+  });
+}
+
+// Get cached debate result for a ticker
+export function useDebateResult(ticker: string) {
+  return useQuery({
+    queryKey: ["debate", ticker],
+    queryFn: () => api.getDebate(ticker),
+    enabled: false, // Only fetch when explicitly triggered
+    staleTime: 60000, // Cache for 1 minute
+  });
+}
+
+// Get agent performance metrics
+export function useAgentPerformance(period: string = "month", regime?: string) {
+  return useQuery({
+    queryKey: ["agentPerformance", period, regime],
+    queryFn: () => api.getAgentPerformance(period, regime),
+    staleTime: 300000, // 5 minutes
+    refetchInterval: 600000, // 10 minutes
+  });
+}
+
+// Get current agent weights
+export function useAgentWeights(regime?: string) {
+  return useQuery({
+    queryKey: ["agentWeights", regime],
+    queryFn: () => api.getAgentWeights(regime),
+    staleTime: 300000, // 5 minutes
+    refetchInterval: 600000, // 10 minutes
+  });
+}
+
+// Get similar past trades for a ticker
+export function useSimilarTrades(ticker: string, limit: number = 10) {
+  return useQuery({
+    queryKey: ["similarTrades", ticker, limit],
+    queryFn: () => api.getSimilarTrades(ticker, limit),
+    enabled: !!ticker,
+    staleTime: 60000, // 1 minute
+  });
+}
+
+// Get memory statistics
+export function useMemoryStats() {
+  return useQuery({
+    queryKey: ["memoryStats"],
+    queryFn: api.getMemoryStats,
+    staleTime: 60000, // 1 minute
+    refetchInterval: 300000, // 5 minutes
+  });
+}
+
+// Get decision context for a ticker
+export function useDecisionContext(ticker: string) {
+  return useQuery({
+    queryKey: ["decisionContext", ticker],
+    queryFn: () => api.getDecisionContext(ticker),
+    enabled: !!ticker,
+    staleTime: 60000, // 1 minute
   });
 }

@@ -18,6 +18,7 @@ from app.core.config_simple import get_settings
 from app.services.benzinga_simple import BenzingaClient
 from app.services.alpaca_trader import alpaca_trader
 from app.services.dashboard_service import DashboardService
+from app.services.position_manager import PositionManager, init_position_manager, get_position_manager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -25,13 +26,13 @@ logger = logging.getLogger(__name__)
 # Global Benzinga client
 benzinga_client = None
 
-# Simple TTL cache for sentiment data (reduces API calls)
+# Simple TTL cache for data (reduces API calls while staying fresh)
 _sentiment_cache = {}
 _momentum_cache = {}
 _scan_cache = {}
-SENTIMENT_CACHE_TTL = 120  # Cache sentiment for 2 minutes
-MOMENTUM_CACHE_TTL = 60    # Cache momentum for 1 minute
-SCAN_CACHE_TTL = 60        # Cache scan results for 1 minute
+SENTIMENT_CACHE_TTL = 30   # Cache sentiment for 30 seconds
+MOMENTUM_CACHE_TTL = 15    # Cache momentum for 15 seconds (price-sensitive)
+SCAN_CACHE_TTL = 20        # Cache scan results for 20 seconds
 
 # Auto-trade state (persisted to file for restarts)
 AUTO_TRADE_STATE_FILE = Path(__file__).parent.parent / "data" / "auto_trade_state.json"
@@ -91,9 +92,14 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("⚠️ Benzinga API key not configured")
 
-    # Start position monitoring background task
+    # Start position monitoring background task (simple rules)
     asyncio.create_task(auto_monitor_positions())
-    logger.info("✅ Position monitoring started")
+    logger.info("✅ Position monitoring started (simple rules)")
+
+    # Initialize and start smart position manager (LLM-powered exits)
+    pm = init_position_manager(check_interval=30, min_analysis_interval=120)
+    asyncio.create_task(pm.start())
+    logger.info("✅ Smart Position Manager started (LLM-powered exits)")
 
     # Load auto-trade state and start background loop
     load_auto_trade_state()
@@ -609,21 +615,23 @@ async def get_bars(
 
             tf = timeframe_map.get(timeframe, TimeFrame.Minute)
 
-            # Calculate start time based on timeframe and limit
+            # Calculate start time based on timeframe
+            # Note: Don't set end time - Alpaca free tier doesn't allow recent SIP queries
             now = datetime.utcnow()
+
             if timeframe in ["1D", "1Day"]:
                 start = now - timedelta(days=limit + 5)
             elif timeframe in ["1H", "1Hour"]:
                 start = now - timedelta(hours=limit + 10)
             else:
-                # For minute bars, go back enough trading hours
-                start = now - timedelta(days=3)  # Get last 3 days of minute data
+                # For minute bars, go back 1 day to include today's trading
+                start = now - timedelta(days=1)
 
             request = StockBarsRequest(
                 symbol_or_symbols=[ticker],
                 timeframe=tf,
                 start=start,
-                limit=limit
+                # Note: No end time - let Alpaca return up to current available data
             )
 
             bars_data = client.get_stock_bars(request)
@@ -1067,7 +1075,7 @@ async def get_best_trading_signal():
 
 # Cache for all decisions
 _all_decisions_cache = {"data": None, "timestamp": 0}
-ALL_DECISIONS_CACHE_TTL = 60  # Cache for 1 minute
+ALL_DECISIONS_CACHE_TTL = 20  # Cache for 20 seconds (real-time trading)
 
 @app.get("/api/trading/all-decisions")
 async def get_all_trade_decisions():
@@ -1393,12 +1401,38 @@ async def execute_manual_trade(trade: ManualTradeRequest):
 
 @app.get("/api/trading/positions")
 async def get_positions():
-    """Get all open positions from Alpaca."""
+    """Get all open positions from Alpaca with associated stop/take profit orders."""
     positions = alpaca_trader.get_positions()
 
-    # Check momentum for exit signals
+    # Get open orders to find stop loss and take profit legs
+    open_orders = []
+    if alpaca_trader.client:
+        try:
+            from alpaca.trading.requests import GetOrdersRequest
+            from alpaca.trading.enums import QueryOrderStatus
+            request = GetOrdersRequest(status=QueryOrderStatus.OPEN)
+            open_orders = alpaca_trader.client.get_orders(filter=request)
+        except Exception as e:
+            logger.warning(f"Could not fetch open orders: {e}")
+
+    # Map orders to positions
     for position in positions:
         ticker = position["symbol"]
+        position["stop_loss"] = None
+        position["take_profit"] = None
+
+        # Find associated orders for this position
+        for order in open_orders:
+            if order.symbol != ticker:
+                continue
+            # Stop loss is a stop order
+            if order.type.value == "stop" and order.stop_price:
+                position["stop_loss"] = float(order.stop_price)
+            # Take profit is a limit order (sell side for long positions)
+            elif order.type.value == "limit" and order.limit_price:
+                position["take_profit"] = float(order.limit_price)
+
+        # Check momentum for exit signals
         try:
             momentum = await get_momentum_analysis(ticker)
 
@@ -1413,7 +1447,7 @@ async def get_positions():
                 position["exit_signal"] = None
 
         except:
-            pass
+            position["exit_signal"] = None
 
     return {
         "positions": positions,
@@ -1821,48 +1855,92 @@ async def get_portfolio_history(
 
 
 @app.get("/api/trading/closed-trades")
-async def get_closed_trades(limit: int = Query(20, description="Maximum trades to return")):
-    """Get closed trades with P&L from activity log."""
+async def get_closed_trades(
+    limit: int = Query(50, description="Maximum trades to return"),
+    days_back: int = Query(None, description="Filter trades to last N days (None = all time)")
+):
+    """Get closed trades with P&L from Alpaca order history."""
     try:
-        # Load activity log
-        activity_file = Path(__file__).parent.parent / "data" / "activity_log.json"
-        if not activity_file.exists():
-            return {"trades": [], "count": 0, "timestamp": datetime.utcnow().isoformat()}
+        from alpaca.trading.requests import GetOrdersRequest
+        from alpaca.trading.enums import QueryOrderStatus
 
-        with open(activity_file, "r") as f:
-            activities = json.load(f)
+        if not alpaca_trader.client:
+            return {"trades": [], "count": 0, "summary": {"total_trades": 0, "wins": 0, "losses": 0, "win_rate": 0, "total_pnl_pct": 0}, "timestamp": datetime.utcnow().isoformat()}
 
-        # Filter for EXIT entries (closed trades)
+        # Calculate date range
+        if days_back:
+            after_date = datetime.utcnow() - timedelta(days=days_back)
+        else:
+            after_date = datetime.utcnow() - timedelta(days=30)  # Default to 30 days
+
+        # Fetch filled orders from Alpaca
+        request = GetOrdersRequest(
+            status=QueryOrderStatus.CLOSED,
+            after=after_date,
+            limit=500  # Fetch more to find matching pairs
+        )
+        orders = alpaca_trader.client.get_orders(filter=request)
+
+        # Group orders by symbol to match BUY/SELL pairs (round trips)
+        symbol_orders = {}
+        for order in orders:
+            if order.status.value != "filled":
+                continue
+            symbol = order.symbol
+            if symbol not in symbol_orders:
+                symbol_orders[symbol] = {"buys": [], "sells": []}
+
+            order_data = {
+                "id": str(order.id),
+                "filled_at": order.filled_at.isoformat() if order.filled_at else None,
+                "filled_qty": float(order.filled_qty) if order.filled_qty else 0,
+                "filled_avg_price": float(order.filled_avg_price) if order.filled_avg_price else 0,
+            }
+
+            if order.side.value == "buy":
+                symbol_orders[symbol]["buys"].append(order_data)
+            else:
+                symbol_orders[symbol]["sells"].append(order_data)
+
+        # Match BUY/SELL pairs to create closed trades (round trips)
         closed_trades = []
-        for activity in activities:
-            if activity.get("type") in ["EXIT", "AUTO_EXIT"] or activity.get("action") == "CLOSE":
-                details = activity.get("details", {})
-                # Skip if it was an error
-                if details.get("result") == "error":
-                    continue
+        for symbol, orders_dict in symbol_orders.items():
+            buys = sorted(orders_dict["buys"], key=lambda x: x["filled_at"] or "")
+            sells = sorted(orders_dict["sells"], key=lambda x: x["filled_at"] or "")
 
-                trade = {
-                    "id": activity.get("id"),
-                    "symbol": activity.get("ticker"),
-                    "side": "sell",  # Exits are sells
-                    "timestamp": activity.get("timestamp"),
-                    "entry_price": details.get("entry"),
-                    "exit_price": details.get("exit_price"),
-                    "pnl_pct": details.get("pnl_pct"),
-                    "reason": details.get("reason", "Manual close"),
-                    "status": "closed"
-                }
+            # Simple matching: pair oldest buy with oldest sell
+            while buys and sells:
+                buy = buys.pop(0)
+                sell = sells.pop(0)
 
-                # Calculate P&L in dollars if we have the data
-                if trade["entry_price"] and trade["exit_price"] and trade["pnl_pct"] is not None:
-                    # Estimate based on typical position size
-                    closed_trades.append(trade)
+                entry_price = buy["filled_avg_price"]
+                exit_price = sell["filled_avg_price"]
+                qty = min(buy["filled_qty"], sell["filled_qty"])
+
+                if entry_price > 0 and exit_price > 0:
+                    pnl_pct = ((exit_price - entry_price) / entry_price) * 100
+                    pnl_dollars = (exit_price - entry_price) * qty
+
+                    closed_trades.append({
+                        "id": sell["id"],
+                        "symbol": symbol,
+                        "side": "sell",
+                        "timestamp": sell["filled_at"],
+                        "entry_price": round(entry_price, 2),
+                        "exit_price": round(exit_price, 2),
+                        "quantity": qty,
+                        "pnl_pct": round(pnl_pct, 2),
+                        "pnl_dollars": round(pnl_dollars, 2),
+                        "reason": "Round trip",
+                        "status": "closed"
+                    })
 
         # Sort by timestamp descending (most recent first)
-        closed_trades.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        closed_trades.sort(key=lambda x: x.get("timestamp") or "", reverse=True)
 
         # Calculate summary stats
         total_pnl_pct = sum(t.get("pnl_pct", 0) for t in closed_trades)
+        total_pnl_dollars = sum(t.get("pnl_dollars", 0) for t in closed_trades)
         wins = len([t for t in closed_trades if (t.get("pnl_pct") or 0) > 0])
         losses = len([t for t in closed_trades if (t.get("pnl_pct") or 0) < 0])
         win_rate = (wins / len(closed_trades) * 100) if closed_trades else 0
@@ -1875,14 +1953,17 @@ async def get_closed_trades(limit: int = Query(20, description="Maximum trades t
                 "wins": wins,
                 "losses": losses,
                 "win_rate": round(win_rate, 1),
-                "total_pnl_pct": round(total_pnl_pct, 2)
+                "total_pnl_pct": round(total_pnl_pct, 2),
+                "total_pnl_dollars": round(total_pnl_dollars, 2)
             },
             "timestamp": datetime.utcnow().isoformat()
         }
 
     except Exception as e:
         logger.error(f"Error fetching closed trades: {e}")
-        return {"trades": [], "count": 0, "error": str(e), "timestamp": datetime.utcnow().isoformat()}
+        import traceback
+        traceback.print_exc()
+        return {"trades": [], "count": 0, "summary": {"total_trades": 0, "wins": 0, "losses": 0, "win_rate": 0, "total_pnl_pct": 0}, "error": str(e), "timestamp": datetime.utcnow().isoformat()}
 
 
 @app.delete("/api/trading/orders")
@@ -2200,6 +2281,19 @@ async def auto_trade_loop():
                             logger.info(f"🤖 [AUTO-TRADE] Executing BUY on {ticker} (score: {score:.1f})")
                             result = alpaca_trader.execute_trade(signal)
 
+                            # Register with position manager for smart exit tracking
+                            pm = get_position_manager()
+                            if pm and result and result.get("status") == "executed":
+                                pm.register_entry(
+                                    symbol=ticker,
+                                    entry_price=signal.get("price", result.get("entry_price", 0)),
+                                    quantity=result.get("quantity", 1),
+                                    thesis=signal.get("reasoning", "")[:500],
+                                    stop_loss=result.get("stop_loss"),
+                                    take_profit=result.get("take_profit"),
+                                )
+                                logger.info(f"🤖 [AUTO-TRADE] Registered {ticker} with Position Manager for exit tracking")
+
                             # Log the trade
                             log_activity(
                                 log_type="AUTO_TRADE",
@@ -2232,6 +2326,118 @@ async def auto_trade_loop():
         except Exception as e:
             logger.error(f"🤖 [AUTO-TRADE] Loop error: {e}")
             await asyncio.sleep(_auto_trade_interval)
+
+
+# ============= POSITION MANAGER API ENDPOINTS =============
+
+@app.get("/api/position-manager/status")
+async def get_position_manager_status():
+    """Get smart position manager status and tracked positions."""
+    pm = get_position_manager()
+    if not pm:
+        return {"status": "not_initialized"}
+    return pm.get_status()
+
+
+@app.post("/api/position-manager/register")
+async def register_position_entry(
+    symbol: str,
+    entry_price: float,
+    quantity: float,
+    thesis: Optional[str] = None,
+    stop_loss: Optional[float] = None,
+    take_profit: Optional[float] = None
+):
+    """Manually register a position entry for smart exit tracking."""
+    pm = get_position_manager()
+    if not pm:
+        raise HTTPException(status_code=500, detail="Position manager not initialized")
+
+    pm.register_entry(
+        symbol=symbol.upper(),
+        entry_price=entry_price,
+        quantity=quantity,
+        thesis=thesis,
+        stop_loss=stop_loss,
+        take_profit=take_profit,
+    )
+
+    return {
+        "status": "registered",
+        "symbol": symbol.upper(),
+        "entry_price": entry_price,
+        "quantity": quantity,
+        "stop_loss": stop_loss,
+        "take_profit": take_profit,
+        "message": f"Position {symbol} registered for smart exit management"
+    }
+
+
+@app.get("/api/position-manager/analyze/{symbol}")
+async def analyze_position_exit(symbol: str):
+    """Run LLM exit analysis for a specific position."""
+    from app.services.agents.exit_strategy_agent import ExitStrategyAgent
+    from app.services.position_manager import calculate_atr
+    from app.services.technical_indicators import analyze_technical
+
+    symbol = symbol.upper()
+    positions = alpaca_trader.get_positions()
+    position = next((p for p in positions if p["symbol"] == symbol), None)
+
+    if not position:
+        raise HTTPException(status_code=404, detail=f"No position found for {symbol}")
+
+    pm = get_position_manager()
+    pos_state = pm.state.positions.get(symbol) if pm else None
+
+    current_price = position.get("current", 0)
+    entry_price = pos_state.entry_price if pos_state else position.get("entry", 0)
+    days_held = pos_state.days_held if pos_state else 0
+
+    # Get bars for technical analysis
+    bars = await pm._get_bars(symbol) if pm else []
+    atr = calculate_atr(bars) if bars else current_price * 0.02
+
+    tech_signal = analyze_technical(symbol, current_price, bars) if bars else None
+    technical_data = {
+        "rsi": tech_signal.rsi if tech_signal else 50,
+        "trend": tech_signal.trend if tech_signal else "neutral",
+        "momentum": tech_signal.momentum if tech_signal else "flat",
+        "sma_20": tech_signal.sma_20 if tech_signal else current_price,
+        "sma_50": tech_signal.sma_50 if tech_signal else current_price,
+    }
+
+    # Run exit analysis
+    exit_plan = await ExitStrategyAgent.analyze_with_cache(
+        ticker=symbol,
+        position={
+            "qty": position.get("qty"),
+            "unrealized_pl": position.get("pnl", 0),
+            "unrealized_plpc": position.get("pnl_pct", 0),
+        },
+        current_price=current_price,
+        entry_price=entry_price,
+        entry_thesis=pos_state.entry_thesis if pos_state else None,
+        days_held=days_held,
+        atr=atr,
+        technical_data=technical_data,
+        original_stop_loss=pos_state.original_stop_loss if pos_state else None,
+        original_take_profit=pos_state.original_take_profit if pos_state else None,
+        force=True,  # Force fresh analysis
+    )
+
+    return {
+        "symbol": symbol,
+        "position": position,
+        "exit_analysis": exit_plan.to_dict(),
+        "recommendation": {
+            "action": exit_plan.action.value,
+            "urgency": exit_plan.urgency.value,
+            "stop_loss": exit_plan.stop_loss,
+            "take_profit_levels": exit_plan.take_profit_levels,
+            "reasoning": exit_plan.reasoning,
+        }
+    }
 
 
 # ============= AUTO-TRADE API ENDPOINTS =============
@@ -3731,6 +3937,207 @@ async def websocket_status(websocket: WebSocket):
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         manager.disconnect(websocket)
+
+
+# ============= DEBATE SYSTEM ENDPOINTS =============
+
+@app.get("/api/debate/{ticker}")
+async def run_debate_analysis(
+    ticker: str,
+    force: bool = Query(False, description="Force new debate even if cached")
+):
+    """
+    Run a full multi-agent debate for a trading decision.
+
+    Returns the complete debate including:
+    - Initial agent positions
+    - Challenges and rebuttals
+    - Final weighted decision
+    - Risk warnings
+    """
+    from app.services.debate.debate_engine import DebateEngine
+    from app.services.memory.memory_store import MemoryStore
+    from app.services.memory.weight_adjuster import WeightAdjuster
+
+    ticker = ticker.upper()
+
+    try:
+        # Initialize components
+        memory_store = MemoryStore()
+        weight_adjuster = WeightAdjuster(memory_store)
+
+        # Get adjusted weights
+        adjusted_weights = await weight_adjuster.get_adjusted_weights()
+
+        # Initialize debate engine with adjusted weights
+        engine = DebateEngine(agent_weights=adjusted_weights)
+
+        # Gather market data
+        market_data = {"quote": {"price": 100}, "bars": [], "news": []}
+
+        # Get quote
+        if alpaca_trader:
+            quote = alpaca_trader.get_quote(ticker)
+            if quote:
+                market_data["quote"] = {"price": quote.get("price", 100)}
+
+        # Get news
+        if benzinga_client:
+            news_result = await benzinga_client.get_news(tickers=ticker, limit=10)
+            market_data["news"] = news_result.get("results", [])
+
+        # Get account and positions
+        account = {"equity": 100000, "buying_power": 50000}
+        positions = []
+        if alpaca_trader:
+            account = alpaca_trader.get_account_status() or account
+            positions = alpaca_trader.get_positions() or []
+
+        # Run debate
+        outcome = await engine.run_debate(
+            ticker=ticker,
+            market_data=market_data,
+            account=account,
+            positions=positions,
+        )
+
+        return {
+            "ticker": ticker,
+            "timestamp": datetime.utcnow().isoformat(),
+            "outcome": outcome.to_dict(),
+            "agent_weights": adjusted_weights,
+        }
+
+    except Exception as e:
+        logger.error(f"Debate error for {ticker}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/memory/similar-trades/{ticker}")
+async def get_similar_trades(
+    ticker: str,
+    market_regime: Optional[str] = None,
+    limit: int = 10,
+):
+    """Get similar past trades for context."""
+    from app.services.memory.memory_store import MemoryStore
+
+    try:
+        store = MemoryStore()
+        trades = await store.get_similar_situations(
+            ticker=ticker.upper(),
+            market_regime=market_regime or "neutral",
+            technical_regime="neutral",
+            limit=limit,
+        )
+
+        return {
+            "ticker": ticker.upper(),
+            "similar_trades": [t.to_dict() for t in trades],
+            "count": len(trades),
+        }
+
+    except Exception as e:
+        logger.error(f"Memory retrieval error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/memory/stats")
+async def get_memory_stats():
+    """Get trading memory statistics."""
+    from app.services.memory.memory_store import MemoryStore
+
+    try:
+        store = MemoryStore()
+        stats = await store.get_stats()
+        return stats
+
+    except Exception as e:
+        logger.error(f"Memory stats error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/agents/performance")
+async def get_agent_performance(
+    period: str = Query("month", description="day, week, month, all"),
+    market_regime: Optional[str] = None,
+):
+    """Get performance metrics for all agents."""
+    from app.services.memory.memory_store import MemoryStore
+
+    try:
+        store = MemoryStore()
+        agents = ["news", "technical", "macro", "contrarian", "risk", "timing", "exit"]
+
+        performance = {}
+        for agent in agents:
+            perf = await store.get_agent_accuracy(agent, period, market_regime)
+            performance[agent] = perf
+
+        return {
+            "period": period,
+            "market_regime": market_regime,
+            "agents": performance,
+        }
+
+    except Exception as e:
+        logger.error(f"Agent performance error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/agents/weights")
+async def get_current_weights():
+    """Get current agent weights (adjusted for performance)."""
+    from app.services.memory.memory_store import MemoryStore
+    from app.services.memory.weight_adjuster import WeightAdjuster
+
+    try:
+        store = MemoryStore()
+        adjuster = WeightAdjuster(store)
+
+        weights = await adjuster.get_adjusted_weights()
+
+        return {
+            "weights": weights,
+            "default_weights": WeightAdjuster.DEFAULT_WEIGHTS,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+    except Exception as e:
+        logger.error(f"Weight retrieval error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/context/{ticker}")
+async def get_decision_context(
+    ticker: str,
+    market_regime: str = "neutral",
+    technical_regime: str = "neutral",
+):
+    """Get historical context for a trading decision."""
+    from app.services.memory.memory_store import MemoryStore
+    from app.services.memory.context_retriever import ContextRetriever
+
+    try:
+        store = MemoryStore()
+        retriever = ContextRetriever(store)
+
+        context = await retriever.get_decision_context(
+            ticker=ticker.upper(),
+            market_regime=market_regime,
+            technical_regime=technical_regime,
+            news_sentiment="neutral",
+        )
+
+        return {
+            "ticker": ticker.upper(),
+            "context": context.to_dict(),
+            "formatted_prompt": retriever.format_for_prompt(context),
+        }
+
+    except Exception as e:
+        logger.error(f"Context retrieval error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

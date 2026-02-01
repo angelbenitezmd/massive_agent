@@ -141,6 +141,9 @@ export interface Position {
   marketValue: number;
   unrealizedPL: number;
   unrealizedPLPercent: number;
+  stopLoss?: number | null;
+  takeProfit?: number | null;
+  exitSignal?: string | null;
 }
 
 export interface RiskStatus {
@@ -219,4 +222,114 @@ export interface AnalystRating {
   price_target_action?: "raises" | "lowers" | "maintains" | "announces" | "sets";
   date: string;
   importance?: number;
+}
+
+// ============= DEBATE SYSTEM TYPES =============
+
+export type DebateDirection = "BUY" | "SELL" | "HOLD" | "STRONG_BUY" | "STRONG_SELL";
+
+export interface AgentPosition {
+  agentName: string;
+  direction: DebateDirection;
+  confidence: number;
+  score: number;
+  reasoning: string;
+  keyArguments: string[];
+  risksIdentified: string[];
+  dataCited?: Record<string, unknown>;
+  timestamp: string;
+}
+
+export interface Challenge {
+  challenger: string;
+  challenged: string;
+  challengeType: "logic_flaw" | "missing_factor" | "overconfidence" | "data_validity" | "general";
+  challengeText: string;
+  evidence?: Record<string, unknown>;
+  severity: "low" | "medium" | "high";
+  timestamp: string;
+}
+
+export interface DebateOutcome {
+  ticker: string;
+  finalAction: DebateDirection;
+  consensusConfidence: number;
+  weightedScore: number;
+  voteBreakdown: Record<string, string>;
+  voteWeights: Record<string, number>;
+  totalVotes: Record<string, number>;
+  riskVeto: boolean;
+  riskVetoReason?: string;
+  suggestedShares: number;
+  maxPositionValue: number;
+  stopLoss?: number;
+  takeProfit?: number;
+  keyAgreements: string[];
+  unresolvedDisagreements: string[];
+  riskWarnings: string[];
+  debateSummary: string;
+  reasoning: string;
+  timestamp: string;
+  debateDurationSeconds?: number;
+}
+
+export interface DebateResponse {
+  ticker: string;
+  timestamp: string;
+  outcome: DebateOutcome;
+  agentWeights: Record<string, number>;
+}
+
+// Agent Performance Types
+export interface AgentPerformance {
+  accuracy: number;
+  sampleCount: number;
+  avgConfidence?: number;
+  calibrationScore?: number;
+}
+
+export interface AgentPerformanceResponse {
+  period: string;
+  marketRegime?: string;
+  agents: Record<string, AgentPerformance>;
+}
+
+export interface AgentWeightsResponse {
+  weights: Record<string, number>;
+  defaultWeights: Record<string, number>;
+  timestamp: string;
+}
+
+// Memory/Context Types
+export interface TradeMemory {
+  id: string;
+  ticker: string;
+  timestamp: string;
+  actionTaken: string;
+  entryPrice: number;
+  exitPrice?: number;
+  pnl?: number;
+  pnlPercent?: number;
+  agentPredictions: Record<string, { direction: string; confidence: number }>;
+  marketRegime: string;
+  winningAgents?: string[];
+  losingAgents?: string[];
+}
+
+export interface DecisionContext {
+  similarTrades: TradeMemory[];
+  similarSituationWinRate: number;
+  agentAccuracyInRegime: Record<string, AgentPerformance>;
+  commonMistakes: TradeMemory[];
+  sampleSize: number;
+  insights: string[];
+}
+
+export interface MemoryStats {
+  totalTrades: number;
+  completedTrades: number;
+  pendingTrades: number;
+  winningTrades: number;
+  winRate: number;
+  avgPnlPercent: number;
 }

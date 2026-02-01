@@ -23,6 +23,7 @@ import {
   PortfolioChart,
   TradeSignalCard,
   ManualTradePanel,
+  DebatePanel,
 } from "@/components/dashboard";
 import {
   useQuote,
@@ -45,13 +46,14 @@ import {
   useNews,
   useAllDecisions,
   useManualTrade,
+  useClosePosition,
 } from "@/hooks/use-trading-data";
 import type { AgentSignal, TradeDecision, Technicals } from "@/types";
 
 export default function DashboardPage() {
   const [selectedTicker, setSelectedTicker] = useState("AAPL");
   const [selectedTimeframe, setSelectedTimeframe] = useState("1Min");
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true); // Always on by default
   // Note: autoTrade state is now managed by the backend (24/7 operation)
   const [analysisResult, setAnalysisResult] = useState<{
     agents: {
@@ -86,6 +88,7 @@ export default function DashboardPage() {
   const executeTradeMutation = useExecuteTrade();
   const deepAnalysisMutation = useDeepAnalysis(selectedTicker);
   const manualTradeMutation = useManualTrade();
+  const closePositionMutation = useClosePosition();
 
   // Deep analysis result state
   const [deepAnalysisResult, setDeepAnalysisResult] = useState<any>(null);
@@ -279,8 +282,8 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* Analysis & Trade Row: Deep Analysis + Trade Decision + Manual Trade */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-3">
+        {/* Analysis & Trade Row: Deep Analysis + Debate + Trade Decision + Manual Trade */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 mb-3">
           {/* Deep Analysis */}
           <DeepAnalysisPanel
             ticker={selectedTicker}
@@ -288,6 +291,8 @@ export default function DashboardPage() {
             isLoading={deepAnalysisMutation.isPending}
             onRunAnalysis={runDeepAnalysis}
           />
+          {/* Multi-Agent Debate */}
+          <DebatePanel ticker={selectedTicker} />
           {/* Trade Decision */}
           <TradeDecisionPanel
             decision={selectedTickerDecision}
@@ -360,6 +365,8 @@ export default function DashboardPage() {
           riskStatus={riskStatus}
           selectedTicker={selectedTicker}
           isLoading={accountLoading}
+          onClosePosition={(ticker) => closePositionMutation.mutate(ticker)}
+          isClosingPosition={closePositionMutation.isPending}
         />
       </main>
     </div>

@@ -84,3 +84,4 @@ Or remove the variable (defaults to `false`).
 - Mock responses are consistent but not realistic
 - Use design mode for development, disable for production
 - Real trading decisions should always use real LLM responses
+

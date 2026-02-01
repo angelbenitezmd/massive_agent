@@ -46,15 +46,17 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 export function ScannerPanel({ selectedTicker, onSelectTicker }: ScannerPanelProps) {
   const [scanType, setScanType] = useState<"watchlist" | "spicy">("watchlist");
 
-  const { data, isLoading, refetch, isFetching } = useQuery({
+  const { data, isLoading, refetch, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ["scan", scanType],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/api/scan/${scanType}`);
       if (!res.ok) throw new Error("Scan failed");
       return res.json();
     },
-    refetchInterval: 60000, // Auto-refresh every minute
-    staleTime: 30000,
+    refetchInterval: 15000, // Auto-refresh every 15 seconds for real-time
+    staleTime: 5000, // Consider stale after 5 seconds
+    refetchOnWindowFocus: true,
+    refetchIntervalInBackground: false,
   });
 
   const results: ScanResult[] = data?.results || [];
@@ -237,11 +239,16 @@ export function ScannerPanel({ selectedTicker, onSelectTicker }: ScannerPanelPro
         </ScrollArea>
 
         {/* Last Update */}
-        {data?.scan_time && (
-          <div className="mt-2 text-xs text-muted-foreground text-center">
-            Last scan: {new Date(data.scan_time).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "America/New_York" })} ET
-          </div>
-        )}
+        <div className="mt-2 text-xs text-muted-foreground text-center flex items-center justify-center gap-2">
+          {isFetching && <RefreshCw className="h-3 w-3 animate-spin" />}
+          {dataUpdatedAt ? (
+            <span>
+              Updated: {new Date(dataUpdatedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "America/New_York" })} ET
+            </span>
+          ) : (
+            <span>Loading...</span>
+          )}
+        </div>
       </CardContent>
     </Card>
     </TooltipProvider>

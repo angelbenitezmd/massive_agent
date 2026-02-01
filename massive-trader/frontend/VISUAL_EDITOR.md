@@ -79,3 +79,4 @@ The Visual Layout Editor allows you to customize your dashboard layout by:
 - The layout persists across browser sessions
 - Each component has an `id`, `component` name, `visible` flag, and `order` number
 - The editor uses `@dnd-kit` for drag-and-drop functionality
+

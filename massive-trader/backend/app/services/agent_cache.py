@@ -25,6 +25,14 @@ class AgentType(Enum):
     ANALYST = "analyst"
     TECHNICAL = "technical"
     CONSENSUS = "consensus"
+    # New specialized agents
+    MACRO = "macro"
+    CONTRARIAN = "contrarian"
+    RISK = "risk"
+    EXIT = "exit"
+    TIMING = "timing"
+    # Debate system
+    DEBATE = "debate"
 
 
 @dataclass
@@ -95,6 +103,31 @@ class AgentCache:
             },
             AgentType.CONSENSUS: {
                 "max_age_minutes": 5,        # Final decision cache
+                "min_interval_seconds": 60,   # Once per minute
+            },
+            # New specialized agents
+            AgentType.MACRO: {
+                "max_age_minutes": 10,       # Macro changes slowly
+                "min_interval_seconds": 300,  # Every 5 minutes max
+            },
+            AgentType.CONTRARIAN: {
+                "max_age_minutes": 5,        # Needs to be responsive
+                "min_interval_seconds": 60,   # Once per minute
+            },
+            AgentType.RISK: {
+                "max_age_minutes": 2,        # Risk needs fresh data
+                "min_interval_seconds": 30,   # Check often
+            },
+            AgentType.EXIT: {
+                "max_age_minutes": 3,        # Exit strategy changes with price
+                "min_interval_seconds": 60,   # Once per minute
+            },
+            AgentType.TIMING: {
+                "max_age_minutes": 2,        # Very time-sensitive
+                "min_interval_seconds": 30,   # Check often
+            },
+            AgentType.DEBATE: {
+                "max_age_minutes": 5,        # Full debate outcome
                 "min_interval_seconds": 60,   # Once per minute
             },
         }

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BookOpen, TrendingUp, TrendingDown, Clock, Info, XCircle, Loader2 } from "lucide-react";
 import {
   Tooltip,
@@ -14,6 +15,16 @@ import {
 } from "@/components/ui/tooltip";
 import type { Order } from "@/types";
 import { getClosedTrades, type ClosedTrade, type ClosedTradesResponse } from "@/lib/api";
+
+type TimePeriod = "today" | "yesterday" | "week" | "month" | "all";
+
+const TIME_PERIODS: { value: TimePeriod; label: string; daysBack?: number }[] = [
+  { value: "today", label: "Today", daysBack: 1 },
+  { value: "yesterday", label: "2D", daysBack: 2 },
+  { value: "week", label: "1W", daysBack: 7 },
+  { value: "month", label: "1M", daysBack: 30 },
+  { value: "all", label: "All" },
+];
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -46,11 +57,17 @@ function formatPrice(price: number | null | undefined): string {
 export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading, onOrdersCanceled }: TradeJournalProps) {
   const [isCanceling, setIsCanceling] = useState(false);
   const [closedTrades, setClosedTrades] = useState<ClosedTradesResponse | null>(null);
+  const [timePeriod, setTimePeriod] = useState<TimePeriod>("week");
+  const [isLoadingTrades, setIsLoadingTrades] = useState(false);
 
-  // Fetch closed trades with P&L
+  // Fetch closed trades with P&L based on selected time period
   useEffect(() => {
-    getClosedTrades(20).then(setClosedTrades);
-  }, []);
+    const selectedPeriod = TIME_PERIODS.find(p => p.value === timePeriod);
+    setIsLoadingTrades(true);
+    getClosedTrades(50, selectedPeriod?.daysBack)
+      .then(setClosedTrades)
+      .finally(() => setIsLoadingTrades(false));
+  }, [timePeriod]);
 
   // Count pending orders that can be canceled
   const pendingOrders = orders.filter((o) =>
@@ -107,11 +124,6 @@ export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading,
             </TooltipContent>
           </Tooltip>
           <div className="ml-auto flex items-center gap-2">
-            {summary.total_trades > 0 && (
-              <Badge variant="secondary" className="text-xs">
-                {summary.total_trades} trades
-              </Badge>
-            )}
             {pendingOrders.length > 0 && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -137,9 +149,33 @@ export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading,
             )}
           </div>
         </CardTitle>
+        {/* Time Period Tabs */}
+        <Tabs value={timePeriod} onValueChange={(v) => setTimePeriod(v as TimePeriod)} className="mt-2">
+          <TabsList className="grid w-full grid-cols-5 h-8">
+            {TIME_PERIODS.map((period) => (
+              <TabsTrigger
+                key={period.value}
+                value={period.value}
+                className="text-xs h-6"
+              >
+                {period.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
       </CardHeader>
       <CardContent className="pt-0">
         {/* Summary Stats */}
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-muted-foreground">
+            {TIME_PERIODS.find(p => p.value === timePeriod)?.label} Stats
+          </span>
+          {summary.total_trades > 0 && (
+            <Badge variant="secondary" className="text-xs">
+              {summary.total_trades} trade{summary.total_trades !== 1 ? 's' : ''}
+            </Badge>
+          )}
+        </div>
         <div className="grid grid-cols-3 gap-2 mb-4 text-center">
           <div className="bg-muted/50 rounded-lg p-2">
             <div className="text-xs text-muted-foreground">Win Rate</div>
@@ -173,18 +209,19 @@ export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading,
 
         {/* Trade List */}
         <ScrollArea className="h-[160px]">
-          {isLoading ? (
+          {isLoading || isLoadingTrades ? (
             <div className="flex items-center justify-center h-full text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
               Loading trades...
             </div>
           ) : trades.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
               <BookOpen className="h-8 w-8 mb-2 opacity-50" />
-              <p className="text-sm">No closed trades yet</p>
+              <p className="text-sm">No closed trades {timePeriod === "all" ? "yet" : `in ${TIME_PERIODS.find(p => p.value === timePeriod)?.label || timePeriod}`}</p>
             </div>
           ) : (
             <div className="space-y-2">
-              {trades.slice(0, 10).map((trade) => {
+              {trades.slice(0, 20).map((trade) => {
                 const isProfit = (trade.pnl_pct || 0) > 0;
 
                 return (

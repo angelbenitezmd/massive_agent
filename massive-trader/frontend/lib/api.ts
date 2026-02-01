@@ -10,6 +10,12 @@ import type {
   Position,
   RiskStatus,
   SystemStatus,
+  DebateResponse,
+  AgentPerformanceResponse,
+  AgentWeightsResponse,
+  MemoryStats,
+  DecisionContext,
+  TradeMemory,
 } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -299,6 +305,9 @@ export async function getPositions(): Promise<Position[]> {
         marketValue,
         unrealizedPL: parseFloat(pos.pnl) || parseFloat(pos.unrealized_pl) || 0,
         unrealizedPLPercent,
+        stopLoss: pos.stop_loss ? parseFloat(pos.stop_loss) : null,
+        takeProfit: pos.take_profit ? parseFloat(pos.take_profit) : null,
+        exitSignal: pos.exit_signal || null,
       };
     });
   } catch {
@@ -441,9 +450,13 @@ export interface ClosedTradesResponse {
   };
 }
 
-export async function getClosedTrades(limit: number = 20): Promise<ClosedTradesResponse> {
+export async function getClosedTrades(limit: number = 20, daysBack?: number): Promise<ClosedTradesResponse> {
   try {
-    return await fetchAPI<ClosedTradesResponse>(`/api/trading/closed-trades?limit=${limit}`);
+    const params = new URLSearchParams({ limit: limit.toString() });
+    if (daysBack !== undefined) {
+      params.append('days_back', daysBack.toString());
+    }
+    return await fetchAPI<ClosedTradesResponse>(`/api/trading/closed-trades?${params.toString()}`);
   } catch {
     return {
       trades: [],
@@ -519,6 +532,11 @@ export async function cancelAllOrders(): Promise<any> {
 // Close all positions only
 export async function closeAllPositions(): Promise<any> {
   return fetch(`${API_BASE}/api/trading/close-all`, { method: "POST" }).then(r => r.json());
+}
+
+// Close a single position at market
+export async function closePosition(ticker: string): Promise<any> {
+  return fetch(`${API_BASE}/api/trading/close/${ticker}`, { method: "POST" }).then(r => r.json());
 }
 
 // All Trade Decisions (BUY/HOLD/SELL grouped)
@@ -719,4 +737,122 @@ export async function disableAutoTrade(): Promise<AutoTradeStatus> {
   return fetchAPI<AutoTradeStatus>("/api/auto-trade/disable", {
     method: "POST",
   });
+}
+
+// ============= DEBATE SYSTEM APIs =============
+
+// Helper to convert snake_case to camelCase
+function snakeToCamel(str: string): string {
+  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+// Helper to transform object keys from snake_case to camelCase
+function transformKeys(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) return obj.map(transformKeys);
+  if (typeof obj !== 'object') return obj;
+
+  const result: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const camelKey = snakeToCamel(key);
+    result[camelKey] = transformKeys(value);
+  }
+  return result;
+}
+
+// Run multi-agent debate for a ticker
+export async function getDebate(ticker: string): Promise<DebateResponse> {
+  try {
+    const rawResponse = await fetchAPI<any>(`/api/debate/${ticker}`);
+    // Transform snake_case to camelCase
+    return transformKeys(rawResponse) as DebateResponse;
+  } catch (error) {
+    console.error("Debate analysis error:", error);
+    throw error;
+  }
+}
+
+// Get agent performance metrics
+export async function getAgentPerformance(
+  period: string = "month",
+  regime?: string
+): Promise<AgentPerformanceResponse> {
+  try {
+    const params = new URLSearchParams({ period });
+    if (regime) {
+      params.set("regime", regime);
+    }
+    const rawResponse = await fetchAPI<any>(`/api/agents/performance?${params.toString()}`);
+    return transformKeys(rawResponse) as AgentPerformanceResponse;
+  } catch {
+    return {
+      period,
+      agents: {},
+    };
+  }
+}
+
+// Get current agent weights
+export async function getAgentWeights(regime?: string): Promise<AgentWeightsResponse> {
+  try {
+    const params = regime ? `?regime=${regime}` : "";
+    const rawResponse = await fetchAPI<any>(`/api/agents/weights${params}`);
+    return transformKeys(rawResponse) as AgentWeightsResponse;
+  } catch {
+    return {
+      weights: {},
+      defaultWeights: {},
+      timestamp: new Date().toISOString(),
+    };
+  }
+}
+
+// Get similar past trades for a ticker
+export async function getSimilarTrades(
+  ticker: string,
+  limit: number = 10
+): Promise<TradeMemory[]> {
+  try {
+    const rawResponse = await fetchAPI<any>(
+      `/api/memory/similar-trades/${ticker}?limit=${limit}`
+    );
+    const transformed = transformKeys(rawResponse);
+    return transformed.trades || [];
+  } catch {
+    return [];
+  }
+}
+
+// Get memory statistics
+export async function getMemoryStats(): Promise<MemoryStats> {
+  try {
+    const rawResponse = await fetchAPI<any>("/api/memory/stats");
+    return transformKeys(rawResponse) as MemoryStats;
+  } catch {
+    return {
+      totalTrades: 0,
+      completedTrades: 0,
+      pendingTrades: 0,
+      winningTrades: 0,
+      winRate: 0,
+      avgPnlPercent: 0,
+    };
+  }
+}
+
+// Get historical decision context for a ticker
+export async function getDecisionContext(ticker: string): Promise<DecisionContext> {
+  try {
+    const rawResponse = await fetchAPI<any>(`/api/context/${ticker}`);
+    return transformKeys(rawResponse) as DecisionContext;
+  } catch {
+    return {
+      similarTrades: [],
+      similarSituationWinRate: 0.5,
+      agentAccuracyInRegime: {},
+      commonMistakes: [],
+      sampleSize: 0,
+      insights: [],
+    };
+  }
 }

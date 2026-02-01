@@ -8,6 +8,7 @@ import {
   Activity,
   AlertTriangle,
   Info,
+  X,
 } from "lucide-react";
 import {
   Card,
@@ -17,6 +18,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -39,6 +41,8 @@ interface RiskPanelProps {
   riskStatus: RiskStatus | undefined;
   selectedTicker: string;
   isLoading: boolean;
+  onClosePosition?: (ticker: string) => void;
+  isClosingPosition?: boolean;
 }
 
 export function RiskPanel({
@@ -47,6 +51,8 @@ export function RiskPanel({
   riskStatus,
   selectedTicker,
   isLoading,
+  onClosePosition,
+  isClosingPosition,
 }: RiskPanelProps) {
   const currentPosition = positions?.find((p) => p.symbol === selectedTicker);
 
@@ -285,25 +291,76 @@ export function RiskPanel({
                           {formatPercent(position.unrealizedPLPercent)}
                         </div>
                       </div>
-                      <div className="grid grid-cols-4 gap-2 text-xs">
-                        <div>
-                          <div className="text-muted-foreground">Qty</div>
-                          <div className="font-medium">{position.quantity}</div>
-                        </div>
-                        <div>
-                          <div className="text-muted-foreground">Entry</div>
-                          <div className="font-medium">{formatCurrency(position.avgEntryPrice)}</div>
-                        </div>
-                        <div>
-                          <div className="text-muted-foreground">Current</div>
-                          <div className="font-medium">{formatCurrency(position.currentPrice)}</div>
-                        </div>
-                        <div>
-                          <div className="text-muted-foreground">P&L</div>
-                          <div className={cn("font-medium", isProfit ? "text-green-500" : "text-red-500")}>
-                            {formatCurrency(position.unrealizedPL)}
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-4 gap-2 text-xs">
+                          <div>
+                            <div className="text-muted-foreground">Qty</div>
+                            <div className="font-medium">{position.quantity}</div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground">Entry</div>
+                            <div className="font-medium">{formatCurrency(position.avgEntryPrice)}</div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground">Current</div>
+                            <div className="font-medium">{formatCurrency(position.currentPrice)}</div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground">P&L</div>
+                            <div className={cn("font-medium", isProfit ? "text-green-500" : "text-red-500")}>
+                              {formatCurrency(position.unrealizedPL)}
+                            </div>
                           </div>
                         </div>
+                        {/* Strategy: Stop Loss & Take Profit */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex gap-3 text-xs">
+                            {position.stopLoss && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-red-500">SL:</span>
+                                <span className="font-medium text-red-500">{formatCurrency(position.stopLoss)}</span>
+                                <span className="text-muted-foreground">
+                                  ({((position.stopLoss - position.avgEntryPrice) / position.avgEntryPrice * 100).toFixed(1)}%)
+                                </span>
+                              </div>
+                            )}
+                            {position.takeProfit && (
+                              <div className="flex items-center gap-1">
+                                <span className="text-green-500">TP:</span>
+                                <span className="font-medium text-green-500">{formatCurrency(position.takeProfit)}</span>
+                                <span className="text-muted-foreground">
+                                  (+{((position.takeProfit - position.avgEntryPrice) / position.avgEntryPrice * 100).toFixed(1)}%)
+                                </span>
+                              </div>
+                            )}
+                            {!position.stopLoss && !position.takeProfit && (
+                              <span className="text-muted-foreground italic">No bracket orders</span>
+                            )}
+                          </div>
+                          {onClosePosition && (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm(`Close ${position.symbol} position at market price?`)) {
+                                  onClosePosition(position.symbol);
+                                }
+                              }}
+                              disabled={isClosingPosition}
+                            >
+                              <X className="h-3 w-3 mr-1" />
+                              Close
+                            </Button>
+                          )}
+                        </div>
+                        {/* Exit Signal */}
+                        {position.exitSignal && (
+                          <div className="text-xs font-medium text-yellow-500 bg-yellow-500/10 px-2 py-1 rounded">
+                            ⚠️ {position.exitSignal}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
