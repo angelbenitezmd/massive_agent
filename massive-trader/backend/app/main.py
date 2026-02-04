@@ -1124,21 +1124,36 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
             return None
 
         momentum_score = momentum["momentum_score"]
-        ai_score = sentiment["score"]
+        ai_score = sentiment["score"]  # Benzinga sentiment (news, earnings, ratings)
 
-        # Combined score - weight AI higher when it has strong conviction
-        # If AI score >= 80, weight AI 60% / momentum 40%
-        # Otherwise, equal 50/50 weight
-        if ai_score >= 80:
-            combined_score = (momentum_score * 0.4) + (ai_score * 0.6)
-        else:
-            combined_score = (momentum_score * 0.5) + (ai_score * 0.5)
+        # OPTION B: Sentiment Primary + Momentum Boost
+        # Base score = Sentiment (what drives catalysts)
+        # Momentum confirms or warns, doesn't override
 
-        # Determine action based on combined score and AI conviction
-        # Strong AI signal (>=80) can override low momentum
-        if combined_score >= 70 or (ai_score >= 80 and momentum_score >= 40):
+        base_score = ai_score  # Sentiment is primary
+        momentum_boost = 0
+        momentum_warning = False
+
+        # Momentum confirms sentiment (both bullish or both bearish)
+        if ai_score >= 60 and momentum_score >= 55:
+            # Positive sentiment + price rising = boost
+            momentum_boost = min((momentum_score - 50) / 5, 10)  # Up to +10 points
+        elif ai_score >= 60 and momentum_score < 45:
+            # Positive sentiment + price falling = warning (but still tradeable)
+            momentum_boost = -5  # Small penalty
+            momentum_warning = True
+        elif ai_score < 40 and momentum_score < 45:
+            # Negative sentiment + price falling = confirms bearish
+            momentum_boost = 5
+
+        combined_score = base_score + momentum_boost
+        combined_score = max(0, min(100, combined_score))  # Clamp to 0-100
+
+        # Determine action based on combined score
+        # 70+ = BUY (matches scanner threshold)
+        if combined_score >= 70:
             action = "BUY"
-        elif combined_score >= 60 or ai_score >= 75:
+        elif combined_score >= 60:
             action = "HOLD"  # Watch closely
         else:
             action = "WAIT"
@@ -1158,6 +1173,8 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
             "combined_score": round(combined_score, 1),
             "momentum_score": momentum_score,
             "ai_score": ai_score,
+            "momentum_boost": round(momentum_boost, 1),
+            "momentum_warning": momentum_warning,
             "entry_price": current_price,
             "stop_loss": stop_loss_price,  # -0.5%
             "take_profit": round(current_price * 1.015, 2),  # +1.5%
@@ -1168,8 +1185,8 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
                 signal_score=round(combined_score)
             ),
             "signals": momentum.get("signals", [])[:2],
-            "strategy": "MOMENTUM" if momentum_score > ai_score else "AI_DRIVEN",
-            "urgency": momentum.get("urgency", "WAIT"),
+            "strategy": "SENTIMENT" if momentum_boost >= 0 else "SENTIMENT_CAUTION",
+            "urgency": "NOW" if combined_score >= 75 else ("SOON" if combined_score >= 70 else "WAIT"),
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
