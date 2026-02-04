@@ -337,7 +337,7 @@ export async function getRiskStatus(): Promise<RiskStatus> {
       circuitBreaker,
       dailyPL,
       dailyPLPercent,
-      tradesToday: positions.length,
+      tradesToday: 0,  // Actual trade count comes from activity log
       maxDailyLoss: 0.05,
       currentDrawdown: Math.min(dailyPLPercent, 0),
     };

@@ -187,9 +187,9 @@ SECTOR PERFORMANCE (recent):
 
 {f"DOLLAR INDEX (DXY): {dollar_index:.2f}" if dollar_index else ""}
 
-{f"TREASURY YIELDS:\n{yields_text}" if yields_text else ""}
+{"TREASURY YIELDS:" + chr(10) + yields_text if yields_text else ""}
 
-{f"FED COMMENTARY:\n{fed_commentary}" if fed_commentary else ""}
+{"FED COMMENTARY:" + chr(10) + fed_commentary if fed_commentary else ""}
 
 Provide your analysis in this JSON format:
 {{

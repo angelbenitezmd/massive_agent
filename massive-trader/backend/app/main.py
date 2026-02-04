@@ -34,6 +34,131 @@ SENTIMENT_CACHE_TTL = 30   # Cache sentiment for 30 seconds
 MOMENTUM_CACHE_TTL = 15    # Cache momentum for 15 seconds (price-sensitive)
 SCAN_CACHE_TTL = 20        # Cache scan results for 20 seconds
 
+# Position sizing defaults
+DEFAULT_RISK_PER_TRADE = 0.015  # 1.5% of portfolio per trade (increased from 1%)
+MAX_POSITION_PCT = 0.12  # Max 12% of portfolio in single position
+MIN_SHARES = 1
+MAX_SHARES = 500  # Safety cap
+MIN_POSITION_VALUE = 300  # Minimum $300 position to make trades meaningful
+TARGET_POSITION_PCT_HIGH_CONF = 0.08  # Target 8% position for high confidence (>0.8)
+TARGET_POSITION_PCT_MED_CONF = 0.05  # Target 5% position for medium confidence (0.6-0.8)
+TARGET_POSITION_PCT_LOW_CONF = 0.03  # Target 3% position for low confidence (<0.6)
+
+
+def calculate_position_size(
+    price: float,
+    stop_loss_price: float,
+    confidence: float = 0.7,
+    risk_pct: float = DEFAULT_RISK_PER_TRADE,
+    signal_score: int = 70
+) -> int:
+    """
+    Calculate position size using a hybrid approach:
+    1. Risk-based sizing (how much we can lose)
+    2. Target position sizing (based on confidence/signal strength)
+    3. Take the larger of the two (within constraints) to maximize opportunity
+
+    Formula considers:
+        - Account equity and buying power
+        - Stop loss distance (risk per share)
+        - Signal confidence (scales position aggressively)
+        - Signal score (bonus for high-conviction trades)
+        - Minimum position value (avoid tiny meaningless trades)
+
+    Args:
+        price: Entry price per share
+        stop_loss_price: Stop loss price
+        confidence: Signal confidence (0-1), scales position size
+        risk_pct: Percentage of portfolio to risk per trade
+        signal_score: Combined signal score (0-100)
+
+    Returns:
+        Number of shares to buy (integer)
+    """
+    try:
+        # Get account info
+        account = alpaca_trader.get_account_status()
+        if not account:
+            logger.warning("Could not get account status, using default 15 shares")
+            return 15
+
+        equity = float(account.get("equity", 100000))
+        buying_power = float(account.get("buying_power", equity))
+
+        if price <= 0:
+            return MIN_SHARES
+
+        # === METHOD 1: Risk-based sizing ===
+        risk_per_share = abs(price - stop_loss_price)
+        if risk_per_share < 0.01:
+            risk_per_share = price * 0.02  # Default 2% stop
+
+        # Aggressive confidence scaling: 0.4 to 1.3 range
+        # High confidence (0.85+) gets a bonus multiplier
+        if confidence >= 0.85:
+            confidence_multiplier = 1.0 + (confidence - 0.85) * 2  # 1.0 to 1.3
+        elif confidence >= 0.6:
+            confidence_multiplier = 0.6 + (confidence - 0.6) * 1.6  # 0.6 to 1.0
+        else:
+            confidence_multiplier = 0.4 + (confidence * 0.33)  # 0.4 to 0.6
+
+        # Bonus for very high signal scores (80+)
+        score_bonus = 1.0 + max(0, (signal_score - 75) / 100)  # Up to 1.25x for score of 100
+
+        risk_amount = equity * risk_pct * confidence_multiplier * score_bonus
+        shares_from_risk = int(risk_amount / risk_per_share)
+
+        # === METHOD 2: Target position sizing ===
+        # Determine target position % based on confidence
+        if confidence >= 0.8:
+            target_pct = TARGET_POSITION_PCT_HIGH_CONF
+        elif confidence >= 0.6:
+            target_pct = TARGET_POSITION_PCT_MED_CONF
+        else:
+            target_pct = TARGET_POSITION_PCT_LOW_CONF
+
+        # Apply score bonus to target
+        target_position_value = equity * target_pct * score_bonus
+        shares_from_target = int(target_position_value / price)
+
+        # === METHOD 3: Minimum position value ===
+        # Ensure we don't make tiny trades that aren't worth the commission/spread
+        min_shares_for_value = int(MIN_POSITION_VALUE / price)
+
+        # === COMBINE: Take the LARGER of risk-based and target-based ===
+        # This maximizes opportunity while respecting constraints
+        shares_base = max(shares_from_risk, shares_from_target, min_shares_for_value)
+
+        # === Apply constraints ===
+        # Max position size cap (% of portfolio)
+        max_position_value = equity * MAX_POSITION_PCT
+        shares_from_max_position = int(max_position_value / price)
+
+        # Buying power constraint (use up to 60% of buying power per trade)
+        shares_from_buying_power = int(buying_power * 0.6 / price)
+
+        # Final calculation: minimum of (base, constraints), but at least MIN_SHARES
+        shares = min(shares_base, shares_from_max_position, shares_from_buying_power, MAX_SHARES)
+        shares = max(shares, MIN_SHARES)
+
+        # Calculate final position value for logging
+        position_value = shares * price
+        position_pct = (position_value / equity) * 100
+
+        logger.info(
+            f"Position sizing: equity=${equity:,.0f}, price=${price:.2f}, "
+            f"conf={confidence:.2f}, score={signal_score}, "
+            f"risk_shares={shares_from_risk}, target_shares={shares_from_target}, "
+            f"min_value_shares={min_shares_for_value} -> {shares} shares "
+            f"(${position_value:,.0f}, {position_pct:.1f}% of portfolio)"
+        )
+
+        return shares
+
+    except Exception as e:
+        logger.error(f"Position sizing error: {e}, defaulting to 15 shares")
+        return 15
+
 # Auto-trade state (persisted to file for restarts)
 AUTO_TRADE_STATE_FILE = Path(__file__).parent.parent / "data" / "auto_trade_state.json"
 _auto_trade_enabled = False
@@ -405,7 +530,12 @@ async def get_fast_signal(ticker: str):
                 "entry_price": current_price,
                 "stop_loss": round(current_price * 0.98, 2),
                 "take_profit": round(current_price * 1.03, 2),
-                "quantity": 10,
+                "quantity": calculate_position_size(
+                    price=current_price,
+                    stop_loss_price=current_price * 0.98,
+                    confidence=confidence,
+                    signal_score=round(combined_score)
+                ),
                 "rationale": f"Technical: {technical.score}, Sentiment: {sentiment_score}"
             },
             "technicals": {
@@ -1018,6 +1148,10 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
         current_price = quote.get("price", 100)
 
         # Always return a signal - let the frontend/execute logic decide thresholds
+        # Calculate confidence for position sizing (normalize combined score to 0-1)
+        signal_confidence = min(combined_score / 100, 0.95)
+        stop_loss_price = round(current_price * 0.995, 2)
+
         return {
             "ticker": ticker,
             "action": action,
@@ -1025,9 +1159,14 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
             "momentum_score": momentum_score,
             "ai_score": ai_score,
             "entry_price": current_price,
-            "stop_loss": round(current_price * 0.995, 2),  # -0.5%
+            "stop_loss": stop_loss_price,  # -0.5%
             "take_profit": round(current_price * 1.015, 2),  # +1.5%
-            "quantity": 10,  # Start with 10 shares for paper trading
+            "quantity": calculate_position_size(
+                price=current_price,
+                stop_loss_price=stop_loss_price,
+                confidence=signal_confidence,
+                signal_score=round(combined_score)
+            ),
             "signals": momentum.get("signals", [])[:2],
             "strategy": "MOMENTUM" if momentum_score > ai_score else "AI_DRIVEN",
             "urgency": momentum.get("urgency", "WAIT"),
@@ -1042,8 +1181,15 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
 async def get_best_trading_signal():
     """Get the SINGLE BEST trading signal from all sources (momentum + AI)."""
 
-    # Scan top tickers for opportunities - IN PARALLEL
-    candidates = ["TSLA", "NVDA", "AMD", "AAPL", "META", "GOOGL", "MSFT"]
+    # Scan configured watchlist tickers - uses env var WATCHLIST_TICKERS
+    settings = get_settings()
+    candidates = settings.watchlist[:20]  # Limit to top 20 for performance
+
+    # Fallback to defaults if watchlist is empty
+    if not candidates:
+        candidates = ["TSLA", "NVDA", "AMD", "AAPL", "META", "GOOGL", "MSFT"]
+
+    logger.info(f"🔍 Scanning {len(candidates)} tickers: {candidates[:5]}...")
 
     # Analyze all tickers in parallel for speed
     results = await asyncio.gather(
@@ -2262,13 +2408,48 @@ async def auto_trade_loop():
             if _auto_trade_enabled and is_market_open():
                 logger.info("🤖 [AUTO-TRADE] Running automatic trade scan...")
 
-                # Get best signal from watchlist
+                # Get best signal - check BOTH watchlist scan AND best-signal endpoint
                 try:
-                    signal = await get_best_trading_signal()
+                    settings = get_settings()
+                    min_score = 70  # STRICT: Only trade signals with score >= 70
 
-                    if signal and signal.get("action") == "BUY" and signal.get("combined_score", 0) >= 70:
+                    # FIRST: Check watchlist scan for BUY recommendations (matches UI)
+                    scan_result = await scan_watchlist()
+                    buy_opportunities = scan_result.get("top_opportunities", [])
+
+                    signal = None
+                    score = 0
+                    action = "WAIT"
+
+                    if buy_opportunities:
+                        # Use the top BUY opportunity from scan (score >= 70)
+                        top_opp = buy_opportunities[0]
+                        ticker = top_opp["ticker"]
+                        score = top_opp["score"]
+                        action = top_opp["recommendation"]
+                        logger.info(f"🤖 [AUTO-TRADE] Found scan BUY signal: {ticker} (score: {score})")
+
+                        # Get full signal data for this ticker
+                        signal = await _analyze_ticker_for_signal(ticker)
+                        if signal:
+                            signal["combined_score"] = score  # Use scan score
+                            signal["action"] = action
+                    else:
+                        # FALLBACK: Use best-signal endpoint
+                        signal = await get_best_trading_signal()
+                        score = signal.get("combined_score", 0) if signal else 0
+                        action = signal.get("action", "WAIT") if signal else "WAIT"
+
+                    # Execute on BUY signals OR strong HOLD signals (don't miss opportunities)
+                    should_trade = (
+                        signal and
+                        score >= min_score and
+                        action in ["BUY", "HOLD"]  # HOLD with high score = still good opportunity
+                    )
+
+                    if should_trade:
                         ticker = signal.get("ticker")
-                        score = signal.get("combined_score", 0)
+                        trade_score = float(signal.get("combined_score", 0))
 
                         # Check if we already have a position
                         positions = alpaca_trader.get_positions() if alpaca_trader else []
@@ -2278,7 +2459,7 @@ async def auto_trade_loop():
                             logger.info(f"🤖 [AUTO-TRADE] Skipping {ticker} - already have position")
                         else:
                             # Execute the trade
-                            logger.info(f"🤖 [AUTO-TRADE] Executing BUY on {ticker} (score: {score:.1f})")
+                            logger.info(f"🤖 [AUTO-TRADE] Executing BUY on {ticker} (score: {trade_score:.1f})")
                             result = alpaca_trader.execute_trade(signal)
 
                             # Register with position manager for smart exit tracking
@@ -2302,17 +2483,17 @@ async def auto_trade_loop():
                                 details={
                                     "price": signal.get("price"),
                                     "quantity": result.get("qty") if result else None,
-                                    "score": score,
-                                    "reasoning": signal.get("reasoning", "")[:200],
+                                    "score": trade_score,
+                                    "reasoning": (signal.get("reasoning") or "")[:200],
                                     "order_id": result.get("id") if result else None,
                                     "auto": True
                                 }
                             )
                             logger.info(f"🤖 [AUTO-TRADE] ✅ Trade executed: {result}")
                     else:
-                        action = signal.get("action", "NONE") if signal else "NO_SIGNAL"
-                        score = signal.get("combined_score", 0) if signal else 0
-                        logger.info(f"🤖 [AUTO-TRADE] No trade - best signal: {action} (score: {score:.1f})")
+                        # Log why we didn't trade
+                        reason = "no signal" if not signal else f"action={action}, score={float(score):.1f} (need {min_score}+)"
+                        logger.info(f"🤖 [AUTO-TRADE] No trade - {reason}")
 
                 except Exception as e:
                     logger.error(f"🤖 [AUTO-TRADE] Error getting signal: {e}")

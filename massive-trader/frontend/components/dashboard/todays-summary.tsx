@@ -153,7 +153,7 @@ export const TodaysSummary = memo(function TodaysSummary({
             <Activity className="h-4 w-4 text-primary" />
             <div>
               <div className="text-xs text-muted-foreground">Trades</div>
-              <div className="font-semibold">{riskStatus?.tradesToday || todaysTrades}</div>
+              <div className="font-semibold">{todaysTrades}</div>
             </div>
           </div>
 

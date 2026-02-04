@@ -369,15 +369,40 @@ class PositionManager:
         position: Dict,
         pos_state: PositionState
     ):
-        """Check simple exit rules without LLM."""
+        """Check simple exit rules without LLM - AGGRESSIVE rules to protect capital."""
         current_price = position.get("current", 0)
         pnl_pct = position.get("pnl_pct", 0) * 100
+        entry_price = pos_state.entry_price
 
-        # Emergency stop: -10% loss
-        if pnl_pct < -10:
+        # ===== LOSS PROTECTION (Cut losers fast) =====
+
+        # Emergency stop: -5% loss (was -10%, now more aggressive)
+        if pnl_pct < -5:
             logger.warning(f"{symbol}: Emergency stop triggered at {pnl_pct:.1f}%")
-            await self._close_position(symbol, position, "Emergency stop: >10% loss")
+            await self._close_position(symbol, position, f"Emergency stop: {pnl_pct:.1f}% loss")
             return
+
+        # Quick exit: -3% loss AND held > 30 minutes (bad trade, get out)
+        if pnl_pct < -3 and pos_state.days_held >= 0:
+            mins_held = (datetime.utcnow() - pos_state.entry_time).total_seconds() / 60
+            if mins_held > 30:
+                logger.warning(f"{symbol}: Quick stop at {pnl_pct:.1f}% after {mins_held:.0f}min")
+                await self._close_position(symbol, position, f"Quick stop: {pnl_pct:.1f}% loss after 30min")
+                return
+
+        # ===== PROFIT TAKING (Don't let winners become losers) =====
+
+        # Auto take profit at +5%
+        if pnl_pct >= 5:
+            logger.info(f"{symbol}: Taking profit at {pnl_pct:.1f}%")
+            await self._close_position(symbol, position, f"Take profit: +{pnl_pct:.1f}%")
+            return
+
+        # Activate trailing stop automatically when +2% profitable
+        if pnl_pct >= 2 and not pos_state.trailing_stop_active and current_price and entry_price:
+            pos_state.trailing_stop_active = True
+            pos_state.trailing_stop_price = current_price * 0.98  # 2% trail
+            logger.info(f"{symbol}: Auto-trailing stop activated at ${pos_state.trailing_stop_price:.2f} (+{pnl_pct:.1f}%)")
 
         # Trailing stop check
         if pos_state.trailing_stop_active and pos_state.trailing_stop_price:
@@ -388,19 +413,35 @@ class PositionManager:
                 await self._close_position(symbol, position, "Trailing stop hit")
                 return
 
-            # Update trailing stop if price moved up
-            entry_price = pos_state.entry_price
+            # Update trailing stop if price moved up (tighter 2% trail)
             if entry_price:
-                new_trail = current_price * 0.97  # 3% trailing
+                new_trail = current_price * 0.98  # 2% trailing (was 3%)
                 if new_trail > pos_state.trailing_stop_price:
                     pos_state.trailing_stop_price = new_trail
                     logger.info(f"{symbol}: Trailing stop raised to ${new_trail:.2f}")
 
-        # Time-based exit: warn after 5 days
-        if pos_state.days_held >= 5:
+        # ===== TIME-BASED EXITS (Signals don't last forever) =====
+
+        mins_held = (datetime.utcnow() - pos_state.entry_time).total_seconds() / 60
+        hours_held = mins_held / 60
+
+        # Force exit after 4 hours if not profitable (momentum trade failed)
+        if hours_held >= 4 and pnl_pct <= 0:
+            logger.warning(f"{symbol}: Time exit - held {hours_held:.1f}hrs with {pnl_pct:.1f}% P&L")
+            await self._close_position(symbol, position, f"Time exit: {hours_held:.1f}hrs, not profitable")
+            return
+
+        # Force exit after 1 day regardless (day trading style)
+        if pos_state.days_held >= 1:
+            logger.warning(f"{symbol}: Day limit - closing after {pos_state.days_held} days ({pnl_pct:.1f}%)")
+            await self._close_position(symbol, position, f"Day limit: held {pos_state.days_held} days")
+            return
+
+        # Warn at 2 hours
+        if hours_held >= 2 and hours_held < 2.5:
             logger.info(
-                f"{symbol}: Position held {pos_state.days_held} days, "
-                f"consider exit (P&L: {pnl_pct:.1f}%)"
+                f"{symbol}: Position held {hours_held:.1f} hours, "
+                f"P&L: {pnl_pct:.1f}% - monitoring for exit"
             )
 
     async def _close_position(
@@ -478,9 +519,9 @@ class PositionManager:
         pos_state.current_stop_loss = new_stop
         self.state.positions_adjusted += 1
 
+        old_str = f"${old_stop:.2f}" if old_stop else "none"
         logger.info(
-            f"{symbol}: Stop loss updated: "
-            f"${old_stop:.2f if old_stop else 0:.2f} -> ${new_stop:.2f}"
+            f"{symbol}: Stop loss updated: {old_str} -> ${new_stop:.2f}"
         )
 
         # Note: To actually update Alpaca order, we'd need to:
@@ -619,10 +660,11 @@ class PositionManager:
             current_stop_loss=stop_loss,
         )
 
+        stop_str = f"${stop_loss:.2f}" if stop_loss else "none"
+        target_str = f"${take_profit:.2f}" if take_profit else "none"
         logger.info(
             f"Registered entry: {symbol} @ ${entry_price:.2f}, "
-            f"qty={quantity}, stop=${stop_loss:.2f if stop_loss else 0:.2f}, "
-            f"target=${take_profit:.2f if take_profit else 0:.2f}"
+            f"qty={quantity}, stop={stop_str}, target={target_str}"
         )
 
 

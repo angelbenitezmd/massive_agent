@@ -21,11 +21,11 @@ logger = logging.getLogger(__name__)
 class BenzingaClient:
     """Client for interacting with Benzinga REST API."""
 
-    def __init__(self):
+    def __init__(self, base_url: Optional[str] = None, api_key: Optional[str] = None):
         """Initialize Benzinga client with configuration."""
         settings = get_settings()
-        self.base_url = settings.BENZINGA_BASE_URL
-        self.api_key = settings.BENZINGA_API_KEY
+        self.base_url = base_url or settings.BENZINGA_BASE_URL
+        self.api_key = api_key or settings.BENZINGA_API_KEY
 
         # Initialize HTTP client
         self.http_client = AsyncHTTPClient(
@@ -272,7 +272,8 @@ class BenzingaClient:
         Args:
             ticker: Stock symbol (required)
             date_gt/date_gte/date_lt/date_lte: Date range filters
-            limit: Maximum results
+            limit: 
+            ximum results
 
         Returns:
             ConsensusResponse with consensus data

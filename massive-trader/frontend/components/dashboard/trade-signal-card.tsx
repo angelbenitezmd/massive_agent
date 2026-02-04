@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,9 +12,13 @@ import {
   BarChart3,
   Brain,
   Zap,
+  Activity,
+  Radio,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AllDecisionsResponse, TradeDecisionItem } from "@/lib/api";
+import { useAutoTradeStatus } from "@/hooks/use-trading-data";
 
 interface TradeSignalCardProps {
   decisions?: AllDecisionsResponse;
@@ -29,9 +33,94 @@ export const TradeSignalCard = memo(function TradeSignalCard({
   selectedTicker,
   isLoading,
 }: TradeSignalCardProps) {
+  const { data: autoTradeStatus } = useAutoTradeStatus();
+  const [countdown, setCountdown] = useState(0);
+
+  // Countdown timer for next scan
+  useEffect(() => {
+    if (!autoTradeStatus?.enabled) return;
+
+    const interval = autoTradeStatus.interval || 60;
+    setCountdown(interval);
+
+    const timer = setInterval(() => {
+      setCountdown((prev) => (prev <= 1 ? interval : prev - 1));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [autoTradeStatus?.enabled, autoTradeStatus?.interval]);
+
+  // Auto-trade status banner
+  const AutoTradeStatusBanner = () => {
+    if (!autoTradeStatus) return null;
+
+    const isActive = autoTradeStatus.enabled && autoTradeStatus.market_open;
+    const isEnabled = autoTradeStatus.enabled;
+    const marketOpen = autoTradeStatus.market_open;
+
+    return (
+      <div className={cn(
+        "flex items-center justify-between px-4 py-2 rounded-t-lg border-b",
+        isActive
+          ? "bg-green-500/10 border-green-500/30"
+          : isEnabled
+            ? "bg-yellow-500/10 border-yellow-500/30"
+            : "bg-muted/50 border-border"
+      )}>
+        <div className="flex items-center gap-3">
+          {/* Live indicator */}
+          <div className="flex items-center gap-2">
+            {isActive ? (
+              <>
+                <div className="relative flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                </div>
+                <span className="text-green-500 font-semibold text-sm">AUTO-TRADE ACTIVE</span>
+              </>
+            ) : isEnabled ? (
+              <>
+                <Radio className="h-4 w-4 text-yellow-500" />
+                <span className="text-yellow-500 font-medium text-sm">
+                  {marketOpen ? "SCANNING" : "MARKET CLOSED"}
+                </span>
+              </>
+            ) : (
+              <>
+                <Activity className="h-4 w-4 text-muted-foreground" />
+                <span className="text-muted-foreground text-sm">Auto-Trade Disabled</span>
+              </>
+            )}
+          </div>
+
+          {/* Scan countdown */}
+          {isActive && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3" />
+              <span>Next scan: {countdown}s</span>
+            </div>
+          )}
+        </div>
+
+        {/* Trade threshold indicator */}
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-xs bg-background">
+            Min Score: 70+
+          </Badge>
+          {autoTradeStatus.market_open && (
+            <Badge variant="outline" className="text-xs border-green-500 text-green-500 bg-green-500/10">
+              Market Open
+            </Badge>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   if (isLoading) {
     return (
-      <Card>
+      <Card className="overflow-hidden">
+        <AutoTradeStatusBanner />
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm">
             <Target className="h-4 w-4 text-muted-foreground" />
@@ -52,7 +141,8 @@ export const TradeSignalCard = memo(function TradeSignalCard({
 
   if (!decisions || decisions.total === 0) {
     return (
-      <Card className="border-dashed">
+      <Card className="border-dashed overflow-hidden">
+        <AutoTradeStatusBanner />
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm">
             <Target className="h-4 w-4 text-muted-foreground" />
@@ -71,12 +161,18 @@ export const TradeSignalCard = memo(function TradeSignalCard({
   const { buy, hold, sell, counts } = decisions;
 
   return (
-    <Card>
+    <Card className="overflow-hidden">
+      <AutoTradeStatusBanner />
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Brain className="h-5 w-5 text-primary" />
             <span className="text-base font-semibold">AI Trade Decisions</span>
+            {counts.buy > 0 && autoTradeStatus?.enabled && autoTradeStatus?.market_open && (
+              <Badge className="bg-green-500 text-white animate-pulse">
+                {counts.buy} READY TO TRADE
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-2 text-xs">
             <Badge variant="outline" className="border-green-500 text-green-500 bg-green-500/10">
