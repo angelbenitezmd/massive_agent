@@ -134,8 +134,21 @@ ANTHROPIC_API_KEY=your_claude_key
 # Risk Parameters
 TRADING_DEFAULT_MAX_POSITION_RISK=0.01  # 1% per trade
 TRADING_DAILY_MAX_DRAWDOWN=0.05        # 5% daily limit
-TRADING_MIN_SIGNAL_SCORE=50            # Minimum score to trade
+TRADING_MIN_SIGNAL_SCORE=70            # Minimum score to trade (strict 70+)
 ```
+
+### Auto-Trade Exit Rules
+
+The system uses aggressive exit rules to protect capital:
+
+| Rule | Threshold | Action |
+|------|-----------|--------|
+| Take Profit | +5% | Close position |
+| Emergency Stop | -5% | Close immediately |
+| Quick Stop | -3% after 30min | Close (bad trade) |
+| Auto Trailing | +2% profit | Activate 2% trail |
+| Time Exit | 4 hours, not profitable | Close |
+| Day Limit | 1 day held | Close regardless |
 
 ## 📊 TradingView Integration
 
