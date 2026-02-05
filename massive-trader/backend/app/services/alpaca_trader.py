@@ -10,9 +10,10 @@ from alpaca.trading.requests import (
     LimitOrderRequest,
     StopOrderRequest,
     StopLossRequest,
-    TakeProfitRequest
+    TakeProfitRequest,
+    GetOrdersRequest
 )
-from alpaca.trading.enums import OrderSide, TimeInForce, OrderType, OrderClass
+from alpaca.trading.enums import OrderSide, TimeInForce, OrderType, OrderClass, QueryOrderStatus
 from alpaca.data.live import StockDataStream
 from alpaca.data.historical import StockHistoricalDataClient
 from alpaca.data.requests import StockLatestQuoteRequest
@@ -334,6 +335,35 @@ class AlpacaTrader:
             return {"status": "simulated"}
 
         try:
+            import time
+
+            # FIRST: Cancel any pending orders for this ticker to free up shares
+            # Retry a few times since broker can be slow
+            for attempt in range(3):
+                try:
+                    orders = self.client.get_orders(
+                        filter=GetOrdersRequest(
+                            status=QueryOrderStatus.OPEN,
+                            symbols=[ticker]
+                        )
+                    )
+                    if orders:
+                        logger.info(f"Cancelling {len(orders)} pending orders for {ticker} (attempt {attempt+1})")
+                        for order in orders:
+                            try:
+                                self.client.cancel_order_by_id(order.id)
+                                logger.info(f"Cancelled order {order.id} for {ticker}")
+                            except Exception as cancel_err:
+                                # Might already be cancelled/filled
+                                logger.debug(f"Could not cancel order {order.id}: {cancel_err}")
+                        # Give broker time to process cancellations
+                        time.sleep(2)
+                    else:
+                        break  # No orders to cancel
+                except Exception as orders_err:
+                    logger.warning(f"Error checking orders for {ticker}: {orders_err}")
+                    break
+
             # Get current position
             positions = self.client.get_all_positions()
             position = next((p for p in positions if p.symbol == ticker), None)
@@ -373,17 +403,32 @@ class AlpacaTrader:
 
             logger.info(f"Closing {position_type} position: {ticker} qty={qty} (raw={raw_qty}) -> order_side={order_side}")
 
-            # Close position with market order
-            order_request = MarketOrderRequest(
-                symbol=ticker,
-                qty=qty,
-                side=order_side,
-                time_in_force=TimeInForce.GTC
-            )
-
-            order = self.client.submit_order(order_data=order_request)
-
-            logger.info(f"Position close order submitted: {order.id} for {ticker}")
+            # Use Alpaca's direct close_position API which liquidates the position
+            # This is more reliable than submitting a market order when there are pending orders
+            try:
+                # close_position returns the Order object for the liquidation
+                close_result = self.client.close_position(ticker)
+                logger.info(f"Position closed via API: {ticker} -> {close_result}")
+                return {
+                    "status": "closed",
+                    "order_id": str(close_result.id) if hasattr(close_result, 'id') else None,
+                    "ticker": ticker,
+                    "quantity": qty,
+                    "position_type": position_type,
+                    "pnl": float(position.unrealized_pl) if position.unrealized_pl else 0,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+            except Exception as close_api_err:
+                logger.warning(f"Direct close API failed for {ticker}: {close_api_err}, trying market order")
+                # Fallback to market order if direct API fails
+                order_request = MarketOrderRequest(
+                    symbol=ticker,
+                    qty=qty,
+                    side=order_side,
+                    time_in_force=TimeInForce.GTC
+                )
+                order = self.client.submit_order(order_data=order_request)
+                logger.info(f"Position close order submitted: {order.id} for {ticker}")
 
             return {
                 "status": "closed",

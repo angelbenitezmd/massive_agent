@@ -36,7 +36,10 @@ SCAN_CACHE_TTL = 20        # Cache scan results for 20 seconds
 
 # Position sizing defaults
 DEFAULT_RISK_PER_TRADE = 0.015  # 1.5% of portfolio per trade (increased from 1%)
-MAX_POSITION_PCT = 0.12  # Max 12% of portfolio in single position
+# Dynamic max position based on signal score (higher score = more conviction = larger position allowed)
+MAX_POSITION_PCT_BASE = 0.12      # 12% max for standard signals (score 70-79)
+MAX_POSITION_PCT_GOOD = 0.15      # 15% max for good signals (score 80-89)
+MAX_POSITION_PCT_EXCELLENT = 0.20  # 20% max for excellent signals (score 90+)
 MIN_SHARES = 1
 MAX_SHARES = 500  # Safety cap
 MIN_POSITION_VALUE = 300  # Minimum $300 position to make trades meaningful
@@ -130,8 +133,15 @@ def calculate_position_size(
         shares_base = max(shares_from_risk, shares_from_target, min_shares_for_value)
 
         # === Apply constraints ===
-        # Max position size cap (% of portfolio)
-        max_position_value = equity * MAX_POSITION_PCT
+        # Dynamic max position size based on signal score (higher score = more conviction)
+        if signal_score >= 90:
+            max_position_pct = MAX_POSITION_PCT_EXCELLENT  # 20% for exceptional signals
+        elif signal_score >= 80:
+            max_position_pct = MAX_POSITION_PCT_GOOD  # 15% for good signals
+        else:
+            max_position_pct = MAX_POSITION_PCT_BASE  # 12% for standard signals
+
+        max_position_value = equity * max_position_pct
         shares_from_max_position = int(max_position_value / price)
 
         # Buying power constraint (use up to 60% of buying power per trade)
@@ -147,7 +157,7 @@ def calculate_position_size(
 
         logger.info(
             f"Position sizing: equity=${equity:,.0f}, price=${price:.2f}, "
-            f"conf={confidence:.2f}, score={signal_score}, "
+            f"conf={confidence:.2f}, score={signal_score}, max_pct={max_position_pct*100:.0f}%, "
             f"risk_shares={shares_from_risk}, target_shares={shares_from_target}, "
             f"min_value_shares={min_shares_for_value} -> {shares} shares "
             f"(${position_value:,.0f}, {position_pct:.1f}% of portfolio)"

@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 class ExitAction(Enum):
     """Recommended exit action."""
     HOLD = "hold"  # Continue holding
+    MONITOR = "monitor"  # Same as hold - LLM sometimes returns this
     PARTIAL_EXIT = "partial_exit"  # Scale out
     FULL_EXIT = "full_exit"  # Close entire position
     TIGHTEN_STOP = "tighten_stop"  # Move stop loss closer
@@ -211,8 +212,8 @@ POSITION:
 ORIGINAL TRADE SETUP:
 - Entry Thesis: {entry_thesis or "Not recorded"}
 - Original Catalyst: {original_catalyst or "Not recorded"}
-- Original Stop Loss: ${original_stop_loss:.2f if original_stop_loss else "None set"}
-- Original Take Profit: ${original_take_profit:.2f if original_take_profit else "None set"}
+- Original Stop Loss: {f"${original_stop_loss:.2f}" if original_stop_loss else "None set"}
+- Original Take Profit: {f"${original_take_profit:.2f}" if original_take_profit else "None set"}
 
 TECHNICAL DATA:
 - RSI: {rsi:.1f}

@@ -5,6 +5,7 @@ import {
   Activity,
   AlertTriangle,
   Circle,
+  HelpCircle,
   RefreshCw,
   Settings,
   XOctagon,
@@ -28,6 +29,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSystemStatus, usePanicClose, useAutoTradeStatus, useEnableAutoTrade, useDisableAutoTrade } from "@/hooks/use-trading-data";
 import { cn } from "@/lib/utils";
 import { TickerSelector } from "./ticker-selector";
@@ -65,6 +74,7 @@ export function Header({
   const disableAutoTrade = useDisableAutoTrade();
   const panicMutation = usePanicClose();
   const [panicDialogOpen, setPanicDialogOpen] = useState(false);
+  const [helpDialogOpen, setHelpDialogOpen] = useState(false);
   const { layout, saveLayout } = useDashboardLayout();
 
   const isLive = status?.tradingMode === "live";
@@ -300,6 +310,147 @@ export function Header({
               { id: "risk-panel", name: "Risk Panel", description: "Risk management" },
             ]}
           />
+
+          {/* Help Guide */}
+          <Dialog open={helpDialogOpen} onOpenChange={setHelpDialogOpen}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-7 w-7">
+                    <HelpCircle className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+              </TooltipTrigger>
+              <TooltipContent>User Guide</TooltipContent>
+            </Tooltip>
+            <DialogContent className="max-w-2xl max-h-[85vh]">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <HelpCircle className="h-5 w-5" />
+                  Massive Trader - Quick Guide
+                </DialogTitle>
+              </DialogHeader>
+              <ScrollArea className="h-[70vh] pr-4">
+                <div className="space-y-6 text-sm">
+                  {/* Quick Start */}
+                  <section>
+                    <h3 className="font-semibold text-base mb-2">Quick Start</h3>
+                    <ul className="space-y-1 text-muted-foreground">
+                      <li><strong>Trading Mode:</strong> Check badge (Paper = safe, Live = real money)</li>
+                      <li><strong>Auto-Trade:</strong> Toggle in header - when ON, trades automatically</li>
+                      <li><strong>Market Hours:</strong> Only trades 9:30 AM - 4:00 PM ET weekdays</li>
+                    </ul>
+                  </section>
+
+                  {/* Auto-Trading */}
+                  <section>
+                    <h3 className="font-semibold text-base mb-2">Auto-Trading Behavior</h3>
+                    <p className="text-muted-foreground mb-2">When enabled, the system scans every 60 seconds:</p>
+                    <ul className="space-y-1 text-muted-foreground list-disc list-inside">
+                      <li>Finds best signal from watchlist</li>
+                      <li>Only trades when score &ge; 70 (strong signal)</li>
+                      <li>Won&apos;t buy if you already own the ticker</li>
+                      <li>Executes market orders automatically</li>
+                    </ul>
+                  </section>
+
+                  {/* Understanding Scores */}
+                  <section>
+                    <h3 className="font-semibold text-base mb-2">Understanding Scores</h3>
+                    <div className="grid grid-cols-2 gap-2 text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <span className="w-16 text-green-500 font-mono">70-100</span>
+                        <span>BUY signal (auto-trades here)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-16 text-yellow-500 font-mono">60-69</span>
+                        <span>HOLD / Watch</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="w-16 text-red-500 font-mono">&lt;60</span>
+                        <span>Avoid</span>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Exit Rules */}
+                  <section>
+                    <h3 className="font-semibold text-base mb-2">Automatic Exit Rules</h3>
+                    <div className="space-y-1 text-muted-foreground">
+                      <div className="flex justify-between"><span>Take Profit</span><span className="text-green-500">+5%</span></div>
+                      <div className="flex justify-between"><span>Stop Loss</span><span className="text-red-500">-5%</span></div>
+                      <div className="flex justify-between"><span>Quick Stop (bad trade)</span><span className="text-red-500">-3% in 30 min</span></div>
+                      <div className="flex justify-between"><span>Trailing Stop</span><span>After +2%, trails 2%</span></div>
+                      <div className="flex justify-between"><span>Time Exit</span><span>4 hours if not profitable</span></div>
+                      <div className="flex justify-between"><span>Day Limit</span><span>24 hours max hold</span></div>
+                    </div>
+                  </section>
+
+                  {/* Key Panels */}
+                  <section>
+                    <h3 className="font-semibold text-base mb-2">Key Panels</h3>
+                    <ul className="space-y-1 text-muted-foreground">
+                      <li><strong>Scanner:</strong> All watchlist stocks ranked by score</li>
+                      <li><strong>Trade Signal Card:</strong> Best current opportunity</li>
+                      <li><strong>AI Agents:</strong> Individual agent analysis breakdown</li>
+                      <li><strong>Positions:</strong> Your current holdings with P&amp;L</li>
+                      <li><strong>Activity Log:</strong> Every system action</li>
+                      <li><strong>Trade Journal:</strong> Completed trades history</li>
+                    </ul>
+                  </section>
+
+                  {/* Safety */}
+                  <section>
+                    <h3 className="font-semibold text-base mb-2">Safety Features</h3>
+                    <ul className="space-y-1 text-muted-foreground list-disc list-inside">
+                      <li>Paper trading by default (fake money)</li>
+                      <li>Dynamic position limits based on signal score:</li>
+                    </ul>
+                    <div className="ml-4 mt-1 space-y-0.5 text-muted-foreground text-xs">
+                      <div className="flex justify-between"><span>Score 70-79</span><span>Max 12%</span></div>
+                      <div className="flex justify-between"><span>Score 80-89</span><span>Max 15%</span></div>
+                      <div className="flex justify-between"><span>Score 90+</span><span className="text-green-500">Max 20%</span></div>
+                    </div>
+                    <ul className="space-y-1 text-muted-foreground list-disc list-inside mt-2">
+                      <li>Daily drawdown limit: 5%</li>
+                      <li>Max 500 shares per trade</li>
+                      <li>Emergency stop button (red X) closes everything</li>
+                    </ul>
+                  </section>
+
+                  {/* Common Questions */}
+                  <section>
+                    <h3 className="font-semibold text-base mb-2">Common Questions</h3>
+                    <div className="space-y-2 text-muted-foreground">
+                      <div>
+                        <p className="font-medium text-foreground">Why isn&apos;t it trading?</p>
+                        <p>Market closed, no signal &ge;70, already own position, or auto-trade off</p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">How do I stop auto-trading?</p>
+                        <p>Toggle the &quot;Auto&quot; switch OFF in the header</p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">Where do I see trades?</p>
+                        <p>Activity Log (real-time) or Trade Journal (history)</p>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* API Endpoints */}
+                  <section>
+                    <h3 className="font-semibold text-base mb-2">API Quick Reference</h3>
+                    <div className="bg-muted rounded p-2 font-mono text-xs space-y-1">
+                      <div>GET /api/auto-trade/status</div>
+                      <div>POST /api/auto-trade/disable</div>
+                      <div>GET /api/trading/positions</div>
+                      <div>POST /api/trading/close-all</div>
+                    </div>
+                  </section>
+                </div>
+              </ScrollArea>
+            </DialogContent>
+          </Dialog>
 
           <Button variant="ghost" size="icon">
             <Settings className="h-5 w-5" />

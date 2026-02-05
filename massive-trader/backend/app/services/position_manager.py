@@ -216,16 +216,21 @@ class PositionManager:
             logger.warning(f"{symbol}: Missing price data, skipping")
             return
 
-        # Check if we need to run LLM analysis
+        # ALWAYS check simple rules FIRST - these are fast protective checks
+        # that should run regardless of LLM analysis status
+        await self._check_simple_rules(symbol, position, pos_state)
+
+        # If position was closed by simple rules, stop here
+        if symbol not in self.state.positions:
+            return
+
+        # Check if we need to run LLM analysis for more nuanced decisions
         should_analyze = self._should_analyze(pos_state, position)
 
         if should_analyze:
             exit_plan = await self._run_exit_analysis(symbol, position, pos_state)
             if exit_plan:
                 await self._execute_exit_plan(symbol, position, exit_plan, pos_state)
-        else:
-            # Even without LLM, check simple rules
-            await self._check_simple_rules(symbol, position, pos_state)
 
     def _should_analyze(self, pos_state: PositionState, position: Dict) -> bool:
         """Determine if we should run LLM exit analysis."""
