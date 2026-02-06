@@ -216,7 +216,13 @@ class AlpacaTrader:
             return {"symbol": ticker.upper(), "price": 0, "bid": 0, "ask": 0}
 
     def execute_trade(self, signal: Dict) -> Dict:
-        """Execute a trade with MANDATORY bracket order (stop-loss + take-profit)."""
+        """Execute a trade with simple market order.
+
+        NOTE: We use simple market orders instead of bracket orders because:
+        - Bracket orders with take-profit limits can get stuck in 'pending_cancel' state
+        - Stuck orders block position closes (shares are held for the pending order)
+        - The position_manager handles all exits with market orders for reliable closes
+        """
         if not self.client:
             return {
                 "status": "simulated",
@@ -236,34 +242,12 @@ class AlpacaTrader:
             if "BUY" in action.upper():
                 side = OrderSide.BUY
 
-                # Calculate stop-loss and take-profit if not provided
-                # Default: 2% stop-loss, 2% take-profit (1:1 risk/reward for day trading)
-                if not stop_loss or not entry_price:
-                    stop_loss = entry_price * 0.98 if entry_price else None
-                    logger.info(f"{ticker}: Using 2% stop-loss default")
-                if not take_profit or not entry_price:
-                    take_profit = entry_price * 1.02 if entry_price else None
-                    logger.info(f"{ticker}: Using 2% take-profit default")
-
-                # Validate stop-loss bounds
-                if entry_price and stop_loss:
-                    stop_pct = abs(entry_price - stop_loss) / entry_price * 100
-                    if stop_pct < 0.5:
-                        logger.warning(f"{ticker}: Stop-loss too tight ({stop_pct:.1f}%), widening to 1.5%")
-                        stop_loss = entry_price * 0.985
-                    elif stop_pct > 10:
-                        logger.warning(f"{ticker}: Stop-loss too wide ({stop_pct:.1f}%), tightening to 5%")
-                        stop_loss = entry_price * 0.95
-
-                # Validate take-profit bounds - allow tighter targets for day trading
-                if entry_price and take_profit:
-                    profit_pct = abs(take_profit - entry_price) / entry_price * 100
-                    if profit_pct < 0.5:
-                        logger.warning(f"{ticker}: Take-profit too tight ({profit_pct:.1f}%), widening to 1.5%")
-                        take_profit = entry_price * 1.015
-                    elif profit_pct > 10:
-                        logger.warning(f"{ticker}: Take-profit too wide ({profit_pct:.1f}%), tightening to 5%")
-                        take_profit = entry_price * 1.05
+                # Calculate stop-loss and take-profit for logging/tracking
+                # (Position manager will use these values for exit decisions)
+                if not stop_loss and entry_price:
+                    stop_loss = entry_price * 0.95  # 5% stop-loss
+                if not take_profit and entry_price:
+                    take_profit = entry_price * 1.05  # 5% take-profit
 
             elif "SELL" in action.upper():
                 # Check if we have a position to sell
@@ -283,28 +267,17 @@ class AlpacaTrader:
                     "message": f"No action needed: {action}"
                 }
 
-            # ALWAYS create bracket order for BUY with stop-loss + take-profit
-            if side == OrderSide.BUY and stop_loss and take_profit:
-                logger.info(f"🎯 BRACKET ORDER: {ticker} entry=${entry_price:.2f}, stop=${stop_loss:.2f} (-{abs(entry_price-stop_loss)/entry_price*100:.1f}%), target=${take_profit:.2f} (+{abs(take_profit-entry_price)/entry_price*100:.1f}%)")
+            # SIMPLE MARKET ORDER - position_manager handles all exits
+            logger.info(f"📈 MARKET ORDER: {ticker} {side.value} qty={quantity} @ ~${entry_price:.2f}")
+            logger.info(f"   Exit targets: stop=${stop_loss:.2f if stop_loss else 0} (-5%), take_profit=${take_profit:.2f if take_profit else 0} (+5%)")
+            logger.info(f"   Position manager will monitor and execute exits with market orders")
 
-                order_request = MarketOrderRequest(
-                    symbol=ticker,
-                    qty=quantity,
-                    side=side,
-                    time_in_force=TimeInForce.GTC,
-                    order_class=OrderClass.BRACKET,
-                    stop_loss=StopLossRequest(stop_price=round(stop_loss, 2)),
-                    take_profit=TakeProfitRequest(limit_price=round(take_profit, 2))
-                )
-            else:
-                # Simple market order for SELL or if stops couldn't be calculated
-                logger.warning(f"⚠️ SIMPLE ORDER (no bracket): {ticker} {side.value}")
-                order_request = MarketOrderRequest(
-                    symbol=ticker,
-                    qty=quantity,
-                    side=side,
-                    time_in_force=TimeInForce.GTC
-                )
+            order_request = MarketOrderRequest(
+                symbol=ticker,
+                qty=quantity,
+                side=side,
+                time_in_force=TimeInForce.DAY  # Day order - cleaner than GTC
+            )
 
             # Submit order
             order = self.client.submit_order(order_data=order_request)
@@ -318,7 +291,7 @@ class AlpacaTrader:
                 "entry_price": entry_price,
                 "stop_loss": round(stop_loss, 2) if stop_loss else None,
                 "take_profit": round(take_profit, 2) if take_profit else None,
-                "order_type": "BRACKET" if (side == OrderSide.BUY and stop_loss and take_profit) else "MARKET",
+                "order_type": "MARKET",
                 "timestamp": datetime.utcnow().isoformat()
             }
 

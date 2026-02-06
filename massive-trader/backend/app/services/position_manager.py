@@ -455,29 +455,47 @@ class PositionManager:
         position: Dict,
         reason: str
     ):
-        """Close entire position."""
+        """Close entire position with retry logic for stuck orders."""
         logger.info(f"{symbol}: CLOSING POSITION - {reason}")
 
-        result = self.trader.close_position(symbol)
+        # Retry up to 5 times with increasing waits for broker to release shares
+        max_retries = 5
+        for attempt in range(max_retries):
+            result = self.trader.close_position(symbol)
 
-        if result.get("status") == "closed":
-            pnl = result.get("pnl", position.get("pnl", 0))
-            self.state.positions_closed += 1
-            self.state.total_realized_pnl += pnl
+            if result.get("status") == "closed":
+                pnl = result.get("pnl", position.get("pnl", 0))
+                self.state.positions_closed += 1
+                self.state.total_realized_pnl += pnl
 
-            # Remove from tracking
-            if symbol in self.state.positions:
-                del self.state.positions[symbol]
+                # Remove from tracking
+                if symbol in self.state.positions:
+                    del self.state.positions[symbol]
 
-            logger.info(
-                f"{symbol}: Position closed, P&L: ${pnl:+,.2f}, "
-                f"Total closed: {self.state.positions_closed}"
-            )
+                logger.info(
+                    f"{symbol}: Position closed, P&L: ${pnl:+,.2f}, "
+                    f"Total closed: {self.state.positions_closed}"
+                )
 
-            # Log to trade journal
-            await self._log_trade(symbol, "CLOSE", result, reason)
-        else:
-            logger.error(f"{symbol}: Failed to close position: {result}")
+                # Log to trade journal
+                await self._log_trade(symbol, "CLOSE", result, reason)
+                return  # Success - exit the retry loop
+
+            # Check if it's a "held_for_orders" error - retry with longer wait
+            error_msg = str(result.get("message", ""))
+            if "held_for_orders" in error_msg or "available" in error_msg:
+                wait_time = (attempt + 1) * 3  # 3s, 6s, 9s, 12s, 15s
+                logger.warning(
+                    f"{symbol}: Shares held by orders, waiting {wait_time}s (attempt {attempt+1}/{max_retries})"
+                )
+                await asyncio.sleep(wait_time)
+            else:
+                # Different error - don't retry
+                logger.error(f"{symbol}: Failed to close position: {result}")
+                return
+
+        # All retries exhausted
+        logger.error(f"{symbol}: Failed to close after {max_retries} attempts - shares still held")
 
     async def _partial_exit(
         self,

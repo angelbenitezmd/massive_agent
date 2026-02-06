@@ -34,6 +34,7 @@ interface TodaysSummaryProps {
       reason?: string;
     };
   }>;
+  realizedPL?: number;  // P&L from closed trades today
 }
 
 export const TodaysSummary = memo(function TodaysSummary({
@@ -41,11 +42,13 @@ export const TodaysSummary = memo(function TodaysSummary({
   positions = [],
   riskStatus,
   activityLog = [],
+  realizedPL = 0,
 }: TodaysSummaryProps) {
-  // Calculate today's stats
+  // Calculate today's stats - TOTAL = realized (closed trades) + unrealized (open positions)
   const totalUnrealizedPL = positions.reduce((sum, p) => sum + p.unrealizedPL, 0);
-  const totalUnrealizedPLPct = account?.portfolioValue
-    ? (totalUnrealizedPL / account.portfolioValue) * 100
+  const totalPL = realizedPL + totalUnrealizedPL;  // Combined P&L
+  const totalPLPct = account?.portfolioValue
+    ? (totalPL / account.portfolioValue) * 100
     : 0;
 
   // Count winning/losing positions
@@ -76,13 +79,13 @@ export const TodaysSummary = memo(function TodaysSummary({
     <Card className="bg-gradient-to-r from-card to-card/80 border-primary/20">
       <CardContent className="py-3 px-4">
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          {/* Today's P&L */}
+          {/* Today's P&L (Realized + Unrealized) */}
           <div className="flex items-center gap-3">
             <div className={cn(
               "p-2 rounded-lg",
-              totalUnrealizedPL >= 0 ? "bg-green-500/20" : "bg-red-500/20"
+              totalPL >= 0 ? "bg-green-500/20" : "bg-red-500/20"
             )}>
-              {totalUnrealizedPL >= 0 ? (
+              {totalPL >= 0 ? (
                 <TrendingUp className="h-5 w-5 text-green-500" />
               ) : (
                 <TrendingDown className="h-5 w-5 text-red-500" />
@@ -92,11 +95,11 @@ export const TodaysSummary = memo(function TodaysSummary({
               <div className="text-xs text-muted-foreground">Today&apos;s P&L</div>
               <div className={cn(
                 "text-lg font-bold",
-                totalUnrealizedPL >= 0 ? "text-green-500" : "text-red-500"
+                totalPL >= 0 ? "text-green-500" : "text-red-500"
               )}>
-                {totalUnrealizedPL >= 0 ? "+" : ""}{formatCurrency(totalUnrealizedPL)}
+                {totalPL >= 0 ? "+" : ""}{formatCurrency(totalPL)}
                 <span className="text-xs font-normal ml-1">
-                  ({formatPercent(totalUnrealizedPLPct)})
+                  ({formatPercent(totalPLPct)})
                 </span>
               </div>
             </div>
