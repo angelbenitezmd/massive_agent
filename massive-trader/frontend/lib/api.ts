@@ -18,16 +18,35 @@ import type {
   TradeMemory,
 } from "@/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "/api/backend";
 
 async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+      },
+    });
+  } catch (err) {
+    const isNetwork =
+      err instanceof TypeError && err.message === "Failed to fetch";
+    if (isNetwork) {
+      const baseHint = API_BASE.startsWith("http")
+        ? API_BASE
+        : "same-origin proxy (/api/backend)";
+      throw new Error(
+        `Network error: failed to reach ${baseHint}${endpoint}. ` +
+          "Ensure the backend is running and reachable, and verify NEXT_PUBLIC_API_URL."
+      );
+    }
+    throw new Error(
+      err instanceof Error ? err.message : "Network request failed"
+    );
+  }
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");

@@ -14,7 +14,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { Order } from "@/types";
-import { getClosedTrades, type ClosedTrade, type ClosedTradesResponse } from "@/lib/api";
+import { API_BASE, getClosedTrades, type ClosedTrade, type ClosedTradesResponse } from "@/lib/api";
 
 type TimePeriod = "today" | "yesterday" | "week" | "month" | "all";
 
@@ -25,8 +25,6 @@ const TIME_PERIODS: { value: TimePeriod; label: string; daysBack?: number }[] = 
   { value: "month", label: "1M", daysBack: 30 },
   { value: "all", label: "All" },
 ];
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface TradeJournalProps {
   orders?: Order[];
