@@ -144,6 +144,7 @@ export interface Position {
   stopLoss?: number | null;
   takeProfit?: number | null;
   exitSignal?: string | null;
+  entryTime?: string | null;
 }
 
 export interface RiskStatus {

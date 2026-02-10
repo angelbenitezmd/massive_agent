@@ -268,8 +268,8 @@ class AlpacaTrader:
                 }
 
             # SIMPLE MARKET ORDER - position_manager handles all exits
-            logger.info(f"📈 MARKET ORDER: {ticker} {side.value} qty={quantity} @ ~${entry_price:.2f}")
-            logger.info(f"   Exit targets: stop=${stop_loss:.2f if stop_loss else 0} (-5%), take_profit=${take_profit:.2f if take_profit else 0} (+5%)")
+            logger.info(f"📈 MARKET ORDER: {ticker} {side.value} qty={quantity} @ ~${entry_price or 0:.2f}")
+            logger.info(f"   Exit targets: stop=${stop_loss or 0:.2f} (-5%), take_profit=${take_profit or 0:.2f} (+5%)")
             logger.info(f"   Position manager will monitor and execute exits with market orders")
 
             order_request = MarketOrderRequest(
@@ -432,7 +432,7 @@ class AlpacaTrader:
                     "entry": float(p.avg_entry_price),
                     "current": float(p.current_price) if p.current_price else 0,
                     "pnl": float(p.unrealized_pl) if p.unrealized_pl else 0,
-                    "pnl_pct": float(p.unrealized_plpc) if p.unrealized_plpc else 0
+                    "pnl_pct": float(p.unrealized_plpc) if p.unrealized_plpc else 0,
                 }
                 for p in positions
             ]

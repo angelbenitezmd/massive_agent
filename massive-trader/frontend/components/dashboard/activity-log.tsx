@@ -198,7 +198,7 @@ export const ActivityLog = memo(function ActivityLog({ logs, isLoading }: Activi
                     </p>
                     <div className="flex items-center gap-1 text-[10px] text-muted-foreground/70">
                       <Clock className="h-2.5 w-2.5" />
-                      {formatRelativeTime(log.timestamp)}
+                      {log.timestamp ? new Date(log.timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }) + " " + new Date(log.timestamp).toLocaleDateString([], { month: "short", day: "numeric" }) : "Unknown"}
                     </div>
                   </div>
                 </div>

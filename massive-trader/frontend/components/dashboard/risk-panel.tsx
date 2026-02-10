@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   Info,
   X,
+  Clock,
 } from "lucide-react";
 import {
   Card,
@@ -33,6 +34,20 @@ import {
   getCircuitBreakerColor,
   cn,
 } from "@/lib/utils";
+
+function formatDuration(entryTime: string | null | undefined): string {
+  if (!entryTime) return "";
+  const entry = new Date(entryTime);
+  if (isNaN(entry.getTime())) return "";
+  const now = new Date();
+  const diffMs = now.getTime() - entry.getTime();
+  const mins = Math.floor(diffMs / 60000);
+  const hours = Math.floor(mins / 60);
+  const days = Math.floor(hours / 24);
+  if (days > 0) return `${days}d ${hours % 24}h`;
+  if (hours > 0) return `${hours}h ${mins % 60}m`;
+  return `${mins}m`;
+}
 import type { Account, Position, RiskStatus } from "@/types";
 
 interface RiskPanelProps {
@@ -312,6 +327,18 @@ export function RiskPanel({
                             </div>
                           </div>
                         </div>
+                        {/* Entry Time & Duration */}
+                        {position.entryTime && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            <span>
+                              {new Date(position.entryTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true })}
+                              {" "}
+                              {new Date(position.entryTime).toLocaleDateString([], { month: "short", day: "numeric" })}
+                            </span>
+                            <span className="text-muted-foreground/70">({formatDuration(position.entryTime)} held)</span>
+                          </div>
+                        )}
                         {/* Strategy: Stop Loss & Take Profit */}
                         <div className="flex items-center justify-between">
                           <div className="flex gap-3 text-xs">

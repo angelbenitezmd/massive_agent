@@ -35,16 +35,16 @@ MOMENTUM_CACHE_TTL = 15    # Cache momentum for 15 seconds (price-sensitive)
 SCAN_CACHE_TTL = 20        # Cache scan results for 20 seconds
 
 # Position sizing defaults
-DEFAULT_RISK_PER_TRADE = 0.015  # 1.5% of portfolio per trade (increased from 1%)
+DEFAULT_RISK_PER_TRADE = 0.025  # 2.5% of portfolio per trade
 # Dynamic max position based on signal score (higher score = more conviction = larger position allowed)
 MAX_POSITION_PCT_BASE = 0.12      # 12% max for standard signals (score 70-79)
-MAX_POSITION_PCT_GOOD = 0.15      # 15% max for good signals (score 80-89)
-MAX_POSITION_PCT_EXCELLENT = 0.20  # 20% max for excellent signals (score 90+)
+MAX_POSITION_PCT_GOOD = 0.22      # 22% max for good signals (score 80-89)
+MAX_POSITION_PCT_EXCELLENT = 0.28  # 28% max for excellent signals (score 90+)
 MIN_SHARES = 1
 MAX_SHARES = 500  # Safety cap
 MIN_POSITION_VALUE = 300  # Minimum $300 position to make trades meaningful
-TARGET_POSITION_PCT_HIGH_CONF = 0.08  # Target 8% position for high confidence (>0.8)
-TARGET_POSITION_PCT_MED_CONF = 0.05  # Target 5% position for medium confidence (0.6-0.8)
+TARGET_POSITION_PCT_HIGH_CONF = 0.12  # Target 12% position for high confidence (>0.8)
+TARGET_POSITION_PCT_MED_CONF = 0.07  # Target 7% position for medium confidence (0.6-0.8)
 TARGET_POSITION_PCT_LOW_CONF = 0.03  # Target 3% position for low confidence (<0.6)
 
 
@@ -105,8 +105,13 @@ def calculate_position_size(
         else:
             confidence_multiplier = 0.4 + (confidence * 0.33)  # 0.4 to 0.6
 
-        # Bonus for very high signal scores (80+)
-        score_bonus = 1.0 + max(0, (signal_score - 75) / 100)  # Up to 1.25x for score of 100
+        # Aggressive bonus for high signal scores
+        if signal_score >= 90:
+            score_bonus = 1.75 + (signal_score - 90) * 0.025  # 1.75x at 90, up to 2.0x at 100
+        elif signal_score >= 80:
+            score_bonus = 1.2 + (signal_score - 80) * 0.055   # 1.2x at 80, up to 1.75x at 90
+        else:
+            score_bonus = 1.0 + max(0, (signal_score - 70) * 0.02)  # 1.0x at 70, up to 1.2x at 80
 
         risk_amount = equity * risk_pct * confidence_multiplier * score_bonus
         shares_from_risk = int(risk_amount / risk_per_share)
@@ -1605,6 +1610,27 @@ async def get_positions():
             elif order.type.value == "limit" and order.limit_price:
                 position["take_profit"] = float(order.limit_price)
 
+        # Find entry time from filled buy orders
+        position["entry_time"] = None
+        for order in open_orders:
+            pass  # open orders won't have fill time
+        # Check closed/filled orders for entry time
+        if alpaca_trader.client:
+            try:
+                from alpaca.trading.requests import GetOrdersRequest
+                from alpaca.trading.enums import QueryOrderStatus, OrderSide as OS
+                filled_req = GetOrdersRequest(
+                    status=QueryOrderStatus.CLOSED,
+                    symbols=[ticker],
+                    side=OS.BUY,
+                    limit=1,
+                )
+                filled_orders = alpaca_trader.client.get_orders(filter=filled_req)
+                if filled_orders:
+                    position["entry_time"] = str(filled_orders[0].filled_at) if filled_orders[0].filled_at else str(filled_orders[0].submitted_at)
+            except Exception as e:
+                logger.debug(f"Could not get entry time for {ticker}: {e}")
+
         # Check momentum for exit signals
         try:
             momentum = await get_momentum_analysis(ticker)
@@ -2448,19 +2474,35 @@ async def auto_trade_loop():
                     score = 0
                     action = "WAIT"
 
-                    if buy_opportunities:
-                        # Use the top BUY opportunity from scan (score >= 70)
-                        top_opp = buy_opportunities[0]
-                        ticker = top_opp["ticker"]
-                        score = top_opp["score"]
-                        action = top_opp["recommendation"]
-                        logger.info(f"🤖 [AUTO-TRADE] Found scan BUY signal: {ticker} (score: {score})")
+                    # Get current positions to skip tickers we already own
+                    positions = alpaca_trader.get_positions() if alpaca_trader else []
+                    owned_symbols = {p["symbol"] for p in positions}
 
-                        # Get full signal data for this ticker
-                        signal = await _analyze_ticker_for_signal(ticker)
-                        if signal:
-                            signal["combined_score"] = score  # Use scan score
-                            signal["action"] = action
+                    if buy_opportunities:
+                        # Iterate through BUY opportunities to find one we don't already own
+                        for opp in buy_opportunities:
+                            ticker = opp["ticker"]
+                            score = opp["score"]
+                            action = opp["recommendation"]
+
+                            if ticker in owned_symbols:
+                                logger.info(f"🤖 [AUTO-TRADE] Skipping {ticker} (score: {score}) - already have position")
+                                continue
+
+                            logger.info(f"🤖 [AUTO-TRADE] Found scan BUY signal: {ticker} (score: {score})")
+
+                            # Get full signal data for this ticker
+                            signal = await _analyze_ticker_for_signal(ticker)
+                            if signal:
+                                signal["combined_score"] = score  # Use scan score
+                                signal["action"] = action
+                            break
+                        else:
+                            # All buy opportunities already owned
+                            logger.info(f"🤖 [AUTO-TRADE] All {len(buy_opportunities)} BUY signals already owned, checking fallback")
+                            signal = await get_best_trading_signal()
+                            score = signal.get("combined_score", 0) if signal else 0
+                            action = signal.get("action", "WAIT") if signal else "WAIT"
                     else:
                         # FALLBACK: Use best-signal endpoint
                         signal = await get_best_trading_signal()
@@ -2478,11 +2520,8 @@ async def auto_trade_loop():
                         ticker = signal.get("ticker")
                         trade_score = float(signal.get("combined_score", 0))
 
-                        # Check if we already have a position
-                        positions = alpaca_trader.get_positions() if alpaca_trader else []
-                        existing = next((p for p in positions if p["symbol"] == ticker), None)
-
-                        if existing:
+                        # Double-check we don't already own this ticker
+                        if ticker in owned_symbols:
                             logger.info(f"🤖 [AUTO-TRADE] Skipping {ticker} - already have position")
                         else:
                             # Execute the trade
@@ -2508,11 +2547,12 @@ async def auto_trade_loop():
                                 ticker=ticker,
                                 action="BUY",
                                 details={
-                                    "price": signal.get("price"),
-                                    "quantity": result.get("qty") if result else None,
+                                    "price": signal.get("entry_price"),
+                                    "quantity": result.get("quantity") if result else None,
                                     "score": trade_score,
                                     "reasoning": (signal.get("reasoning") or "")[:200],
-                                    "order_id": result.get("id") if result else None,
+                                    "order_id": result.get("order_id") if result else None,
+                                    "status": result.get("status") if result else None,
                                     "auto": True
                                 }
                             )

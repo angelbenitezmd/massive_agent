@@ -327,6 +327,7 @@ export async function getPositions(): Promise<Position[]> {
         stopLoss: pos.stop_loss ? parseFloat(pos.stop_loss) : null,
         takeProfit: pos.take_profit ? parseFloat(pos.take_profit) : null,
         exitSignal: pos.exit_signal || null,
+        entryTime: pos.entry_time || null,
       };
     });
   } catch {
