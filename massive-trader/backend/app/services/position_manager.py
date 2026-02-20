@@ -13,6 +13,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
+from zoneinfo import ZoneInfo
 
 from app.services.alpaca_trader import alpaca_trader, AlpacaTrader
 from app.services.agents.exit_strategy_agent import (
@@ -157,17 +158,31 @@ class PositionManager:
                 pass
         logger.info("PositionManager stopped")
 
+    def _is_trading_hours(self) -> bool:
+        """Check if we're in or near trading hours (no need to run at 1 AM)."""
+        now_et = datetime.now(ZoneInfo("America/New_York"))
+        # Skip weekends entirely
+        if now_et.weekday() >= 5:
+            return False
+        # Only run between 7 AM and 8 PM ET (pre-market through after-hours)
+        return 7 <= now_et.hour < 20
+
     async def _run_loop(self):
         """Main monitoring loop."""
         while self._running:
             try:
-                await self._check_positions()
-                self.state.run_count += 1
-                self.state.last_run = datetime.utcnow()
+                if self._is_trading_hours():
+                    await self._check_positions()
+                    self.state.run_count += 1
+                    self.state.last_run = datetime.utcnow()
+                else:
+                    logger.debug("PositionManager: Outside trading hours, sleeping")
             except Exception as e:
                 logger.error(f"PositionManager error: {e}", exc_info=True)
 
-            await asyncio.sleep(self.check_interval)
+            # Sleep longer outside trading hours (5 min vs normal interval)
+            sleep_time = self.check_interval if self._is_trading_hours() else 300
+            await asyncio.sleep(sleep_time)
 
     async def _check_positions(self):
         """Check all open positions and evaluate exits."""
@@ -378,6 +393,20 @@ class PositionManager:
         current_price = position.get("current", 0)
         pnl_pct = position.get("pnl_pct", 0) * 100
         entry_price = pos_state.entry_price
+
+        # ===== END-OF-DAY LIQUIDATION (No overnight holds) =====
+        now_et = datetime.now(ZoneInfo("America/New_York"))
+        market_close_warning = now_et.replace(hour=15, minute=50, second=0, microsecond=0)
+        market_close_hard = now_et.replace(hour=15, minute=55, second=0, microsecond=0)
+        is_market_day = now_et.weekday() < 5  # Mon-Fri
+
+        if is_market_day and now_et >= market_close_hard:
+            logger.warning(f"{symbol}: EOD LIQUIDATION - closing all positions before market close ({pnl_pct:+.1f}%)")
+            await self._close_position(symbol, position, f"EOD liquidation: {pnl_pct:+.1f}% P&L")
+            return
+
+        if is_market_day and now_et >= market_close_warning:
+            logger.info(f"{symbol}: ⚠️ Market closing soon - will liquidate at 3:55 PM ET ({pnl_pct:+.1f}%)")
 
         # ===== LOSS PROTECTION (Cut losers fast) =====
 

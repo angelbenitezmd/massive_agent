@@ -256,6 +256,7 @@ Provide your exit strategy in this JSON format:
             system_prompt=ExitStrategyAgent.SYSTEM_PROMPT,
             user_prompt=user_prompt,
             prefer=LLMProvider.CLAUDE,
+            model="claude-sonnet-4-5-20250929",
             temperature=0.2
         )
 

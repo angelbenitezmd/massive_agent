@@ -254,6 +254,7 @@ Evaluate risk and provide position sizing in this JSON format:
             system_prompt=RiskManagementAgent.SYSTEM_PROMPT,
             user_prompt=user_prompt,
             prefer=LLMProvider.CLAUDE,
+            model="claude-sonnet-4-5-20250929",
             temperature=0.1  # Low temperature for conservative, consistent risk assessment
         )
 

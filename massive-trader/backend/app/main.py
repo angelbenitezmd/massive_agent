@@ -2459,6 +2459,14 @@ async def auto_trade_loop():
     while True:
         try:
             if _auto_trade_enabled and is_market_open():
+                # Don't open new positions in the last 30 minutes before close
+                from zoneinfo import ZoneInfo
+                now_et = datetime.now(ZoneInfo("America/New_York"))
+                if now_et.hour == 15 and now_et.minute >= 30:
+                    logger.info("🤖 [AUTO-TRADE] Skipping scan - too close to market close (3:30 PM+ ET)")
+                    await asyncio.sleep(_auto_trade_interval)
+                    continue
+
                 logger.info("🤖 [AUTO-TRADE] Running automatic trade scan...")
 
                 # Get best signal - check BOTH watchlist scan AND best-signal endpoint
@@ -2568,8 +2576,11 @@ async def auto_trade_loop():
             elif _auto_trade_enabled and not is_market_open():
                 logger.debug("🤖 [AUTO-TRADE] Market closed, skipping scan")
 
-            # Wait for next interval
-            await asyncio.sleep(_auto_trade_interval)
+            # Sleep longer outside trading hours to save resources
+            from zoneinfo import ZoneInfo as _ZI
+            _now_et = datetime.now(_ZI("America/New_York"))
+            _in_hours = _now_et.weekday() < 5 and 7 <= _now_et.hour < 20
+            await asyncio.sleep(_auto_trade_interval if _in_hours else 300)
 
         except Exception as e:
             logger.error(f"🤖 [AUTO-TRADE] Loop error: {e}")

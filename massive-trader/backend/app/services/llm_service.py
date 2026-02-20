@@ -59,7 +59,7 @@ class LLMService:
         self,
         system_prompt: str,
         user_prompt: str,
-        model: str = "claude-3-5-haiku-20241022",  # Fast model for trading
+        model: str = "claude-haiku-4-5-20251001",  # Fast model for trading
         max_tokens: int = 512,  # Reduced for faster response
         temperature: float = 0.3
     ) -> Dict[str, Any]:
@@ -116,7 +116,7 @@ class LLMService:
         self,
         system_prompt: str,
         user_prompt: str,
-        model: str = "gpt-4o-mini",  # Fast model for trading
+        model: str = "gpt-4.1-mini",  # Fast model for trading
         max_tokens: int = 512,  # Reduced for faster response
         temperature: float = 0.3
     ) -> Dict[str, Any]:

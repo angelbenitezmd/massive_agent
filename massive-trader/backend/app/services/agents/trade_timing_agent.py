@@ -206,9 +206,9 @@ TRADE:
 INTRADAY DATA:
 - VWAP: ${vwap:.2f}
 - Price vs VWAP: {price_vs_vwap:+.2f}%
-- Session High: ${session_high:.2f if session_high else "N/A"}
-- Session Low: ${session_low:.2f if session_low else "N/A"}
-- ATR (volatility): ${atr:.2f if atr else "N/A"}
+- Session High: {f"${session_high:.2f}" if session_high else "N/A"}
+- Session Low: {f"${session_low:.2f}" if session_low else "N/A"}
+- ATR (volatility): {f"${atr:.2f}" if atr else "N/A"}
 
 LIQUIDITY:
 - Current Spread: ${current_spread:.4f} ({spread_pct:.3f}%)
