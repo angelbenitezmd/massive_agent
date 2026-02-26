@@ -34,7 +34,7 @@ interface TodaysSummaryProps {
       reason?: string;
     };
   }>;
-  realizedPL?: number;  // P&L from closed trades today
+  realizedPL?: number;
 }
 
 export const TodaysSummary = memo(function TodaysSummary({
@@ -42,14 +42,10 @@ export const TodaysSummary = memo(function TodaysSummary({
   positions = [],
   riskStatus,
   activityLog = [],
-  realizedPL = 0,
 }: TodaysSummaryProps) {
-  // Calculate today's stats - TOTAL = realized (closed trades) + unrealized (open positions)
-  const totalUnrealizedPL = positions.reduce((sum, p) => sum + p.unrealizedPL, 0);
-  const totalPL = realizedPL + totalUnrealizedPL;  // Combined P&L
-  const totalPLPct = account?.portfolioValue
-    ? (totalPL / account.portfolioValue) * 100
-    : 0;
+  // Use Alpaca's actual day P&L (equity - last_equity) for accuracy
+  const totalPL = account?.dayPL ?? 0;
+  const totalPLPct = account?.dayPLPercent ?? 0;
 
   // Count winning/losing positions
   const winningPositions = positions.filter((p) => p.unrealizedPL > 0).length;
@@ -162,15 +158,20 @@ export const TodaysSummary = memo(function TodaysSummary({
 
           {/* Circuit Breaker Status */}
           <div className="flex items-center gap-2">
-            {riskStatus?.circuitBreaker === "GREEN" ? (
+            {(!riskStatus || riskStatus.circuitBreaker === "GREEN") ? (
               <Badge variant="success" className="gap-1">
                 <Target className="h-3 w-3" />
                 Trading Active
               </Badge>
-            ) : riskStatus?.circuitBreaker === "ORANGE" ? (
+            ) : riskStatus.circuitBreaker === "YELLOW" ? (
               <Badge variant="warning" className="gap-1">
                 <AlertTriangle className="h-3 w-3" />
                 Caution
+              </Badge>
+            ) : riskStatus.circuitBreaker === "ORANGE" ? (
+              <Badge variant="warning" className="gap-1">
+                <AlertTriangle className="h-3 w-3" />
+                Warning
               </Badge>
             ) : (
               <Badge variant="destructive" className="gap-1">

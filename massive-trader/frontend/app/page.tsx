@@ -49,7 +49,7 @@ import {
   useClosePosition,
 } from "@/hooks/use-trading-data";
 import type { AgentSignal, TradeDecision, Technicals } from "@/types";
-import { getClosedTrades } from "@/lib/api";
+// Day P&L now sourced from Alpaca account data
 
 export default function DashboardPage() {
   const [selectedTicker, setSelectedTicker] = useState("AAPL");
@@ -94,26 +94,7 @@ export default function DashboardPage() {
   // Deep analysis result state
   const [deepAnalysisResult, setDeepAnalysisResult] = useState<any>(null);
 
-  // Today's realized P&L from closed trades
-  const [realizedPL, setRealizedPL] = useState<number>(0);
-
-  // Fetch today's closed trades to get realized P&L
-  useEffect(() => {
-    const fetchRealizedPL = async () => {
-      try {
-        const data = await getClosedTrades(100, 1);  // Last 1 day, up to 100 trades
-        const todayPL = data.trades.reduce((sum, t) => sum + (t.pnl_dollars || 0), 0);
-        setRealizedPL(todayPL);
-      } catch (err) {
-        console.error("Failed to fetch realized P&L:", err);
-      }
-    };
-
-    fetchRealizedPL();
-    // Refresh every 30 seconds if autoRefresh is on
-    const interval = autoRefresh ? setInterval(fetchRealizedPL, 30000) : null;
-    return () => { if (interval) clearInterval(interval); };
-  }, [autoRefresh]);
+  // Day P&L now comes directly from Alpaca account data (equity - last_equity)
 
   // Get the correct decision for the selected ticker from allDecisions
   // This ensures consistency between AI Trade Decisions card and Trade Decision panel
@@ -251,7 +232,6 @@ export default function DashboardPage() {
             positions={positions}
             riskStatus={riskStatus}
             activityLog={activityLog?.logs}
-            realizedPL={realizedPL}
           />
         </div>
 

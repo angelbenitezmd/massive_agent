@@ -283,12 +283,17 @@ export async function getSentiment(ticker: string): Promise<AgentSignal> {
 export async function getAccount(): Promise<Account> {
   try {
     const data = await fetchAPI<any>("/api/trading/account");
+    const equity = parseFloat(data.equity) || parseFloat(data.portfolio_value) || 0;
+    const lastEquity = parseFloat(data.last_equity) || equity;
     return {
-      equity: parseFloat(data.equity) || parseFloat(data.portfolio_value) || 0,
+      equity,
       cash: parseFloat(data.cash) || 0,
       buyingPower: parseFloat(data.buying_power) || parseFloat(data.daytrading_buying_power) || 0,
-      portfolioValue: parseFloat(data.portfolio_value) || parseFloat(data.equity) || 0,
+      portfolioValue: parseFloat(data.portfolio_value) || equity,
       dayTradeCount: data.daytrade_count || 0,
+      dayPL: parseFloat(data.day_pl) || (equity - lastEquity),
+      dayPLPercent: parseFloat(data.day_pl_pct) || (lastEquity > 0 ? ((equity - lastEquity) / lastEquity * 100) : 0),
+      lastEquity,
     };
   } catch {
     return {
@@ -297,6 +302,9 @@ export async function getAccount(): Promise<Account> {
       buyingPower: 400000,
       portfolioValue: 100000,
       dayTradeCount: 0,
+      dayPL: 0,
+      dayPLPercent: 0,
+      lastEquity: 100000,
     };
   }
 }
@@ -337,17 +345,13 @@ export async function getPositions(): Promise<Position[]> {
 
 export async function getRiskStatus(): Promise<RiskStatus> {
   try {
-    // Fetch account and positions in parallel to avoid waterfall
-    const [account, positions] = await Promise.all([
-      getAccount(),
-      getPositions()
-    ]);
+    const account = await getAccount();
 
-    // Calculate daily P&L from positions
-    const dailyPL = positions.reduce((sum, p) => sum + p.unrealizedPL, 0);
-    const dailyPLPercent = account.equity > 0 ? (dailyPL / account.equity) * 100 : 0;
+    // Use Alpaca's actual day P&L (equity - last_equity)
+    const dailyPL = account.dayPL;
+    const dailyPLPercent = account.dayPLPercent;
 
-    // Determine circuit breaker level
+    // Determine circuit breaker level based on actual day P&L
     let circuitBreaker: "GREEN" | "YELLOW" | "ORANGE" | "RED" = "GREEN";
     if (dailyPLPercent <= -5) circuitBreaker = "RED";
     else if (dailyPLPercent <= -3) circuitBreaker = "ORANGE";

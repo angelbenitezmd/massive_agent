@@ -86,7 +86,8 @@ def calculate_position_size(
             return 15
 
         equity = float(account.get("equity", 100000))
-        buying_power = float(account.get("buying_power", equity))
+        # Use daytrading_buying_power if available (prevents "insufficient day trading buying power" errors)
+        buying_power = float(account.get("daytrading_buying_power", 0)) or float(account.get("buying_power", equity))
 
         if price <= 0:
             return MIN_SHARES
@@ -1476,7 +1477,7 @@ async def execute_manual_trade(trade: ManualTradeRequest):
     # Check if we have enough buying power
     account = alpaca_trader.get_account_status()
     if account:
-        buying_power = float(account.get("buying_power", 0))
+        buying_power = float(account.get("daytrading_buying_power", 0)) or float(account.get("buying_power", 0))
         estimated_cost = trade.quantity * (trade.limit_price or current_price or 100)
         if trade.side == "buy" and estimated_cost > buying_power:
             return {
@@ -3498,8 +3499,13 @@ async def scan_watchlist():
                 "error": str(e)
             }
 
-    # Run all scans in parallel for speed
-    results = await asyncio.gather(*[scan_ticker(t) for t in settings.watchlist])
+    # Run scans with limited concurrency (5 at a time to avoid API overload)
+    scan_semaphore = asyncio.Semaphore(5)
+    async def scan_with_limit(ticker):
+        async with scan_semaphore:
+            return await scan_ticker(ticker)
+
+    results = await asyncio.gather(*[scan_with_limit(t) for t in settings.watchlist])
     results = list(results)
 
     # Sort by score (highest first)
@@ -3555,8 +3561,13 @@ async def scan_universe():
                 "error": str(e)
             }
 
-    # Run all scans in parallel for speed
-    results = await asyncio.gather(*[scan_ticker(t) for t in universe_tickers])
+    # Run scans with limited concurrency (5 at a time to avoid API overload)
+    scan_semaphore = asyncio.Semaphore(5)
+    async def scan_with_limit(ticker):
+        async with scan_semaphore:
+            return await scan_ticker(ticker)
+
+    results = await asyncio.gather(*[scan_with_limit(t) for t in universe_tickers])
     results = list(results)
 
     # Sort by score (highest first)
@@ -3620,8 +3631,13 @@ async def scan_spicy():
                 "error": str(e)
             }
 
-    # Run all scans in parallel for speed
-    results = await asyncio.gather(*[scan_ticker(t) for t in spicy_tickers])
+    # Run scans with limited concurrency (5 at a time to avoid API overload)
+    scan_semaphore = asyncio.Semaphore(5)
+    async def scan_with_limit(ticker):
+        async with scan_semaphore:
+            return await scan_ticker(ticker)
+
+    results = await asyncio.gather(*[scan_with_limit(t) for t in spicy_tickers])
     results = list(results)
 
     # Sort by score (highest first)

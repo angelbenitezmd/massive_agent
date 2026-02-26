@@ -131,6 +131,9 @@ export interface Account {
   buyingPower: number;
   portfolioValue: number;
   dayTradeCount: number;
+  dayPL: number;
+  dayPLPercent: number;
+  lastEquity: number;
 }
 
 export interface Position {

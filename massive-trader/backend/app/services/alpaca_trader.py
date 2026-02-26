@@ -167,11 +167,19 @@ class AlpacaTrader:
             account = self.client.get_account()
             positions = self.client.get_all_positions()
 
+            last_equity = float(account.last_equity) if account.last_equity else float(account.equity)
+            equity = float(account.equity)
+
             return {
                 "status": "connected",
                 "cash": float(account.cash),
                 "buying_power": float(account.buying_power),
-                "equity": float(account.equity),
+                "daytrading_buying_power": float(account.daytrading_buying_power) if account.daytrading_buying_power else 0,
+                "equity": equity,
+                "last_equity": last_equity,
+                "portfolio_value": float(account.portfolio_value) if account.portfolio_value else equity,
+                "day_pl": equity - last_equity,
+                "day_pl_pct": ((equity - last_equity) / last_equity * 100) if last_equity > 0 else 0,
                 "positions": [
                     {
                         "symbol": pos.symbol,
@@ -180,7 +188,10 @@ class AlpacaTrader:
                         "avg_entry": float(pos.avg_entry_price),
                         "current": float(pos.current_price) if pos.current_price else 0,
                         "pnl": float(pos.unrealized_pl) if pos.unrealized_pl else 0,
-                        "pnl_pct": float(pos.unrealized_plpc) if pos.unrealized_plpc else 0
+                        "pnl_pct": float(pos.unrealized_plpc) if pos.unrealized_plpc else 0,
+                        "intraday_pl": float(pos.unrealized_intraday_pl) if pos.unrealized_intraday_pl else 0,
+                        "intraday_pl_pct": float(pos.unrealized_intraday_plpc) if pos.unrealized_intraday_plpc else 0,
+                        "change_today": float(pos.change_today) if pos.change_today else 0
                     }
                     for pos in positions
                 ]
