@@ -34,6 +34,10 @@ SENTIMENT_CACHE_TTL = 30   # Cache sentiment for 30 seconds
 MOMENTUM_CACHE_TTL = 15    # Cache momentum for 15 seconds (price-sensitive)
 SCAN_CACHE_TTL = 20        # Cache scan results for 20 seconds
 
+# Per-ticker trade cooldown (prevents re-buying right after selling)
+_ticker_cooldowns = {}  # {ticker: datetime} - when ticker was last traded
+TICKER_COOLDOWN_MINUTES = 30  # Don't re-trade same ticker for 30 minutes
+
 # Position sizing defaults
 DEFAULT_RISK_PER_TRADE = 0.025  # 2.5% of portfolio per trade
 # Dynamic max position based on signal score (higher score = more conviction = larger position allowed)
@@ -2498,6 +2502,13 @@ async def auto_trade_loop():
                                 logger.info(f"🤖 [AUTO-TRADE] Skipping {ticker} (score: {score}) - already have position")
                                 continue
 
+                            # Check per-ticker cooldown (don't re-buy right after selling)
+                            cooldown_until = _ticker_cooldowns.get(ticker)
+                            if cooldown_until and datetime.utcnow() < cooldown_until:
+                                remaining = (cooldown_until - datetime.utcnow()).total_seconds() / 60
+                                logger.info(f"🤖 [AUTO-TRADE] Skipping {ticker} (score: {score}) - cooldown ({remaining:.0f}min remaining)")
+                                continue
+
                             logger.info(f"🤖 [AUTO-TRADE] Found scan BUY signal: {ticker} (score: {score})")
 
                             # Get full signal data for this ticker
@@ -2565,7 +2576,9 @@ async def auto_trade_loop():
                                     "auto": True
                                 }
                             )
-                            logger.info(f"🤖 [AUTO-TRADE] ✅ Trade executed: {result}")
+                            # Set cooldown so we don't re-buy this ticker immediately
+                            _ticker_cooldowns[ticker] = datetime.utcnow() + timedelta(minutes=TICKER_COOLDOWN_MINUTES)
+                            logger.info(f"🤖 [AUTO-TRADE] ✅ Trade executed: {result} (cooldown {TICKER_COOLDOWN_MINUTES}min)")
                     else:
                         # Log why we didn't trade
                         reason = "no signal" if not signal else f"action={action}, score={float(score):.1f} (need {min_score}+)"
