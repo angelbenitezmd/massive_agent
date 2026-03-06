@@ -34,9 +34,9 @@ SENTIMENT_CACHE_TTL = 30   # Cache sentiment for 30 seconds
 MOMENTUM_CACHE_TTL = 15    # Cache momentum for 15 seconds (price-sensitive)
 SCAN_CACHE_TTL = 20        # Cache scan results for 20 seconds
 
-# Per-ticker trade cooldown (prevents re-buying right after selling)
+# Per-ticker trade cooldown — only trade each ticker ONCE per day
 _ticker_cooldowns = {}  # {ticker: datetime} - when ticker was last traded
-TICKER_COOLDOWN_MINUTES = 30  # Don't re-trade same ticker for 30 minutes
+TICKER_COOLDOWN_MINUTES = 480  # 8 hours = effectively once per trading day
 
 # Position sizing defaults
 DEFAULT_RISK_PER_TRADE = 0.025  # 2.5% of portfolio per trade
