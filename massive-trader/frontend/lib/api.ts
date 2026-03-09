@@ -569,6 +569,8 @@ export interface TradeDecisionItem {
   action: "BUY" | "HOLD" | "SELL";
   confidence: number;
   combinedScore: number;
+  keywordScore?: number;
+  llmEnhanced?: boolean;
   aiScore: number;
   momentumScore: number;
   strategy: string;

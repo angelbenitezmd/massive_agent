@@ -35,87 +35,114 @@ class NewsIntelligenceAgent:
     news articles, extracts key information, and assesses market impact.
     """
 
-    SYSTEM_PROMPT = """You are an elite financial news analyst at a top hedge fund.
-Your job is to analyze news articles and determine their IMMEDIATE trading implications.
+    SYSTEM_PROMPT = """You are an elite financial analyst at a top hedge fund.
+Your job is to analyze ALL available data for a stock — news, earnings, analyst ratings, and consensus — and determine whether to trade TODAY.
 
-You must assess:
-1. **Sentiment**: Is this bullish, bearish, or neutral for the stock?
-2. **Magnitude**: How big is this news? (1-10 scale)
-3. **Urgency**: How quickly might this move the stock?
-4. **Confidence**: How certain are you in your assessment?
-5. **Catalysts**: What specific price catalysts does this create?
-6. **Risks**: What could go wrong with this thesis?
+You will receive:
+- Recent news articles (read carefully for actionable catalysts)
+- Earnings data (EPS beats/misses, revenue)
+- Recent analyst rating changes (upgrades/downgrades with price targets)
+- Overall analyst consensus (Strong Buy/Buy/Hold/Sell)
 
-Focus on ACTIONABLE intelligence:
-- Earnings surprises (beat/miss magnitude)
-- Guidance changes (raised/lowered/maintained)
-- Analyst actions (upgrades/downgrades with price targets)
-- M&A news (acquirer vs target implications)
-- Product launches/failures
-- Regulatory decisions (FDA, FTC, SEC)
-- Management changes
-- Legal issues
-- Macro implications
+CRITICAL RULES:
+- Score 50 = neutral (no edge). Only score above 65 if there is a FRESH, ACTIONABLE catalyst TODAY.
+- Stale analyst ratings alone are NOT a reason to buy. A "Strong Buy" consensus with no recent news = score ~50.
+- Recent earnings beats matter, but only if the stock hasn't already priced them in.
+- Focus on what is NEW and ACTIONABLE, not what the street already knows.
 
 Return JSON with your analysis."""
 
     @staticmethod
-    async def analyze(news_items: List[Dict], ticker: str) -> Dict[str, Any]:
+    async def analyze(
+        news_items: List[Dict],
+        ticker: str,
+        earnings_data: Optional[List[Dict]] = None,
+        ratings_data: Optional[List[Dict]] = None,
+        consensus_data: Optional[Dict] = None,
+    ) -> Dict[str, Any]:
         """
-        Analyze news articles using Claude.
+        Analyze all available market data using Claude.
 
         Args:
             news_items: List of news articles
             ticker: Stock ticker being analyzed
+            earnings_data: Recent earnings results (EPS beat/miss)
+            ratings_data: Recent analyst rating changes
+            consensus_data: Overall analyst consensus
 
         Returns:
             Deep analysis with sentiment, catalysts, and trading signals
         """
-        if not news_items:
+        if not news_items and not earnings_data and not ratings_data:
             return {
                 "sentiment": "neutral",
                 "score": 50,
                 "confidence": 0,
-                "analysis": "No news available",
+                "analysis": "No data available",
                 "catalysts": [],
                 "risks": [],
                 "agent": "NewsIntelligenceAgent",
                 "provider": "none"
             }
 
-        # Format news for analysis
-        news_text = f"Analyzing news for {ticker}:\n\n"
-        for i, item in enumerate(news_items[:7], 1):  # Top 7 articles
-            title = item.get("title", "")
-            teaser = item.get("teaser", item.get("body", ""))[:500]
-            published = item.get("published", item.get("created", ""))
-            author = item.get("author", "Unknown")
-            channels = item.get("channels", [])
+        # === Format all data for the LLM ===
+        prompt_parts = [f"Full analysis for {ticker}:\n"]
 
-            news_text += f"""
-Article {i}:
-Title: {title}
-Published: {published}
-Author: {author}
-Categories: {', '.join(channels) if channels else 'General'}
-Content: {teaser}
----
-"""
+        # News articles
+        if news_items:
+            prompt_parts.append("== RECENT NEWS ==")
+            for i, item in enumerate(news_items[:7], 1):
+                title = item.get("title", "")
+                teaser = item.get("teaser", item.get("body", ""))[:400]
+                published = item.get("published", item.get("created", ""))
+                prompt_parts.append(f"[{i}] {title}\n    Published: {published}\n    {teaser}\n")
+        else:
+            prompt_parts.append("== RECENT NEWS ==\nNo recent news articles found.\n")
 
-        user_prompt = f"""{news_text}
+        # Earnings
+        if earnings_data:
+            prompt_parts.append("== EARNINGS ==")
+            for earn in earnings_data[:3]:
+                date = earn.get("date", "")
+                est_eps = earn.get("estimated_eps", "N/A")
+                act_eps = earn.get("actual_eps", "N/A")
+                est_rev = earn.get("estimated_revenue", "N/A")
+                act_rev = earn.get("actual_revenue", "N/A")
+                prompt_parts.append(f"  Date: {date} | EPS: est {est_eps} vs actual {act_eps} | Revenue: est {est_rev} vs actual {act_rev}")
+            prompt_parts.append("")
 
-Based on these articles, provide your analysis in this JSON format:
+        # Analyst ratings
+        if ratings_data:
+            prompt_parts.append("== RECENT ANALYST ACTIONS ==")
+            for r in ratings_data[:5]:
+                analyst = r.get("analyst", "Unknown")
+                firm = r.get("analyst_firm", r.get("firm", ""))
+                action = r.get("rating_action", "")
+                current = r.get("rating_current", "")
+                pt_current = r.get("pt_current", "")
+                date = r.get("date", "")
+                prompt_parts.append(f"  {date} | {firm}: {action} to {current} (PT: ${pt_current})")
+            prompt_parts.append("")
+
+        # Consensus
+        if consensus_data and consensus_data.get("results"):
+            cons = consensus_data["results"][0] if isinstance(consensus_data["results"], list) else consensus_data["results"]
+            rating = cons.get("consensus_rating", "N/A")
+            pt = cons.get("target_price", cons.get("consensus_price_target", "N/A"))
+            prompt_parts.append(f"== ANALYST CONSENSUS ==\n  Rating: {rating} | Target Price: ${pt}\n")
+
+        data_text = "\n".join(prompt_parts)
+
+        user_prompt = f"""{data_text}
+Based on ALL the data above, provide your trading analysis in this JSON format:
 {{
     "sentiment": "bullish" | "bearish" | "neutral",
     "score": <0-100, where 50 is neutral, >70 is strong buy signal, <30 is strong sell>,
     "confidence": <0-100>,
-    "magnitude": <1-10 scale of news importance>,
-    "urgency": "immediate" | "short_term" | "medium_term" | "low",
-    "summary": "<2-3 sentence summary of the key news>",
-    "catalysts": ["<list of specific price catalysts>"],
-    "risks": ["<list of risks to the thesis>"],
-    "key_headlines": ["<most important headlines>"],
-    "trading_implication": "<specific trading recommendation>"
+    "summary": "<2-3 sentence summary of why to trade or not trade>",
+    "catalysts": ["<specific actionable catalysts>"],
+    "risks": ["<risks to the thesis>"],
+    "trading_implication": "<BUY / SELL / HOLD with brief reason>"
 }}"""
 
         result = await llm_service.analyze(
@@ -145,15 +172,21 @@ Based on these articles, provide your analysis in this JSON format:
         ticker: str,
         latest_news_ts: Optional[datetime] = None,
         force: bool = False,
+        earnings_data: Optional[List[Dict]] = None,
+        ratings_data: Optional[List[Dict]] = None,
+        consensus_data: Optional[Dict] = None,
     ) -> Dict[str, Any]:
         """
-        Analyze news with caching - only calls LLM if needed.
+        Analyze with caching - only calls LLM if needed.
 
         Args:
             news_items: List of news articles
             ticker: Stock ticker being analyzed
             latest_news_ts: Timestamp of most recent news article
             force: Force LLM call even if cache is valid
+            earnings_data: Recent earnings results
+            ratings_data: Recent analyst rating changes
+            consensus_data: Overall analyst consensus
 
         Returns:
             Analysis result (may be cached)
@@ -167,9 +200,14 @@ Based on these articles, provide your analysis in this JSON format:
                 logger.info(f"NewsAgent for {ticker}: Using cached result")
                 return cached
 
-        # Run the agent
+        # Run the agent with all available data
         logger.info(f"NewsAgent for {ticker}: Running LLM analysis")
-        result = await NewsIntelligenceAgent.analyze(news_items, ticker)
+        result = await NewsIntelligenceAgent.analyze(
+            news_items, ticker,
+            earnings_data=earnings_data,
+            ratings_data=ratings_data,
+            consensus_data=consensus_data,
+        )
 
         # Cache the result
         agent_cache.set_cached_signal(

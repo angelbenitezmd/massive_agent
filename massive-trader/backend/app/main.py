@@ -19,6 +19,7 @@ from app.services.benzinga_simple import BenzingaClient
 from app.services.alpaca_trader import alpaca_trader
 from app.services.dashboard_service import DashboardService
 from app.services.position_manager import PositionManager, init_position_manager, get_position_manager
+from app.services.ai_agents import NewsIntelligenceAgent
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -37,6 +38,11 @@ SCAN_CACHE_TTL = 20        # Cache scan results for 20 seconds
 # Per-ticker trade cooldown — only trade each ticker ONCE per day
 _ticker_cooldowns = {}  # {ticker: datetime} - when ticker was last traded
 TICKER_COOLDOWN_MINUTES = 480  # 8 hours = effectively once per trading day
+
+# Risk management: Daily loss limit and market trend filter
+DAILY_LOSS_LIMIT_PCT = -0.01  # Stop trading if day P&L drops below -1% of equity
+SPY_TREND_THRESHOLD = -0.005  # Skip buys if SPY is down more than -0.5% on the day
+_daily_loss_limit_hit = False  # Flag to stop trading for the day
 
 # Position sizing defaults
 DEFAULT_RISK_PER_TRADE = 0.025  # 2.5% of portfolio per trade
@@ -887,13 +893,13 @@ async def get_bars(
 # ============= MARKET SENTIMENT ENDPOINT =============
 
 @app.get("/api/sentiment/{ticker}")
-async def get_sentiment(ticker: str):
+async def get_sentiment(ticker: str, use_llm: bool = False):
     """Get aggregated sentiment for a ticker based on news and earnings."""
     # Convert ticker to uppercase for consistency
     ticker = ticker.upper()
 
-    # Check cache first
-    cache_key = ticker
+    # Check cache first (separate cache for LLM vs keyword mode)
+    cache_key = f"{ticker}_llm" if use_llm else ticker
     now = datetime.utcnow()
     if cache_key in _sentiment_cache:
         cached_data, cache_time = _sentiment_cache[cache_key]
@@ -909,131 +915,140 @@ async def get_sentiment(ticker: str):
             "message": "Benzinga API not configured"
         }
 
-    # Fetch multiple data sources
+    # Fetch all Benzinga data sources (cheap API calls)
     news_task = benzinga_client.get_news(tickers=ticker, limit=20)
     earnings_task = benzinga_client.get_earnings(ticker=ticker, limit=5)
-
-    # Try ratings but don't fail if not available
     ratings_task = benzinga_client.get_ratings(ticker=ticker, limit=5)
     consensus_task = benzinga_client.get_consensus(ticker)
 
-    # Execute in parallel
     news, earnings, ratings, consensus = await asyncio.gather(
         news_task, earnings_task, ratings_task, consensus_task,
         return_exceptions=True
     )
 
-    # Calculate sentiment score using component-based system
-    # Each component contributes to a weighted average, avoiding artificial extremes
+    # Extract data lists safely
+    news_items = news.get("results", [])[:10] if isinstance(news, dict) else []
+    earnings_items = earnings.get("results", [])[:3] if isinstance(earnings, dict) else []
+    ratings_items = ratings.get("results", [])[:5] if isinstance(ratings, dict) else []
 
     components = []  # List of (score, weight) tuples
+    llm_used = False
 
-    # === NEWS SENTIMENT (weight: 25%) ===
-    # Analyze news with diminishing returns and deduplication
-    news_score = 50  # Neutral baseline for this component
-    if isinstance(news, dict) and "results" in news:
-        news_items = news.get("results", [])[:10]
-        positive_signals = 0
-        negative_signals = 0
-        seen_themes = set()  # Deduplicate similar headlines
+    # === LLM MODE: Feed everything to Claude, get one holistic score ===
+    if use_llm and news_items:
+        try:
+            # Extract latest news timestamp for cache invalidation
+            latest_ts = None
+            for item in news_items:
+                published = item.get("published", item.get("created", ""))
+                if published:
+                    try:
+                        ts = datetime.fromisoformat(str(published).replace("Z", "+00:00"))
+                        if latest_ts is None or ts > latest_ts:
+                            latest_ts = ts
+                    except (ValueError, TypeError):
+                        pass
 
-        for item in news_items:
-            title = item.get("title", "").lower()
+            llm_result = await NewsIntelligenceAgent.analyze_with_cache(
+                news_items=news_items,
+                ticker=ticker,
+                latest_news_ts=latest_ts,
+                earnings_data=earnings_items if earnings_items else None,
+                ratings_data=ratings_items if ratings_items else None,
+                consensus_data=consensus if isinstance(consensus, dict) else None,
+            )
+            sentiment_score = float(llm_result.get("score", 50))
+            llm_used = True
+            logger.info(f"LLM score for {ticker}: {sentiment_score} (confidence: {llm_result.get('confidence', 'N/A')})")
+        except Exception as e:
+            logger.warning(f"LLM analysis failed for {ticker}, falling back to keywords: {e}")
+            use_llm = False  # Fall through to keyword mode
 
-            # Create a simple theme key to avoid counting same story multiple times
-            theme_words = [w for w in ["upgrade", "downgrade", "beat", "miss", "earnings", "rating"] if w in title]
-            theme_key = "_".join(sorted(theme_words)) if theme_words else title[:30]
+    elif use_llm and not news_items:
+        # No news = no LLM call needed, score neutral
+        logger.info(f"LLM skip for {ticker}: no news articles, defaulting to neutral")
+        use_llm = False  # Fall through to keyword mode
 
-            if theme_key in seen_themes:
-                continue
-            seen_themes.add(theme_key)
+    # === KEYWORD MODE: Component-based scoring (fast, free) ===
+    if not use_llm:
+        news_weight = 0.25
+        earnings_weight = 0.30
+        ratings_weight = 0.25
+        consensus_weight = 0.20
 
-            # Score based on keywords
-            if any(word in title for word in ["upgrade", "beat", "beats", "surge", "rally", "soar",
-                                              "jump", "bullish", "outperform", "record", "breakthrough"]):
-                positive_signals += 1
-            elif any(word in title for word in ["downgrade", "miss", "misses", "plunge", "crash",
-                                                "bearish", "underperform", "bankruptcy", "investigation"]):
-                negative_signals += 1
-            # Mild signals
-            elif any(word in title for word in ["gain", "rise", "strong", "growth"]):
-                positive_signals += 0.5
-            elif any(word in title for word in ["fall", "drop", "loss", "weak", "concern", "decline"]):
-                negative_signals += 0.5
-
-        # Convert to score with diminishing returns (sqrt scaling)
-        # Max ~3 strong signals move score significantly
-        net_signals = positive_signals - negative_signals
-        if net_signals > 0:
-            news_score = 50 + min(25, 10 * (net_signals ** 0.7))  # Max ~75
-        elif net_signals < 0:
-            news_score = 50 - min(25, 10 * (abs(net_signals) ** 0.7))  # Min ~25
-
+        # News: keyword matching
+        news_score = 50
         if news_items:
-            components.append((news_score, 0.25))
+            positive_signals = 0
+            negative_signals = 0
+            seen_themes = set()
 
-    # === EARNINGS SENTIMENT (weight: 30%) ===
-    # Most recent earnings matter most
-    earnings_score = 50
-    if isinstance(earnings, dict) and "results" in earnings:
-        earnings_items = earnings.get("results", [])[:3]
-        earnings_signals = []
+            for item in news_items:
+                title = item.get("title", "").lower()
+                theme_words = [w for w in ["upgrade", "downgrade", "beat", "miss", "earnings", "rating"] if w in title]
+                theme_key = "_".join(sorted(theme_words)) if theme_words else title[:30]
+                if theme_key in seen_themes:
+                    continue
+                seen_themes.add(theme_key)
 
-        for i, earning in enumerate(earnings_items):
-            if earning.get("estimated_eps") and earning.get("actual_eps"):
-                try:
-                    estimated = float(earning["estimated_eps"])
-                    actual = float(earning["actual_eps"])
-                    if estimated != 0:
-                        surprise_pct = (actual - estimated) / abs(estimated)
-                        # Weight by recency (most recent = 1.0, older = 0.5, oldest = 0.25)
-                        recency_weight = 1.0 / (2 ** i)
-                        earnings_signals.append((surprise_pct, recency_weight))
-                except (ValueError, TypeError):
-                    pass
+                if any(word in title for word in ["upgrade", "beat", "beats", "surge", "rally", "soar",
+                                                  "jump", "bullish", "outperform", "record", "breakthrough"]):
+                    positive_signals += 1
+                elif any(word in title for word in ["downgrade", "miss", "misses", "plunge", "crash",
+                                                    "bearish", "underperform", "bankruptcy", "investigation"]):
+                    negative_signals += 1
+                elif any(word in title for word in ["gain", "rise", "strong", "growth"]):
+                    positive_signals += 0.5
+                elif any(word in title for word in ["fall", "drop", "loss", "weak", "concern", "decline"]):
+                    negative_signals += 0.5
 
-        if earnings_signals:
-            # Weighted average of earnings surprises
-            total_weight = sum(w for _, w in earnings_signals)
-            weighted_surprise = sum(s * w for s, w in earnings_signals) / total_weight
+            net_signals = positive_signals - negative_signals
+            if net_signals > 0:
+                news_score = 50 + min(25, 10 * (net_signals ** 0.7))
+            elif net_signals < 0:
+                news_score = 50 - min(25, 10 * (abs(net_signals) ** 0.7))
+            components.append((news_score, news_weight))
 
-            # Convert surprise % to score adjustment (10% beat = +15 points, capped)
-            adjustment = max(-25, min(25, weighted_surprise * 150))
-            earnings_score = 50 + adjustment
-            components.append((earnings_score, 0.30))
+        # Earnings: EPS beat/miss math
+        earnings_score = 50
+        if earnings_items:
+            earnings_signals = []
+            for i, earning in enumerate(earnings_items):
+                if earning.get("estimated_eps") and earning.get("actual_eps"):
+                    try:
+                        estimated = float(earning["estimated_eps"])
+                        actual = float(earning["actual_eps"])
+                        if estimated != 0:
+                            surprise_pct = (actual - estimated) / abs(estimated)
+                            recency_weight = 1.0 / (2 ** i)
+                            earnings_signals.append((surprise_pct, recency_weight))
+                    except (ValueError, TypeError):
+                        pass
+            if earnings_signals:
+                total_weight = sum(w for _, w in earnings_signals)
+                weighted_surprise = sum(s * w for s, w in earnings_signals) / total_weight
+                adjustment = max(-25, min(25, weighted_surprise * 150))
+                earnings_score = 50 + adjustment
+                components.append((earnings_score, earnings_weight))
 
-    # === ANALYST RATINGS (weight: 25%) ===
-    # Recent rating changes
-    ratings_score = 50
-    if isinstance(ratings, dict) and "results" in ratings:
-        ratings_items = ratings.get("results", [])[:5]
-        upgrades = 0
-        downgrades = 0
+        # Ratings: count upgrades vs downgrades
+        ratings_score = 50
+        if ratings_items:
+            upgrades = sum(1 for r in ratings_items if "upgrade" in r.get("rating_action", "").lower())
+            downgrades = sum(1 for r in ratings_items if "downgrade" in r.get("rating_action", "").lower())
+            if upgrades or downgrades:
+                net = upgrades - downgrades
+                if net > 0:
+                    ratings_score = 50 + min(20, 8 * net)
+                elif net < 0:
+                    ratings_score = 50 - min(20, 8 * abs(net))
+                components.append((ratings_score, ratings_weight))
 
-        for rating in ratings_items:
-            action = rating.get("rating_action", "").lower()
-            if "upgrade" in action:
-                upgrades += 1
-            elif "downgrade" in action:
-                downgrades += 1
-
-        if upgrades or downgrades:
-            # Net rating changes, with diminishing returns
-            net = upgrades - downgrades
-            if net > 0:
-                ratings_score = 50 + min(20, 8 * net)  # Max ~70
-            elif net < 0:
-                ratings_score = 50 - min(20, 8 * abs(net))  # Min ~30
-            components.append((ratings_score, 0.25))
-
-    # === ANALYST CONSENSUS (weight: 20%) ===
-    # Current overall consensus
-    consensus_score = 50
-    if isinstance(consensus, dict) and "results" in consensus:
-        if consensus["results"]:
-            cons = consensus["results"][0]
+        # Consensus: overall analyst label
+        consensus_score = 50
+        if isinstance(consensus, dict) and consensus.get("results"):
+            cons = consensus["results"][0] if isinstance(consensus["results"], list) else consensus["results"]
             rating = cons.get("consensus_rating", "").lower()
-
             if "strong buy" in rating:
                 consensus_score = 72
             elif "buy" in rating:
@@ -1044,41 +1059,18 @@ async def get_sentiment(ticker: str):
                 consensus_score = 35
             elif "strong sell" in rating:
                 consensus_score = 28
+            components.append((consensus_score, consensus_weight))
 
-            components.append((consensus_score, 0.20))
+        # Weighted average of all components
+        if components:
+            total_weight = sum(w for _, w in components)
+            sentiment_score = sum(s * w for s, w in components) / total_weight
+        else:
+            sentiment_score = 50
 
-    # === CALCULATE FINAL SCORE ===
-    if components:
-        total_weight = sum(w for _, w in components)
-        sentiment_score = sum(s * w for s, w in components) / total_weight
+    # === FINAL SCORE PROCESSING (both modes) ===
+    sentiment_score = round(max(5, min(95, sentiment_score)), 1)
 
-        # Conviction bonus: when multiple components strongly agree, boost the score
-        # This allows scores to reach 90+ when signals truly align
-        if len(components) >= 3:
-            component_scores_list = [s for s, _ in components]
-            all_bullish = all(s >= 62 for s in component_scores_list)
-            all_bearish = all(s <= 38 for s in component_scores_list)
-
-            if all_bullish:
-                # Strong agreement - boost proportionally to how bullish
-                avg_above_neutral = sum(s - 50 for s in component_scores_list) / len(component_scores_list)
-                conviction_bonus = min(12, avg_above_neutral * 0.5)
-                sentiment_score += conviction_bonus
-            elif all_bearish:
-                # Strong bearish agreement
-                avg_below_neutral = sum(50 - s for s in component_scores_list) / len(component_scores_list)
-                conviction_penalty = min(12, avg_below_neutral * 0.5)
-                sentiment_score -= conviction_penalty
-    else:
-        sentiment_score = 50  # No data = neutral
-
-    # Round to 1 decimal place
-    sentiment_score = round(sentiment_score, 1)
-
-    # Allow full range but scores near extremes require genuine conviction
-    sentiment_score = max(5, min(95, sentiment_score))
-
-    # Determine sentiment label
     if sentiment_score >= 70:
         sentiment = "bullish"
     elif sentiment_score >= 60:
@@ -1090,33 +1082,37 @@ async def get_sentiment(ticker: str):
     else:
         sentiment = "neutral"
 
-    # Build component breakdown for transparency
-    component_scores = {}
-    if isinstance(news, dict) and news.get("results"):
-        component_scores["news"] = round(news_score, 1)
-    if isinstance(earnings, dict) and earnings.get("results"):
-        component_scores["earnings"] = round(earnings_score, 1)
-    if isinstance(ratings, dict) and ratings.get("results"):
-        component_scores["ratings"] = round(ratings_score, 1)
-    if isinstance(consensus, dict) and consensus.get("results"):
-        component_scores["consensus"] = round(consensus_score, 1)
+    # Build result
+    component_scores = {"mode": "llm" if llm_used else "keywords"}
+    if llm_used:
+        component_scores["llm_score"] = sentiment_score
+    else:
+        if news_items:
+            component_scores["news"] = round(news_score, 1)
+        if earnings_items:
+            component_scores["earnings"] = round(earnings_score, 1)
+        if ratings_items:
+            component_scores["ratings"] = round(ratings_score, 1)
+        if isinstance(consensus, dict) and consensus.get("results"):
+            component_scores["consensus"] = round(consensus_score, 1)
 
     result = {
         "ticker": ticker,
         "sentiment": sentiment,
         "score": sentiment_score,
+        "llm_enhanced": llm_used,
         "components": component_scores,
         "sources": {
-            "news_analyzed": len(news.get("results", [])) if isinstance(news, dict) else 0,
-            "earnings_analyzed": len(earnings.get("results", [])) if isinstance(earnings, dict) else 0,
-            "ratings_analyzed": len(ratings.get("results", [])) if isinstance(ratings, dict) else 0,
-            "has_consensus": bool(consensus.get("results")) if isinstance(consensus, dict) else False
+            "news_analyzed": len(news_items),
+            "earnings_analyzed": len(earnings_items),
+            "ratings_analyzed": len(ratings_items),
+            "has_consensus": bool(isinstance(consensus, dict) and consensus.get("results"))
         },
         "timestamp": datetime.utcnow().isoformat()
     }
 
     # Cache the result
-    _sentiment_cache[ticker] = (result, datetime.utcnow())
+    _sentiment_cache[cache_key] = (result, datetime.utcnow())
 
     return result
 
@@ -1169,6 +1165,21 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
         combined_score = base_score + momentum_boost
         combined_score = max(0, min(100, combined_score))  # Clamp to 0-100
 
+        # LLM re-score for tickers that pass keyword threshold
+        # This ensures UI scores match what the auto-trader actually uses
+        keyword_score = combined_score
+        llm_used = False
+        if combined_score >= 60:
+            try:
+                llm_sentiment = await get_sentiment(ticker, use_llm=True)
+                llm_score = llm_sentiment.get("score", combined_score)
+                llm_used = llm_sentiment.get("llm_enhanced", False)
+                if llm_used:
+                    combined_score = llm_score
+                    combined_score = max(0, min(100, combined_score))
+            except Exception as e:
+                logger.warning(f"LLM re-score failed for {ticker}, using keyword score: {e}")
+
         # Determine action based on combined score
         # 70+ = BUY (matches scanner threshold)
         if combined_score >= 70:
@@ -1191,6 +1202,8 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
             "ticker": ticker,
             "action": action,
             "combined_score": round(combined_score, 1),
+            "keyword_score": round(keyword_score, 1),
+            "llm_enhanced": llm_used,
             "momentum_score": momentum_score,
             "ai_score": ai_score,
             "momentum_boost": round(momentum_boost, 1),
@@ -1296,6 +1309,8 @@ async def get_all_trade_decisions():
             "action": action,
             "confidence": result.get("combined_score", 50) / 100,
             "combinedScore": result.get("combined_score", 50),
+            "keywordScore": result.get("keyword_score", result.get("combined_score", 50)),
+            "llmEnhanced": result.get("llm_enhanced", False),
             "aiScore": result.get("ai_score", 50),
             "momentumScore": result.get("momentum_score", 50),
             "strategy": result.get("strategy", "UNKNOWN"),
@@ -2455,11 +2470,75 @@ async def auto_monitor_positions():
 
 # Start position monitoring on startup (integrated into lifespan)
 
+# ============= RISK MANAGEMENT HELPERS =============
+
+def _check_daily_loss_limit() -> bool:
+    """Check if daily loss limit has been hit. Returns True if trading should stop."""
+    global _daily_loss_limit_hit
+    try:
+        account = alpaca_trader.get_account_status() if alpaca_trader else None
+        if not account or account.get("status") == "error":
+            return False
+        equity = float(account.get("equity", 0))
+        last_equity = float(account.get("last_equity", 0))
+        if last_equity <= 0:
+            return False
+        day_pl_pct = (equity - last_equity) / last_equity
+        if day_pl_pct <= DAILY_LOSS_LIMIT_PCT:
+            if not _daily_loss_limit_hit:
+                logger.warning(
+                    f"🛑 [RISK] Daily loss limit hit! P&L: {day_pl_pct*100:.2f}% "
+                    f"(${equity - last_equity:,.2f}). Stopping all new trades."
+                )
+                _daily_loss_limit_hit = True
+            return True
+        # Reset flag if we recover above the limit
+        if _daily_loss_limit_hit and day_pl_pct > DAILY_LOSS_LIMIT_PCT:
+            logger.info(f"🟢 [RISK] P&L recovered to {day_pl_pct*100:.2f}%, re-enabling trades")
+            _daily_loss_limit_hit = False
+        return False
+    except Exception as e:
+        logger.error(f"[RISK] Error checking daily loss limit: {e}")
+        return False
+
+
+def _check_spy_trend():
+    """Check SPY trend. Returns (should_skip, spy_change_pct)."""
+    try:
+        if not alpaca_trader or not alpaca_trader.data_client:
+            return False, 0.0
+        from alpaca.data.requests import StockBarsRequest
+        from alpaca.data.timeframe import TimeFrame
+        # Get today's SPY bar
+        request = StockBarsRequest(
+            symbol_or_symbols="SPY",
+            timeframe=TimeFrame.Day,
+            limit=1,
+        )
+        bars = alpaca_trader.data_client.get_stock_bars(request)
+        spy_bars = bars.get("SPY", []) if isinstance(bars, dict) else getattr(bars, 'data', {}).get("SPY", [])
+        if not spy_bars:
+            # Fallback: use latest quote vs previous close
+            quote = alpaca_trader.get_quote("SPY")
+            return False, 0.0
+        bar = spy_bars[-1] if isinstance(spy_bars, list) else list(spy_bars)[-1]
+        open_price = float(bar.open)
+        close_price = float(bar.close)
+        change_pct = (close_price - open_price) / open_price
+        should_skip = change_pct < SPY_TREND_THRESHOLD
+        if should_skip:
+            logger.info(f"🔴 [RISK] SPY down {change_pct*100:.2f}% today - skipping new buys")
+        return should_skip, change_pct
+    except Exception as e:
+        logger.error(f"[RISK] Error checking SPY trend: {e}")
+        return False, 0.0
+
+
 # ============= AUTO-TRADE BACKGROUND LOOP =============
 
 async def auto_trade_loop():
     """Background task that automatically scans and trades when enabled."""
-    global _auto_trade_enabled
+    global _auto_trade_enabled, _daily_loss_limit_hit
 
     while True:
         try:
@@ -2473,6 +2552,18 @@ async def auto_trade_loop():
                     continue
 
                 logger.info("🤖 [AUTO-TRADE] Running automatic trade scan...")
+
+                # === RISK CHECKS: Daily loss limit and market trend ===
+                if _check_daily_loss_limit():
+                    logger.info("🤖 [AUTO-TRADE] Skipping - daily loss limit hit")
+                    await asyncio.sleep(_auto_trade_interval)
+                    continue
+
+                spy_skip, spy_change = _check_spy_trend()
+                if spy_skip:
+                    logger.info(f"🤖 [AUTO-TRADE] Skipping - SPY down {spy_change*100:.2f}%")
+                    await asyncio.sleep(_auto_trade_interval)
+                    continue
 
                 # Get best signal - check BOTH watchlist scan AND best-signal endpoint
                 try:
@@ -2539,13 +2630,21 @@ async def auto_trade_loop():
                     if should_trade:
                         ticker = signal.get("ticker")
                         trade_score = float(signal.get("combined_score", 0))
+                        keyword_score = float(signal.get("keyword_score", trade_score))
+                        llm_enhanced = signal.get("llm_enhanced", False)
 
                         # Double-check we don't already own this ticker
                         if ticker in owned_symbols:
                             logger.info(f"🤖 [AUTO-TRADE] Skipping {ticker} - already have position")
-                        else:
+
+                        # LLM score is already in combined_score from _analyze_ticker_for_signal
+                        # Log the keyword vs LLM score for transparency
+                        elif llm_enhanced and keyword_score != trade_score:
+                            logger.info(f"🤖 [AUTO-TRADE] {ticker}: keyword={keyword_score:.1f}, LLM={trade_score:.1f}")
+
+                        if should_trade and ticker not in owned_symbols:
                             # Execute the trade
-                            logger.info(f"🤖 [AUTO-TRADE] Executing BUY on {ticker} (score: {trade_score:.1f})")
+                            logger.info(f"🤖 [AUTO-TRADE] Executing BUY on {ticker} (LLM score: {trade_score:.1f})")
                             result = alpaca_trader.execute_trade(signal)
 
                             # Register with position manager for smart exit tracking
@@ -2588,6 +2687,10 @@ async def auto_trade_loop():
                     logger.error(f"🤖 [AUTO-TRADE] Error getting signal: {e}")
 
             elif _auto_trade_enabled and not is_market_open():
+                # Reset daily loss limit flag when market is closed (new day)
+                if _daily_loss_limit_hit:
+                    _daily_loss_limit_hit = False
+                    logger.info("🤖 [AUTO-TRADE] Daily loss limit reset for new trading day")
                 logger.debug("🤖 [AUTO-TRADE] Market closed, skipping scan")
 
             # Sleep longer outside trading hours to save resources
@@ -3521,12 +3624,46 @@ async def scan_watchlist():
     results = await asyncio.gather(*[scan_with_limit(t) for t in settings.watchlist])
     results = list(results)
 
-    # Sort by score (highest first)
+    # === PASS 2: LLM re-scoring on candidates scoring >= 60 ===
+    # Only run LLM during market hours to save credits (no point analyzing stale news on weekends)
+    from zoneinfo import ZoneInfo as _ZI2
+    _now_et2 = datetime.now(_ZI2("America/New_York"))
+    _market_hours = _now_et2.weekday() < 5 and 7 <= _now_et2.hour < 20
+    candidates = [r for r in results if r["score"] >= 60] if _market_hours else []
+    if candidates:
+        logger.info(f"LLM second pass: re-scoring {len(candidates)} candidates (score >= 60)")
+
+        llm_semaphore = asyncio.Semaphore(3)  # Limit concurrent LLM calls
+
+        async def llm_rescore(result_entry):
+            async with llm_semaphore:
+                try:
+                    llm_sentiment = await get_sentiment(result_entry["ticker"], use_llm=True)
+                    old_score = result_entry["score"]
+                    result_entry["score"] = llm_sentiment["score"]
+                    result_entry["sentiment"] = llm_sentiment["sentiment"]
+                    result_entry["llm_enhanced"] = True
+                    result_entry["keyword_score"] = old_score
+                    result_entry["recommendation"] = (
+                        "BUY" if llm_sentiment["score"] >= 70 else
+                        "SELL" if llm_sentiment["score"] <= 30 else "HOLD"
+                    )
+                    logger.info(
+                        f"LLM rescore {result_entry['ticker']}: "
+                        f"{old_score:.1f} -> {llm_sentiment['score']:.1f}"
+                    )
+                except Exception as e:
+                    logger.warning(f"LLM rescore failed for {result_entry['ticker']}: {e}")
+
+        await asyncio.gather(*[llm_rescore(r) for r in candidates])
+
+    # Sort by score (highest first) - re-sort after LLM rescoring
     results.sort(key=lambda x: x["score"], reverse=True)
 
     response = {
         "scan_time": datetime.utcnow().isoformat(),
         "watchlist_count": len(settings.watchlist),
+        "llm_rescored": len(candidates) if candidates else 0,
         "results": results,
         "top_opportunities": [r for r in results if r["score"] >= 70],
         "warnings": [r for r in results if r["score"] <= 30]
