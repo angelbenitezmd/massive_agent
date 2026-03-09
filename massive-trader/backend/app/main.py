@@ -935,6 +935,23 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
     llm_used = False
 
     # === LLM MODE: Feed everything to Claude, get one holistic score ===
+    # Only allow LLM calls during market hours (Mon-Fri 9:30AM-4PM ET) to save credits
+    if use_llm:
+        from zoneinfo import ZoneInfo as _ZI_llm
+        _now_llm = datetime.now(_ZI_llm("America/New_York"))
+        _in_market_hours = (
+            _now_llm.weekday() < 5
+            and (_now_llm.hour > 9 or (_now_llm.hour == 9 and _now_llm.minute >= 30))
+            and _now_llm.hour < 16
+        )
+        if not _in_market_hours:
+            logger.debug(f"LLM skip for {ticker}: outside market hours")
+            use_llm = False
+
+    if use_llm and not news_items:
+        logger.debug(f"LLM skip for {ticker}: no news articles")
+        use_llm = False
+
     if use_llm and news_items:
         try:
             # Extract latest news timestamp for cache invalidation
@@ -963,11 +980,6 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
         except Exception as e:
             logger.warning(f"LLM analysis failed for {ticker}, falling back to keywords: {e}")
             use_llm = False  # Fall through to keyword mode
-
-    elif use_llm and not news_items:
-        # No news = no LLM call needed, score neutral
-        logger.info(f"LLM skip for {ticker}: no news articles, defaulting to neutral")
-        use_llm = False  # Fall through to keyword mode
 
     # === KEYWORD MODE: Component-based scoring (fast, free) ===
     if not use_llm:
@@ -3625,11 +3637,8 @@ async def scan_watchlist():
     results = list(results)
 
     # === PASS 2: LLM re-scoring on candidates scoring >= 60 ===
-    # Only run LLM during market hours to save credits (no point analyzing stale news on weekends)
-    from zoneinfo import ZoneInfo as _ZI2
-    _now_et2 = datetime.now(_ZI2("America/New_York"))
-    _market_hours = _now_et2.weekday() < 5 and 7 <= _now_et2.hour < 20
-    candidates = [r for r in results if r["score"] >= 60] if _market_hours else []
+    # get_sentiment(use_llm=True) internally blocks LLM outside market hours & when no news
+    candidates = [r for r in results if r["score"] >= 60]
     if candidates:
         logger.info(f"LLM second pass: re-scoring {len(candidates)} candidates (score >= 60)")
 
