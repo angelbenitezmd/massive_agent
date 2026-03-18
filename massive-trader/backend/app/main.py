@@ -20,6 +20,7 @@ from app.services.alpaca_trader import alpaca_trader
 from app.services.dashboard_service import DashboardService
 from app.services.position_manager import PositionManager, init_position_manager, get_position_manager
 from app.services.ai_agents import NewsIntelligenceAgent
+from app.services.token_tracker import token_tracker
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -47,9 +48,10 @@ _daily_loss_limit_hit = False  # Flag to stop trading for the day
 # Position sizing defaults
 DEFAULT_RISK_PER_TRADE = 0.025  # 2.5% of portfolio per trade
 # Dynamic max position based on signal score (higher score = more conviction = larger position allowed)
-MAX_POSITION_PCT_BASE = 0.12      # 12% max for standard signals (score 70-79)
-MAX_POSITION_PCT_GOOD = 0.22      # 22% max for good signals (score 80-89)
-MAX_POSITION_PCT_EXCELLENT = 0.28  # 28% max for excellent signals (score 90+)
+MAX_POSITION_PCT_BASE = 0.25      # 25% max for standard signals (score 70-79)
+MAX_POSITION_PCT_GOOD = 0.40      # 40% max for good signals (score 80-84)
+MAX_POSITION_PCT_STRONG = 0.55    # 55% max for strong signals (score 85-89)
+MAX_POSITION_PCT_EXCELLENT = 0.70  # 70% max for excellent signals (score 90+)
 MIN_SHARES = 1
 MAX_SHARES = 500  # Safety cap
 MIN_POSITION_VALUE = 300  # Minimum $300 position to make trades meaningful
@@ -118,11 +120,13 @@ def calculate_position_size(
 
         # Aggressive bonus for high signal scores
         if signal_score >= 90:
-            score_bonus = 1.75 + (signal_score - 90) * 0.025  # 1.75x at 90, up to 2.0x at 100
+            score_bonus = 2.0 + (signal_score - 90) * 0.03    # 2.0x at 90, up to 2.3x at 100
+        elif signal_score >= 85:
+            score_bonus = 1.5 + (signal_score - 85) * 0.10    # 1.5x at 85, up to 2.0x at 90
         elif signal_score >= 80:
-            score_bonus = 1.2 + (signal_score - 80) * 0.055   # 1.2x at 80, up to 1.75x at 90
+            score_bonus = 1.2 + (signal_score - 80) * 0.06    # 1.2x at 80, up to 1.5x at 85
         else:
-            score_bonus = 1.0 + max(0, (signal_score - 70) * 0.02)  # 1.0x at 70, up to 1.2x at 80
+            score_bonus = 1.0 + max(0, (signal_score - 70) * 0.02)  # 1.0-1.2x
 
         risk_amount = equity * risk_pct * confidence_multiplier * score_bonus
         shares_from_risk = int(risk_amount / risk_per_share)
@@ -151,11 +155,13 @@ def calculate_position_size(
         # === Apply constraints ===
         # Dynamic max position size based on signal score (higher score = more conviction)
         if signal_score >= 90:
-            max_position_pct = MAX_POSITION_PCT_EXCELLENT  # 20% for exceptional signals
+            max_position_pct = MAX_POSITION_PCT_EXCELLENT  # 35% for exceptional signals
+        elif signal_score >= 85:
+            max_position_pct = MAX_POSITION_PCT_STRONG     # 25% for strong signals
         elif signal_score >= 80:
-            max_position_pct = MAX_POSITION_PCT_GOOD  # 15% for good signals
+            max_position_pct = MAX_POSITION_PCT_GOOD       # 22% for good signals
         else:
-            max_position_pct = MAX_POSITION_PCT_BASE  # 12% for standard signals
+            max_position_pct = MAX_POSITION_PCT_BASE       # 12% for standard signals
 
         max_position_value = equity * max_position_pct
         shares_from_max_position = int(max_position_value / price)
@@ -184,6 +190,98 @@ def calculate_position_size(
     except Exception as e:
         logger.error(f"Position sizing error: {e}, defaulting to 15 shares")
         return 15
+
+async def _free_capital_for_excellent_signal(ticker: str, price: float, equity: float) -> bool:
+    """Close existing positions to free capital for a 90+ score signal.
+
+    When a score >= 90 signal arrives but buying power is insufficient for the
+    desired 70% position, liquidate other positions (weakest P&L first) until
+    enough buying power is available.
+
+    Returns True if enough capital was freed (or was already available).
+    """
+    if not alpaca_trader or not alpaca_trader.client:
+        return False
+
+    target_value = equity * MAX_POSITION_PCT_EXCELLENT  # 70% of equity
+    account = alpaca_trader.get_account_status()
+    if not account:
+        return False
+
+    buying_power = float(account.get("daytrading_buying_power", 0)) or float(account.get("buying_power", 0))
+    needed_shares = int(target_value / price) if price > 0 else 0
+    needed_value = needed_shares * price
+
+    if buying_power >= needed_value:
+        logger.info(f"[EXCELLENT] Already have enough buying power (${buying_power:,.0f} >= ${needed_value:,.0f})")
+        return True
+
+    shortfall = needed_value - buying_power
+    logger.info(
+        f"[EXCELLENT] Need ${needed_value:,.0f} for {ticker}, have ${buying_power:,.0f}, "
+        f"shortfall=${shortfall:,.0f} — closing positions to free capital"
+    )
+
+    # Get all positions, sort by unrealized P&L ascending (close worst performers first)
+    positions = alpaca_trader.get_positions()
+    # Don't close the position we're about to buy into
+    other_positions = [p for p in positions if p["symbol"] != ticker]
+
+    if not other_positions:
+        logger.warning(f"[EXCELLENT] No other positions to close — cannot free capital")
+        return False
+
+    # Sort: worst P&L first (close losers before winners)
+    other_positions.sort(key=lambda p: float(p.get("unrealized_pl", 0)))
+
+    freed = 0.0
+    closed_symbols = []
+    for pos in other_positions:
+        if freed >= shortfall:
+            break
+
+        symbol = pos["symbol"]
+        market_value = abs(float(pos.get("market_value", 0)))
+
+        logger.info(
+            f"[EXCELLENT] Closing {symbol} (P&L: ${float(pos.get('unrealized_pl', 0)):,.2f}, "
+            f"value: ${market_value:,.0f}) to make room for {ticker}"
+        )
+
+        result = alpaca_trader.close_position(symbol)
+        if result.get("status") not in ("error",):
+            freed += market_value
+            closed_symbols.append(symbol)
+            # Set cooldown on closed ticker so we don't re-buy it right away
+            _ticker_cooldowns[symbol] = datetime.utcnow() + timedelta(minutes=TICKER_COOLDOWN_MINUTES)
+
+            # Log the liquidation
+            log_activity(
+                log_type="AUTO_TRADE",
+                ticker=symbol,
+                action="SELL",
+                details={
+                    "reason": f"Liquidated for 90+ signal on {ticker}",
+                    "market_value": market_value,
+                    "unrealized_pl": float(pos.get("unrealized_pl", 0)),
+                    "status": "executed",
+                    "auto": True
+                }
+            )
+        else:
+            logger.warning(f"[EXCELLENT] Failed to close {symbol}: {result}")
+
+    if closed_symbols:
+        # Brief pause for broker to process closes and update buying power
+        import asyncio as _aio
+        await _aio.sleep(3)
+        logger.info(
+            f"[EXCELLENT] Closed {len(closed_symbols)} positions ({', '.join(closed_symbols)}), "
+            f"freed ~${freed:,.0f} for {ticker}"
+        )
+
+    return freed >= shortfall
+
 
 # Auto-trade state (persisted to file for restarts)
 AUTO_TRADE_STATE_FILE = Path(__file__).parent.parent / "data" / "auto_trade_state.json"
@@ -342,20 +440,23 @@ async def get_news(
     if not benzinga_client:
         raise HTTPException(status_code=503, detail="Benzinga client not configured")
 
-    # For global news (no ticker), limit to 1 hour and 15 results max for speed
+    # For global news (no ticker), fetch unfiltered recent news.
+    # Multi-ticker comma-separated queries return empty on the Benzinga/Massive API,
+    # so we omit tickers entirely for the live feed.
+    request_tickers = ticker
     if not ticker:
         hours_back = hours_back or 1  # Default 1 hour for global
         limit = min(limit, 15)  # Cap at 15 for global news
 
-    # Calculate date range (use hours if specified)
+    # Calculate date range — Benzinga only accepts date-only format (YYYY-MM-DD)
     if hours_back:
-        published_gte = (datetime.utcnow() - timedelta(hours=hours_back)).strftime("%Y-%m-%dT%H:%M:%S")
+        published_gte = (datetime.utcnow() - timedelta(hours=hours_back)).strftime("%Y-%m-%d")
     else:
         published_gte = (datetime.utcnow() - timedelta(days=days_back)).strftime("%Y-%m-%d")
 
     try:
         result = await benzinga_client.get_news(
-            tickers=ticker,
+            tickers=request_tickers,
             channels=channels,
             published_gte=published_gte,
             limit=limit
@@ -448,6 +549,25 @@ async def get_consensus(ticker: str):
         raise HTTPException(status_code=500, detail=result.get("message", "API error"))
 
     return result
+
+
+@app.get("/api/token-usage")
+async def get_token_usage():
+    """Return today's LLM token usage summary."""
+    try:
+        return token_tracker.get_today_summary()
+    except Exception as e:
+        logger.error(f"Error fetching token usage: {e}")
+        return {
+            "date": datetime.utcnow().date().isoformat(),
+            "total_input_tokens": 0,
+            "total_output_tokens": 0,
+            "total_cost_estimate": 0.0,
+            "call_count": 0,
+            "by_model": {},
+            "by_agent": {},
+            "by_hour": [],
+        }
 
 
 @app.get("/api/dashboard/{ticker}")
@@ -1134,6 +1254,10 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
 async def _analyze_ticker_for_signal(ticker: str) -> dict:
     """Analyze a single ticker and return signal data."""
     try:
+        local_settings = get_settings()
+        buy_threshold = float(local_settings.TRADING_MIN_SIGNAL_SCORE)
+        llm_rescore_threshold = float(local_settings.TRADING_LLM_RESCORE_MIN_SCORE)
+
         # Get momentum and sentiment in parallel
         momentum_task = get_momentum_analysis(ticker)
         sentiment_task = get_sentiment(ticker)
@@ -1181,7 +1305,7 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
         # This ensures UI scores match what the auto-trader actually uses
         keyword_score = combined_score
         llm_used = False
-        if combined_score >= 60:
+        if combined_score >= llm_rescore_threshold or combined_score <= 25:
             try:
                 llm_sentiment = await get_sentiment(ticker, use_llm=True)
                 llm_score = llm_sentiment.get("score", combined_score)
@@ -1193,10 +1317,10 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
                 logger.warning(f"LLM re-score failed for {ticker}, using keyword score: {e}")
 
         # Determine action based on combined score
-        # 70+ = BUY (matches scanner threshold)
-        if combined_score >= 70:
+        # BUY threshold is configurable and shared with scanner defaults.
+        if combined_score >= buy_threshold:
             action = "BUY"
-        elif combined_score >= 60:
+        elif combined_score >= max(0.0, buy_threshold - 15):
             action = "HOLD"  # Watch closely
         else:
             action = "WAIT"
@@ -1231,7 +1355,10 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
             ),
             "signals": momentum.get("signals", [])[:2],
             "strategy": "SENTIMENT" if momentum_boost >= 0 else "SENTIMENT_CAUTION",
-            "urgency": "NOW" if combined_score >= 75 else ("SOON" if combined_score >= 70 else "WAIT"),
+            "urgency": (
+                "NOW" if combined_score >= buy_threshold
+                else ("SOON" if combined_score >= max(0.0, buy_threshold - 5) else "WAIT")
+            ),
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
@@ -2580,7 +2707,7 @@ async def auto_trade_loop():
                 # Get best signal - check BOTH watchlist scan AND best-signal endpoint
                 try:
                     settings = get_settings()
-                    min_score = 70  # STRICT: Only trade signals with score >= 70
+                    min_score = float(settings.TRADING_MIN_SIGNAL_SCORE)  # STRICT: best-only threshold
 
                     # FIRST: Check watchlist scan for BUY recommendations (matches UI)
                     scan_result = await scan_watchlist()
@@ -2632,11 +2759,11 @@ async def auto_trade_loop():
                         score = signal.get("combined_score", 0) if signal else 0
                         action = signal.get("action", "WAIT") if signal else "WAIT"
 
-                    # Execute on BUY signals OR strong HOLD signals (don't miss opportunities)
+                    # Execute on BUY signals ONLY — HOLD (31-69) must never trigger a buy
                     should_trade = (
                         signal and
                         score >= min_score and
-                        action in ["BUY", "HOLD"]  # HOLD with high score = still good opportunity
+                        action == "BUY"
                     )
 
                     if should_trade:
@@ -2655,6 +2782,16 @@ async def auto_trade_loop():
                             logger.info(f"🤖 [AUTO-TRADE] {ticker}: keyword={keyword_score:.1f}, LLM={trade_score:.1f}")
 
                         if should_trade and ticker not in owned_symbols:
+                            # For 90+ scores, close existing positions to free capital
+                            if trade_score >= 90:
+                                account = alpaca_trader.get_account_status()
+                                acct_equity = float(account.get("equity", 0)) if account else 0
+                                entry_price = float(signal.get("entry_price") or signal.get("price", 0))
+                                if acct_equity > 0 and entry_price > 0:
+                                    freed = await _free_capital_for_excellent_signal(ticker, entry_price, acct_equity)
+                                    if not freed:
+                                        logger.warning(f"🤖 [AUTO-TRADE] Could not free enough capital for 90+ signal on {ticker}, proceeding with available buying power")
+
                             # Execute the trade
                             logger.info(f"🤖 [AUTO-TRADE] Executing BUY on {ticker} (LLM score: {trade_score:.1f})")
                             result = alpaca_trader.execute_trade(signal)
@@ -2899,7 +3036,7 @@ async def get_momentum_analysis(ticker: str):
     if benzinga_client:
         news = await benzinga_client.get_news(
             tickers=ticker,
-            published_gte=(datetime.utcnow() - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%S"),
+            published_gte=(datetime.utcnow() - timedelta(hours=1)).strftime("%Y-%m-%d"),
             limit=5
         )
     else:
@@ -3591,6 +3728,9 @@ async def get_watchlist():
 @app.get("/api/scan/watchlist")
 async def scan_watchlist():
     """Scan all watchlist tickers for opportunities."""
+    scan_buy_threshold = float(settings.TRADING_SCAN_BUY_SCORE)
+    llm_rescore_threshold = float(settings.TRADING_LLM_RESCORE_MIN_SCORE)
+
     # Check cache first
     cache_key = "watchlist"
     now = datetime.utcnow()
@@ -3614,7 +3754,8 @@ async def scan_watchlist():
                 "ticker": ticker,
                 "sentiment": sentiment_data["sentiment"],
                 "score": sentiment_data["score"],
-                "recommendation": "BUY" if sentiment_data["score"] >= 70 else
+                "recommendation": "BUY" if sentiment_data["score"] >= scan_buy_threshold else
+                                 "STRONG SELL" if sentiment_data["score"] <= 10 else
                                  "SELL" if sentiment_data["score"] <= 30 else "HOLD"
             }
         except Exception as e:
@@ -3636,11 +3777,14 @@ async def scan_watchlist():
     results = await asyncio.gather(*[scan_with_limit(t) for t in settings.watchlist])
     results = list(results)
 
-    # === PASS 2: LLM re-scoring on candidates scoring >= 60 ===
+    # === PASS 2: LLM re-scoring on candidates above strict gate ===
     # get_sentiment(use_llm=True) internally blocks LLM outside market hours & when no news
-    candidates = [r for r in results if r["score"] >= 60]
+    candidates = [r for r in results if r["score"] >= llm_rescore_threshold or r["score"] <= 25]
     if candidates:
-        logger.info(f"LLM second pass: re-scoring {len(candidates)} candidates (score >= 60)")
+        logger.info(
+            f"LLM second pass: re-scoring {len(candidates)} candidates "
+            f"(score >= {llm_rescore_threshold:.0f} or <= 25)"
+        )
 
         llm_semaphore = asyncio.Semaphore(3)  # Limit concurrent LLM calls
 
@@ -3654,7 +3798,8 @@ async def scan_watchlist():
                     result_entry["llm_enhanced"] = True
                     result_entry["keyword_score"] = old_score
                     result_entry["recommendation"] = (
-                        "BUY" if llm_sentiment["score"] >= 70 else
+                        "BUY" if llm_sentiment["score"] >= scan_buy_threshold else
+                        "STRONG SELL" if llm_sentiment["score"] <= 10 else
                         "SELL" if llm_sentiment["score"] <= 30 else "HOLD"
                     )
                     logger.info(
@@ -3674,7 +3819,7 @@ async def scan_watchlist():
         "watchlist_count": len(settings.watchlist),
         "llm_rescored": len(candidates) if candidates else 0,
         "results": results,
-        "top_opportunities": [r for r in results if r["score"] >= 70],
+        "top_opportunities": [r for r in results if r["score"] >= scan_buy_threshold],
         "warnings": [r for r in results if r["score"] <= 30]
     }
 
@@ -3686,6 +3831,8 @@ async def scan_watchlist():
 @app.get("/api/scan/universe")
 async def scan_universe():
     """Scan extended momentum universe for opportunities."""
+    scan_buy_threshold = float(settings.TRADING_SCAN_BUY_SCORE)
+
     if not benzinga_client:
         return {
             "message": "Benzinga API not configured",
@@ -3707,7 +3854,8 @@ async def scan_universe():
                 "ticker": ticker,
                 "sentiment": sentiment_data["sentiment"],
                 "score": sentiment_data["score"],
-                "recommendation": "BUY" if sentiment_data["score"] >= 70 else
+                "recommendation": "BUY" if sentiment_data["score"] >= scan_buy_threshold else
+                                 "STRONG SELL" if sentiment_data["score"] <= 10 else
                                  "SELL" if sentiment_data["score"] <= 30 else "HOLD"
             }
         except Exception as e:
@@ -3736,7 +3884,7 @@ async def scan_universe():
         "scan_time": datetime.utcnow().isoformat(),
         "universe_count": len(universe_tickers),
         "results": results,
-        "top_opportunities": [r for r in results if r["score"] >= 70],
+        "top_opportunities": [r for r in results if r["score"] >= scan_buy_threshold],
         "warnings": [r for r in results if r["score"] <= 30]
     }
 
@@ -3744,6 +3892,8 @@ async def scan_universe():
 @app.get("/api/scan/spicy")
 async def scan_spicy():
     """Scan high-volatility spicy list for opportunities."""
+    scan_buy_threshold = float(settings.TRADING_SCAN_BUY_SCORE)
+
     # Check cache first
     cache_key = "spicy"
     now = datetime.utcnow()
@@ -3774,7 +3924,8 @@ async def scan_spicy():
                 "ticker": ticker,
                 "sentiment": sentiment_data["sentiment"],
                 "score": sentiment_data["score"],
-                "recommendation": "BUY" if sentiment_data["score"] >= 75 else  # Higher threshold for spicy
+                "recommendation": "BUY" if sentiment_data["score"] >= scan_buy_threshold else
+                                 "STRONG SELL" if sentiment_data["score"] <= 10 else
                                  "SELL" if sentiment_data["score"] <= 25 else "HOLD",
                 "risk_level": "HIGH",
                 "warning": "High volatility - trade with caution"
@@ -3806,7 +3957,7 @@ async def scan_spicy():
         "scan_time": datetime.utcnow().isoformat(),
         "spicy_count": len(spicy_tickers),
         "results": results,
-        "top_opportunities": [r for r in results if r["score"] >= 75],
+        "top_opportunities": [r for r in results if r["score"] >= scan_buy_threshold],
         "warnings": [r for r in results if r["score"] <= 25],
         "risk_warning": "⚠️ SPICY LIST - High volatility stocks with elevated risk"
     }
@@ -4051,7 +4202,7 @@ async def websocket_signals(websocket: WebSocket):
                     signal = {
                         "type": "ai_signal",
                         "ticker": ticker,
-                        "action": "BUY" if score >= 70 else "SELL" if score <= 30 else "HOLD",
+                        "action": "BUY" if score >= 70 else "STRONG SELL" if score <= 10 else "SELL" if score <= 30 else "HOLD",
                         "strength": "STRONG" if abs(score - 50) > 30 else "MODERATE" if abs(score - 50) > 15 else "WEAK",
                         "ai_score": score,
                         "confidence": "HIGH" if abs(score - 50) > 30 else "MEDIUM" if abs(score - 50) > 15 else "LOW",

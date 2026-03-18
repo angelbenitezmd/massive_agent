@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Header,
   MarketSnapshot,
@@ -24,6 +25,7 @@ import {
   TradeSignalCard,
   ManualTradePanel,
   DebatePanel,
+  TokenMonitor,
 } from "@/components/dashboard";
 import {
   useQuote,
@@ -51,9 +53,30 @@ import {
 import type { AgentSignal, TradeDecision, Technicals } from "@/types";
 // Day P&L now sourced from Alpaca account data
 
-export default function DashboardPage() {
-  const [selectedTicker, setSelectedTicker] = useState("AAPL");
-  const [selectedTimeframe, setSelectedTimeframe] = useState("1Min");
+function Dashboard() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const [selectedTicker, setSelectedTicker] = useState(
+    () => searchParams.get("ticker") || "AAPL"
+  );
+  const [selectedTimeframe, setSelectedTimeframe] = useState(
+    () => searchParams.get("tf") || "1Min"
+  );
+
+  const updateTicker = useCallback((ticker: string) => {
+    setSelectedTicker(ticker);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("ticker", ticker);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }, [searchParams, router]);
+
+  const updateTimeframe = useCallback((tf: string) => {
+    setSelectedTimeframe(tf);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tf", tf);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }, [searchParams, router]);
   const [autoRefresh, setAutoRefresh] = useState(true); // Always on by default
   // Note: autoTrade state is now managed by the backend (24/7 operation)
   const [analysisResult, setAnalysisResult] = useState<{
@@ -74,13 +97,30 @@ export default function DashboardPage() {
   const { data: globalNews, isLoading: globalNewsLoading } = useLatestNews();
   const { data: tickerNews, isLoading: tickerNewsLoading } = useNews(selectedTicker);
   const { data: earnings, isLoading: earningsLoading } = useEarnings(selectedTicker);
-  const { data: account, isLoading: accountLoading } = useAccount();
+  const {
+    data: account,
+    isLoading: accountLoading,
+    isError: accountIsError,
+    error: accountError,
+  } = useAccount();
   const { data: positions } = usePositions();
   const { data: riskStatus } = useRiskStatus();
   const { data: ordersData, isLoading: ordersLoading, refetch: refetchOrders } = useOrders("all", 20, 7);
   const { data: ratings, isLoading: ratingsLoading } = useAnalystRatings(selectedTicker, 30, 10);
-  const { data: watchlistScan, isLoading: watchlistScanLoading } = useScanWatchlist();
-  const { data: spicyScan, isLoading: spicyScanLoading } = useScanSpicy();
+  const {
+    data: watchlistScan,
+    isLoading: watchlistScanLoading,
+    isFetching: watchlistScanFetching,
+    refetch: refetchWatchlistScan,
+    dataUpdatedAt: watchlistScanUpdatedAt,
+  } = useScanWatchlist();
+  const {
+    data: spicyScan,
+    isLoading: spicyScanLoading,
+    isFetching: spicyScanFetching,
+    refetch: refetchSpicyScan,
+    dataUpdatedAt: spicyScanUpdatedAt,
+  } = useScanSpicy();
   const { data: activityLog, isLoading: activityLogLoading } = useActivityLog(50);
   const { data: allDecisions, isLoading: allDecisionsLoading } = useAllDecisions();
 
@@ -129,6 +169,12 @@ export default function DashboardPage() {
     // Fallback to analysis result if ticker not in allDecisions
     return analysisResult?.decision;
   }, [allDecisions, selectedTicker, analysisResult?.decision]);
+
+  const accountErrorMessage = useMemo(() => {
+    if (!accountIsError) return "";
+    if (accountError instanceof Error) return accountError.message;
+    return "Unable to load Alpaca account data.";
+  }, [accountIsError, accountError]);
 
   // Execution management - prevent duplicate trades
   const lastExecutedSignalRef = useRef<string | null>(null);
@@ -197,8 +243,11 @@ export default function DashboardPage() {
     if (!autoRefresh) return;
 
     const interval = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        return;
+      }
       runAnalysis();
-    }, 30000); // Every 30 seconds when auto-refresh is on
+    }, 60000); // Every 60 seconds when auto-refresh is on
 
     return () => clearInterval(interval);
   }, [autoRefresh, runAnalysis]);
@@ -210,7 +259,7 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-background">
       <Header
         selectedTicker={selectedTicker}
-        onTickerChange={setSelectedTicker}
+        onTickerChange={updateTicker}
         autoRefresh={autoRefresh}
         onAutoRefreshChange={setAutoRefresh}
         onAnalyze={runAnalysis}
@@ -224,6 +273,13 @@ export default function DashboardPage() {
       />
 
       <main className="container mx-auto px-4 py-3">
+        {accountIsError && (
+          <div className="mb-3 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+            <span className="font-semibold">Alpaca disconnected:</span>{" "}
+            {accountErrorMessage} Check `ALPACA_API_KEY_ID` and `ALPACA_API_SECRET_KEY`, then restart backend.
+          </div>
+        )}
+
         {/* Market Status Bar */}
         <div className="flex items-center justify-between gap-3 mb-3">
           <MarketStatus />
@@ -239,7 +295,7 @@ export default function DashboardPage() {
         <div className="mb-3">
           <TradeSignalCard
             decisions={allDecisions}
-            onSelectTicker={setSelectedTicker}
+            onSelectTicker={updateTicker}
             selectedTicker={selectedTicker}
             isLoading={allDecisionsLoading}
           />
@@ -251,18 +307,32 @@ export default function DashboardPage() {
           <NewsFeed
             news={globalNews}
             isLoading={globalNewsLoading}
-            onTickerClick={setSelectedTicker}
+            onTickerClick={updateTicker}
+            watchlist={watchlist}
           />
           <NewsFeed
             news={tickerNews}
             isLoading={tickerNewsLoading}
-            onTickerClick={setSelectedTicker}
+            onTickerClick={updateTicker}
             selectedTicker={selectedTicker}
+            watchlist={watchlist}
           />
           {/* Scanner + AI Agents - Right 2 columns */}
           <ScannerPanel
             selectedTicker={selectedTicker}
-            onSelectTicker={setSelectedTicker}
+            onSelectTicker={updateTicker}
+            watchlistResults={watchlistScan?.results}
+            spicyResults={spicyScan?.results}
+            isLoading={watchlistScanLoading || spicyScanLoading}
+            isFetching={watchlistScanFetching || spicyScanFetching}
+            updatedAt={Math.max(watchlistScanUpdatedAt || 0, spicyScanUpdatedAt || 0)}
+            onRefresh={(scanType) => {
+              if (scanType === "watchlist") {
+                void refetchWatchlistScan();
+              } else {
+                void refetchSpicyScan();
+              }
+            }}
           />
           <AIAgentsPanel
             ticker={selectedTicker}
@@ -281,7 +351,7 @@ export default function DashboardPage() {
             bars={bars}
             isLoading={quoteLoading || barsLoading}
             timeframe={selectedTimeframe}
-            onTimeframeChange={setSelectedTimeframe}
+            onTimeframeChange={updateTimeframe}
           />
         </div>
 
@@ -320,7 +390,7 @@ export default function DashboardPage() {
           <div className="mb-3">
             <PortfolioHeatmap
               positions={positions}
-              onSelectTicker={setSelectedTicker}
+              onSelectTicker={updateTicker}
               selectedTicker={selectedTicker}
             />
           </div>
@@ -356,9 +426,14 @@ export default function DashboardPage() {
           <MarketMovers
             watchlistResults={watchlistScan?.results}
             spicyResults={spicyScan?.results}
-            onSelectTicker={setSelectedTicker}
+            onSelectTicker={updateTicker}
             isLoading={watchlistScanLoading || spicyScanLoading}
           />
+        </div>
+
+        {/* Token Usage Monitor */}
+        <div className="mb-3">
+          <TokenMonitor />
         </div>
 
         {/* Full Width - Risk & Account */}
@@ -373,5 +448,13 @@ export default function DashboardPage() {
         />
       </main>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense>
+      <Dashboard />
+    </Suspense>
   );
 }
