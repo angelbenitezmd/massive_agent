@@ -41,7 +41,7 @@ import {
   useOrders,
   useAnalystRatings,
   useScanWatchlist,
-  useScanSpicy,
+  useScanTrending,
   useDeepAnalysis,
   useActivityLog,
   useLatestNews,
@@ -114,13 +114,7 @@ function Dashboard() {
     refetch: refetchWatchlistScan,
     dataUpdatedAt: watchlistScanUpdatedAt,
   } = useScanWatchlist();
-  const {
-    data: spicyScan,
-    isLoading: spicyScanLoading,
-    isFetching: spicyScanFetching,
-    refetch: refetchSpicyScan,
-    dataUpdatedAt: spicyScanUpdatedAt,
-  } = useScanSpicy();
+  const { data: trendingScan } = useScanTrending();
   const { data: activityLog, isLoading: activityLogLoading } = useActivityLog(50);
   const { data: allDecisions, isLoading: allDecisionsLoading } = useAllDecisions();
 
@@ -322,24 +316,20 @@ function Dashboard() {
             selectedTicker={selectedTicker}
             onSelectTicker={updateTicker}
             watchlistResults={watchlistScan?.results}
-            spicyResults={spicyScan?.results}
-            isLoading={watchlistScanLoading || spicyScanLoading}
-            isFetching={watchlistScanFetching || spicyScanFetching}
-            updatedAt={Math.max(watchlistScanUpdatedAt || 0, spicyScanUpdatedAt || 0)}
-            onRefresh={(scanType) => {
-              if (scanType === "watchlist") {
-                void refetchWatchlistScan();
-              } else {
-                void refetchSpicyScan();
-              }
-            }}
+            trendingResults={trendingScan?.results}
+            isLoading={watchlistScanLoading}
+            isFetching={watchlistScanFetching}
+            updatedAt={watchlistScanUpdatedAt}
+            onRefresh={() => void refetchWatchlistScan()}
           />
           <AIAgentsPanel
             ticker={selectedTicker}
-            newsAgent={analysisResult?.agents?.news}
-            earningsAgent={analysisResult?.agents?.earnings}
-            technicalAgent={analysisResult?.agents?.technical}
-            isLoading={analysisMutation.isPending}
+            aiScore={selectedTickerDecision?.aiScore}
+            momentumScore={selectedTickerDecision?.momentumScore}
+            combinedScore={selectedTickerDecision?.combinedScore}
+            llmEnhanced={(allDecisions ? [...(allDecisions.buy || []), ...(allDecisions.hold || []), ...(allDecisions.sell || [])].find(d => d.ticker === selectedTicker) : undefined)?.llmEnhanced}
+            action={selectedTickerDecision?.action}
+            isLoading={allDecisionsLoading}
           />
         </div>
 
@@ -425,9 +415,8 @@ function Dashboard() {
           />
           <MarketMovers
             watchlistResults={watchlistScan?.results}
-            spicyResults={spicyScan?.results}
             onSelectTicker={updateTicker}
-            isLoading={watchlistScanLoading || spicyScanLoading}
+            isLoading={watchlistScanLoading}
           />
         </div>
 
