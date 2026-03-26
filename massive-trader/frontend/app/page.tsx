@@ -26,6 +26,7 @@ import {
   ManualTradePanel,
   DebatePanel,
   TokenMonitor,
+  PremarketPanel,
 } from "@/components/dashboard";
 import {
   useQuote,
@@ -49,6 +50,7 @@ import {
   useAllDecisions,
   useManualTrade,
   useClosePosition,
+  usePremarketStatus,
 } from "@/hooks/use-trading-data";
 import type { AgentSignal, TradeDecision, Technicals } from "@/types";
 // Day P&L now sourced from Alpaca account data
@@ -105,7 +107,7 @@ function Dashboard() {
   } = useAccount();
   const { data: positions } = usePositions();
   const { data: riskStatus } = useRiskStatus();
-  const { data: ordersData, isLoading: ordersLoading, refetch: refetchOrders } = useOrders("all", 20, 7);
+  const { data: ordersData, isLoading: ordersLoading, refetch: refetchOrders } = useOrders("all", 50, 7);
   const { data: ratings, isLoading: ratingsLoading } = useAnalystRatings(selectedTicker, 30, 10);
   const {
     data: watchlistScan,
@@ -117,6 +119,7 @@ function Dashboard() {
   const { data: trendingScan } = useScanTrending();
   const { data: activityLog, isLoading: activityLogLoading } = useActivityLog(50);
   const { data: allDecisions, isLoading: allDecisionsLoading } = useAllDecisions();
+  const { data: premarketStatus, isLoading: premarketLoading } = usePremarketStatus();
 
   // Mutations
   const analysisMutation = useAnalysis(selectedTicker);
@@ -285,6 +288,15 @@ function Dashboard() {
           />
         </div>
 
+        {/* Pre-Market Scanner — always visible so user can see status */}
+        <div className="mb-3">
+          <PremarketPanel
+            data={premarketStatus}
+            isLoading={premarketLoading}
+            onSelectTicker={updateTicker}
+          />
+        </div>
+
         {/* AI Trade Decisions - BUY/HOLD/SELL columns */}
         <div className="mb-3">
           <TradeSignalCard
@@ -342,6 +354,8 @@ function Dashboard() {
             isLoading={quoteLoading || barsLoading}
             timeframe={selectedTimeframe}
             onTimeframeChange={updateTimeframe}
+            positions={positions}
+            orders={ordersData?.orders}
           />
         </div>
 

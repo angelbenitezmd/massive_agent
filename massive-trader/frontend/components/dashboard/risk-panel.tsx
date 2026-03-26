@@ -108,300 +108,279 @@ export function RiskPanel({
   return (
     <TooltipProvider>
       <Card className="card-hover">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-primary" />
+        <CardHeader className="pb-2 px-4 pt-3">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Shield className="h-4 w-4 text-primary" />
             Risk & Account
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground cursor-help" />
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="max-w-[300px] p-3">
-                <div className="space-y-2 text-xs">
-                  <p className="font-semibold">Risk Management</p>
-                  <div className="space-y-1.5">
-                    <p><strong>Circuit Breaker:</strong> Automatic trading limits based on daily P&L.</p>
-                    <p className="pl-2 text-muted-foreground">GREEN: Normal | YELLOW: -2% | ORANGE: -3% | RED: -5%</p>
-                    <p><strong>Buying Power:</strong> Available capital for new trades (includes margin).</p>
-                    <p><strong>Daily P&L:</strong> Today&apos;s profit/loss across all positions.</p>
-                  </div>
-                </div>
-              </TooltipContent>
-            </Tooltip>
           </CardTitle>
-          <CardDescription>Portfolio status, risk controls, and positions</CardDescription>
         </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left: Circuit Breaker & Risk */}
-          <div className="space-y-4">
-            {riskStatus && (
-              <div className="p-4 rounded-lg bg-secondary/30 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5" />
-                    <span className="font-medium">Circuit Breaker</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={cn(
-                        "w-3 h-3 rounded-full animate-pulse",
-                        getCircuitBreakerColor(riskStatus.circuitBreaker)
-                      )}
-                    />
-                    <Badge
-                      variant={
-                        riskStatus.circuitBreaker === "GREEN"
-                          ? "success"
-                          : riskStatus.circuitBreaker === "RED"
-                          ? "destructive"
-                          : "warning"
-                      }
-                    >
-                      {riskStatus.circuitBreaker}
-                    </Badge>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {getCircuitBreakerLabel(riskStatus.circuitBreaker)}
-                </p>
-
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Daily P&L</span>
-                  <span
+        <CardContent className="px-4 pb-3 space-y-3">
+          {/* Circuit Breaker */}
+          {riskStatus && (
+            <div className="p-3 rounded-lg bg-secondary/30 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Circuit Breaker</span>
+                <div className="flex items-center gap-2">
+                  <div
                     className={cn(
-                      "font-medium",
-                      riskStatus.dailyPL >= 0 ? "text-green-500" : "text-red-500"
-                    )}
-                  >
-                    {formatCurrency(riskStatus.dailyPL)} (
-                    {formatPercent(riskStatus.dailyPLPercent)})
-                  </span>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Drawdown</span>
-                    <span>
-                      {formatPercent(riskStatus.currentDrawdown)} /{" "}
-                      {formatPercent(riskStatus.maxDailyLoss * 100)} max
-                    </span>
-                  </div>
-                  <Progress
-                    value={
-                      (Math.abs(riskStatus.currentDrawdown) /
-                        (riskStatus.maxDailyLoss * 100)) *
-                      100
-                    }
-                    className={cn(
-                      "h-2",
-                      riskStatus.currentDrawdown < -3
-                        ? "[&>div]:bg-red-500"
-                        : "[&>div]:bg-yellow-500"
+                      "w-2.5 h-2.5 rounded-full animate-pulse",
+                      getCircuitBreakerColor(riskStatus.circuitBreaker)
                     )}
                   />
+                  <Badge
+                    variant={
+                      riskStatus.circuitBreaker === "GREEN"
+                        ? "success"
+                        : riskStatus.circuitBreaker === "RED"
+                        ? "destructive"
+                        : "warning"
+                    }
+                    className="text-xs"
+                  >
+                    {riskStatus.circuitBreaker}
+                  </Badge>
                 </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {getCircuitBreakerLabel(riskStatus.circuitBreaker)}
+              </p>
 
+              <div className="flex items-center justify-between text-sm gap-2">
+                <span className="text-muted-foreground inline-flex items-center gap-1">
+                  Daily P&L
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-3.5 w-3.5 cursor-help opacity-60 hover:opacity-100" />
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[260px] text-xs">
+                      Same idea as Alpaca&apos;s portfolio day change: current equity vs last equity
+                      (prior reference). Includes realized P&amp;L and fees from trades closed today, not
+                      only your open positions&apos; move.
+                    </TooltipContent>
+                  </Tooltip>
+                </span>
+                <span
+                  className={cn(
+                    "font-semibold text-right",
+                    riskStatus.dailyPL >= 0 ? "text-green-500" : "text-red-500"
+                  )}
+                >
+                  {formatCurrency(riskStatus.dailyPL)} ({formatPercent(riskStatus.dailyPLPercent)})
+                </span>
+              </div>
+
+              <div className="space-y-1">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">Trades Today</span>
-                  <span className="font-medium">{riskStatus.tradesToday}</span>
+                  <span className="text-muted-foreground">Drawdown</span>
+                  <span className="font-medium">
+                    {formatPercent(riskStatus.currentDrawdown)} / {formatPercent(riskStatus.maxDailyLoss * 100)} max
+                  </span>
+                </div>
+                <Progress
+                  value={
+                    (Math.abs(riskStatus.currentDrawdown) /
+                      (riskStatus.maxDailyLoss * 100)) *
+                    100
+                  }
+                  className={cn(
+                    "h-2",
+                    riskStatus.currentDrawdown < -3
+                      ? "[&>div]:bg-red-500"
+                      : "[&>div]:bg-yellow-500"
+                  )}
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Trades Today</span>
+                <span className="font-semibold">{riskStatus.tradesToday}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Account Summary */}
+          {account && (
+            <div className="p-3 rounded-lg bg-secondary/30 space-y-2.5">
+              <div className="flex items-center gap-2">
+                <Wallet className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Account</span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-xs text-muted-foreground">Equity</div>
+                  <div className="text-base font-bold">{formatCurrency(account.equity)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Cash</div>
+                  <div className="text-base font-bold">{formatCurrency(account.cash)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Buying Power</div>
+                  <div className="text-sm font-semibold">{formatCurrency(account.buyingPower)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Day Trades</div>
+                  <div className="text-sm font-semibold">
+                    {account.dayTradeCount}
+                    <span className="text-[10px] text-muted-foreground ml-1">
+                      {account.equity >= 25000 ? "(no PDT)" : "/ 3"}
+                    </span>
+                  </div>
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* Middle: Account Summary */}
-          <div className="space-y-4">
-            {account && (
-              <div className="p-4 rounded-lg bg-secondary/30 space-y-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <Wallet className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-medium">Account Summary</span>
-                </div>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="space-y-1">
-                    <div className="text-muted-foreground">Equity</div>
-                    <div className="font-semibold text-xl">
-                      {formatCurrency(account.equity)}
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-muted-foreground">Cash</div>
-                    <div className="font-semibold text-xl">
-                      {formatCurrency(account.cash)}
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-muted-foreground">Buying Power</div>
-                    <div className="font-medium text-lg">
-                      {formatCurrency(account.buyingPower)}
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-muted-foreground">Day Trades</div>
-                    <div className="font-medium text-lg">
-                      {account.dayTradeCount}
-                      {account.equity >= 25000 && (
-                        <span className="text-xs text-muted-foreground ml-1 block">(no PDT limit)</span>
-                      )}
-                      {account.equity < 25000 && (
-                        <span className="text-xs text-muted-foreground ml-1 block">/ 3 (5-day)</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Right: All Positions */}
-          <div className="space-y-3">
+          {/* Positions */}
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Activity className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">All Positions</span>
+                <span className="text-sm font-medium">Positions</span>
               </div>
               {positions && positions.length > 0 && (
-                <Badge variant="outline">{positions.length} open</Badge>
+                <Badge variant="outline" className="text-xs">{positions.length} open</Badge>
               )}
             </div>
 
             {(!positions || positions.length === 0) ? (
-              <div className="text-sm text-muted-foreground text-center py-8 bg-secondary/30 rounded-lg">
+              <div className="text-sm text-muted-foreground text-center py-4 bg-secondary/30 rounded-lg">
                 No open positions
               </div>
             ) : (
-              <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
+              <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-1">
                 {positions.map((position) => {
                   const isSelected = position.symbol === selectedTicker;
+                  const isShort = position.quantity < 0;
+                  const qtyAbs = Math.abs(position.quantity);
                   const isProfit = position.unrealizedPL >= 0;
+                  const intradayUp = position.intradayPL >= 0;
                   return (
                     <div
                       key={position.symbol}
                       className={cn(
-                        "p-3 rounded-lg border text-sm transition-colors",
+                        "p-2.5 rounded-lg border transition-colors",
                         isSelected
                           ? "bg-primary/10 border-primary/30"
                           : "bg-secondary/30 border-transparent hover:bg-secondary/50"
                       )}
                     >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold">{position.symbol}</span>
-                          {isSelected && (
-                            <Badge variant="secondary" className="text-xs">Selected</Badge>
-                          )}
+                      <div className="flex items-center justify-between mb-1.5 gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-sm font-bold">{position.symbol}</span>
+                          <Badge variant="outline" className="text-[10px] shrink-0">
+                            {isShort ? "Short" : "Long"}
+                          </Badge>
                         </div>
-                        <div
-                          className={cn(
-                            "flex items-center gap-1 font-medium",
-                            isProfit ? "text-green-500" : "text-red-500"
-                          )}
-                        >
-                          {isProfit ? (
-                            <TrendingUp className="h-3 w-3" />
-                          ) : (
-                            <TrendingDown className="h-3 w-3" />
-                          )}
-                          {formatPercent(position.unrealizedPLPercent)}
+                        {isProfit ? (
+                          <TrendingUp className="h-4 w-4 text-green-500 shrink-0" />
+                        ) : (
+                          <TrendingDown className="h-4 w-4 text-red-500 shrink-0" />
+                        )}
+                      </div>
+                      <div className="space-y-1 text-[11px] mb-1.5 pl-0.5">
+                        <div className="flex justify-between gap-2">
+                          <span className="text-muted-foreground">Since entry</span>
+                          <span
+                            className={cn(
+                              "font-medium tabular-nums",
+                              isProfit ? "text-green-500" : "text-red-500"
+                            )}
+                          >
+                            {formatCurrency(position.unrealizedPL)} ({formatPercent(position.unrealizedPLPercent)})
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-2">
+                          <span className="text-muted-foreground">Today&apos;s move</span>
+                          <span
+                            className={cn(
+                              "font-medium tabular-nums",
+                              intradayUp ? "text-green-500" : "text-red-500"
+                            )}
+                          >
+                            {formatCurrency(position.intradayPL)} ({formatPercent(position.intradayPLPercent)})
+                          </span>
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        <div className="grid grid-cols-4 gap-2 text-xs">
-                          <div>
-                            <div className="text-muted-foreground">Qty</div>
-                            <div className="font-medium">{position.quantity}</div>
-                          </div>
-                          <div>
-                            <div className="text-muted-foreground">Entry</div>
-                            <div className="font-medium">{formatCurrency(position.avgEntryPrice)}</div>
-                          </div>
-                          <div>
-                            <div className="text-muted-foreground">Current</div>
-                            <div className="font-medium">{formatCurrency(position.currentPrice)}</div>
-                          </div>
-                          <div>
-                            <div className="text-muted-foreground">P&L</div>
-                            <div className={cn("font-medium", isProfit ? "text-green-500" : "text-red-500")}>
-                              {formatCurrency(position.unrealizedPL)}
-                            </div>
-                          </div>
+                      <div className="grid grid-cols-3 gap-2 text-xs mb-1.5">
+                        <div>
+                          <span className="text-muted-foreground">Qty </span>
+                          <span className="font-medium">{qtyAbs}</span>
                         </div>
-                        {/* Entry Time & Duration */}
-                        {position.entryTime && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Clock className="h-3 w-3" />
+                        <div>
+                          <span className="text-muted-foreground">Entry </span>
+                          <span className="font-medium">{formatCurrency(position.avgEntryPrice)}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Now </span>
+                          <span className="font-medium">{formatCurrency(position.currentPrice)}</span>
+                        </div>
+                      </div>
+                      {position.entryTime && (
+                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground mb-1">
+                          <Clock className="h-3 w-3" />
+                          {new Date(position.entryTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true })}
+                          {" · "}
+                          {formatDuration(position.entryTime)} held
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <div className="flex gap-3 text-xs">
+                          {position.stopLoss && (
                             <span>
-                              {new Date(position.entryTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true })}
-                              {" "}
-                              {new Date(position.entryTime).toLocaleDateString([], { month: "short", day: "numeric" })}
+                              <span className="text-red-500 font-medium">SL {formatCurrency(position.stopLoss)}</span>
+                              <span className="text-muted-foreground ml-0.5">
+                                ({((position.stopLoss - position.avgEntryPrice) / position.avgEntryPrice * 100).toFixed(1)}%)
+                              </span>
                             </span>
-                            <span className="text-muted-foreground/70">({formatDuration(position.entryTime)} held)</span>
-                          </div>
-                        )}
-                        {/* Strategy: Stop Loss & Take Profit */}
-                        <div className="flex items-center justify-between">
-                          <div className="flex gap-3 text-xs">
-                            {position.stopLoss && (
-                              <div className="flex items-center gap-1">
-                                <span className="text-red-500">SL:</span>
-                                <span className="font-medium text-red-500">{formatCurrency(position.stopLoss)}</span>
-                                <span className="text-muted-foreground">
-                                  ({((position.stopLoss - position.avgEntryPrice) / position.avgEntryPrice * 100).toFixed(1)}%)
-                                </span>
-                              </div>
-                            )}
-                            {position.takeProfit && (
-                              <div className="flex items-center gap-1">
-                                <span className="text-green-500">TP:</span>
-                                <span className="font-medium text-green-500">{formatCurrency(position.takeProfit)}</span>
-                                <span className="text-muted-foreground">
-                                  (+{((position.takeProfit - position.avgEntryPrice) / position.avgEntryPrice * 100).toFixed(1)}%)
-                                </span>
-                              </div>
-                            )}
-                            {!position.stopLoss && !position.takeProfit && (
-                              <span className="text-muted-foreground italic">No bracket orders</span>
-                            )}
-                          </div>
-                          {onClosePosition && (
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              className="h-7 px-2 text-xs"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (confirm(`Close ${position.symbol} position at market price?`)) {
-                                  onClosePosition(position.symbol);
-                                }
-                              }}
-                              disabled={isClosingPosition}
-                            >
-                              <X className="h-3 w-3 mr-1" />
-                              Close
-                            </Button>
+                          )}
+                          {position.takeProfit && (
+                            <span>
+                              <span className="text-green-500 font-medium">TP {formatCurrency(position.takeProfit)}</span>
+                              <span className="text-muted-foreground ml-0.5">
+                                (+{((position.takeProfit - position.avgEntryPrice) / position.avgEntryPrice * 100).toFixed(1)}%)
+                              </span>
+                            </span>
                           )}
                         </div>
-                        {/* Exit Signal */}
-                        {position.exitSignal && (
-                          <div className="text-xs font-medium text-yellow-500 bg-yellow-500/10 px-2 py-1 rounded">
-                            ⚠️ {position.exitSignal}
-                          </div>
+                        {onClosePosition && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            className="h-6 px-2 text-xs"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`Close ${position.symbol} position at market price?`)) {
+                                onClosePosition(position.symbol);
+                              }
+                            }}
+                            disabled={isClosingPosition}
+                          >
+                            <X className="h-3 w-3 mr-1" />
+                            Close
+                          </Button>
                         )}
                       </div>
+                      {position.exitSignal && (
+                        <div className="text-xs font-medium text-yellow-500 bg-yellow-500/10 px-2 py-1 rounded mt-1">
+                          {position.exitSignal}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
             )}
 
-            {/* Total P&L Summary */}
             {positions && positions.length > 0 && (
-              <div className="flex items-center justify-between pt-2 border-t text-sm">
-                <span className="text-muted-foreground">Total Unrealized P&L</span>
+              <div className="flex items-center justify-between pt-2 border-t text-sm gap-2">
+                <div className="text-muted-foreground">
+                  <div>Open unrealized</div>
+                  <div className="text-[10px] font-normal opacity-80">Sum since entry (not daily P&amp;L)</div>
+                </div>
                 <span
                   className={cn(
-                    "font-semibold text-lg",
+                    "font-bold text-base shrink-0",
                     positions.reduce((sum, p) => sum + p.unrealizedPL, 0) >= 0
                       ? "text-green-500"
                       : "text-red-500"
@@ -412,8 +391,7 @@ export function RiskPanel({
               </div>
             )}
           </div>
-        </div>
-      </CardContent>
+        </CardContent>
       </Card>
     </TooltipProvider>
   );

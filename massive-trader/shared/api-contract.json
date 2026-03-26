@@ -1,0 +1,65 @@
+{
+  "version": "1.0.0",
+  "routes": {
+    "system.status": {
+      "method": "GET",
+      "path": "/status"
+    },
+    "system.health": {
+      "method": "GET",
+      "path": "/health"
+    },
+    "market.quote": {
+      "method": "GET",
+      "path": "/api/quote/:ticker"
+    },
+    "market.bars": {
+      "method": "GET",
+      "path": "/api/bars/:ticker"
+    },
+    "market.news": {
+      "method": "GET",
+      "path": "/api/news"
+    },
+    "market.earnings": {
+      "method": "GET",
+      "path": "/api/earnings"
+    },
+    "analysis.sentiment": {
+      "method": "GET",
+      "path": "/api/sentiment/:ticker"
+    },
+    "trading.account": {
+      "method": "GET",
+      "path": "/api/trading/account"
+    },
+    "trading.positions": {
+      "method": "GET",
+      "path": "/api/trading/positions"
+    },
+    "trading.execute": {
+      "method": "POST",
+      "path": "/api/trading/execute"
+    },
+    "trading.manual": {
+      "method": "POST",
+      "path": "/api/trading/manual"
+    },
+    "trading.metrics": {
+      "method": "GET",
+      "path": "/api/trading/decision-metrics"
+    },
+    "autoTrade.status": {
+      "method": "GET",
+      "path": "/api/auto-trade/status"
+    },
+    "autoTrade.enable": {
+      "method": "POST",
+      "path": "/api/auto-trade/enable"
+    },
+    "autoTrade.disable": {
+      "method": "POST",
+      "path": "/api/auto-trade/disable"
+    }
+  }
+}

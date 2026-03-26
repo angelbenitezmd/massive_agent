@@ -14,6 +14,12 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -43,10 +49,15 @@ interface NewsFeedProps {
   watchlist?: string[];
 }
 
+function sanitizeHtml(html: string): string {
+  return html.replace(/<script[\s\S]*?<\/script>/gi, "");
+}
+
 export function NewsFeed({ news, isLoading, onTickerClick, selectedTicker, watchlist }: NewsFeedProps) {
   const [timeFilter, setTimeFilter] = useState(3); // index into TIME_FILTERS, default "All"
   const [scoreFilter, setScoreFilter] = useState(0); // index into SCORE_FILTERS, default "All"
   const [scoreSort, setScoreSort] = useState<"none" | "desc" | "asc">("none");
+  const [selectedArticle, setSelectedArticle] = useState<NewsItem | null>(null);
 
   const watchlistSet = useMemo(() => new Set(watchlist || []), [watchlist]);
 
@@ -248,17 +259,18 @@ export function NewsFeed({ news, isLoading, onTickerClick, selectedTicker, watch
             <div className="space-y-3">
               {filteredNews.map((item, index) => (
                 <div key={`${item.id || 'news'}-${index}`}>
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group block space-y-2 hover:bg-accent/50 rounded-lg p-3 -mx-3 transition-colors"
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setSelectedArticle(item)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSelectedArticle(item); }}
+                    className="group block space-y-2 hover:bg-accent/50 rounded-lg p-3 transition-colors cursor-pointer"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <h4 className="font-medium leading-tight group-hover:text-primary transition-colors line-clamp-2 text-sm">
                         {item.headline}
                       </h4>
-                      <ExternalLink className="h-4 w-4 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground" />
+                      <Newspaper className="h-4 w-4 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground" />
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">
@@ -327,7 +339,7 @@ export function NewsFeed({ news, isLoading, onTickerClick, selectedTicker, watch
                         ))}
                       </div>
                     )}
-                  </a>
+                  </div>
                   {index < filteredNews.length - 1 && <Separator className="mt-3" />}
                 </div>
               ))}
@@ -355,6 +367,64 @@ export function NewsFeed({ news, isLoading, onTickerClick, selectedTicker, watch
         </ScrollArea>
       </CardContent>
     </Card>
+
+    {/* Article modal */}
+    <Dialog open={!!selectedArticle} onOpenChange={(open) => { if (!open) setSelectedArticle(null); }}>
+      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col overflow-hidden">
+        <DialogHeader>
+          <DialogTitle className="text-lg leading-tight pr-8">
+            {selectedArticle?.headline}
+          </DialogTitle>
+          <div className="flex items-center gap-2 flex-wrap pt-2">
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="h-3 w-3" />
+              {selectedArticle?.publishedAt && formatNewsTime(selectedArticle.publishedAt)}
+            </div>
+            {selectedArticle?.source && (
+              <span className="text-xs text-muted-foreground">{selectedArticle.source}</span>
+            )}
+            {selectedArticle && (
+              <Badge
+                className="text-xs font-semibold border-0"
+                style={getKeywordScoreStyle(selectedArticle.keywordScore)}
+              >
+                KW {selectedArticle.keywordScore}
+              </Badge>
+            )}
+            {getSentimentBadge(selectedArticle?.sentiment)}
+          </div>
+        </DialogHeader>
+        <ScrollArea className="flex-1 min-h-0 mt-4">
+          {selectedArticle?.body ? (
+            <div
+              className="prose prose-invert prose-sm max-w-none pr-4
+                prose-headings:text-foreground prose-p:text-foreground/90
+                prose-a:text-primary prose-a:underline
+                prose-strong:text-foreground prose-em:text-foreground/80
+                prose-table:text-foreground/90 prose-th:text-foreground
+                prose-td:border-border prose-th:border-border
+                prose-img:rounded-md prose-img:max-w-full"
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(selectedArticle.body) }}
+            />
+          ) : (
+            <p className="text-muted-foreground text-sm">No article body available.</p>
+          )}
+        </ScrollArea>
+        {selectedArticle?.url && (
+          <div className="pt-4 border-t border-border mt-4">
+            <a
+              href={selectedArticle.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-primary transition-colors"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Open on Benzinga
+            </a>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
     </TooltipProvider>
   );
 }

@@ -90,7 +90,7 @@ export async function getQuote(ticker: string): Promise<Quote> {
     high: data.high || 0,
     low: data.low || 0,
     open: data.open || 0,
-    previousClose: data.previous_close || data.prevClose || 0,
+    previousClose: data.previous_close || data.prevClose || data.prev_close || 0,
     timestamp: data.timestamp || new Date().toISOString(),
   };
 }
@@ -106,6 +106,43 @@ export async function getBars(
 // News (supports global feed when ticker is omitted)
 // For global news (no ticker), uses hours_back=1 for speed
 export async function getNews(ticker?: string, limit: number = 15, hoursBack: number = 1): Promise<NewsItem[]> {
+  const calcKeywordScore = (item: any): number => {
+    const text = `${item?.title || item?.headline || ""} ${item?.teaser || item?.summary || ""}`.toLowerCase();
+    if (!text.trim()) return 50;
+
+    const strongPositive = [
+      "beats", "beat", "upgrade", "raises guidance", "record", "breakthrough",
+      "partnership", "production deal", "approval", "contract win", "surge", "soar",
+    ];
+    const weakPositive = [
+      "growth", "strong", "bullish", "outperform", "expands", "launch", "gain", "rise",
+    ];
+    const strongNegative = [
+      "misses", "miss", "downgrade", "cuts guidance", "probe", "investigation", "lawsuit",
+      "bankruptcy", "plunge", "crash", "warning",
+    ];
+    const weakNegative = [
+      "weak", "concern", "decline", "drop", "loss", "bearish", "underperform",
+    ];
+
+    let score = 50;
+
+    for (const word of strongPositive) {
+      if (text.includes(word)) score += 12;
+    }
+    for (const word of weakPositive) {
+      if (text.includes(word)) score += 6;
+    }
+    for (const word of strongNegative) {
+      if (text.includes(word)) score -= 12;
+    }
+    for (const word of weakNegative) {
+      if (text.includes(word)) score -= 6;
+    }
+
+    return Math.max(0, Math.min(100, Math.round(score)));
+  };
+
   const params = new URLSearchParams();
   if (ticker) {
     params.set("ticker", ticker);
@@ -119,22 +156,83 @@ export async function getNews(ticker?: string, limit: number = 15, hoursBack: nu
 
   const endpoint = `/api/news${params.toString() ? `?${params.toString()}` : ""}`;
 
+  const normalize = (payload: any): NewsItem[] => {
+    const data = payload?.results || payload || [];
+    if (!Array.isArray(data)) return [];
+    return data.map((item: any) => ({
+      id: item.id || item.benzinga_id?.toString?.() || item.url,
+      headline: item.title || item.headline,
+      summary: item.teaser || item.summary,
+      author: item.author,
+      source: item.source || "Benzinga",
+      url: item.url,
+      publishedAt: item.published || item.created || item.published_at || item.updated || item.last_updated,
+      symbols:
+        item.tickers ||
+        item.symbols ||
+        item.stocks?.map((s: any) => s.symbol || s.ticker || s.name).filter(Boolean) ||
+        (ticker ? [ticker] : []),
+      tags: item.channels || item.tags || [],
+      keywordScore: calcKeywordScore(item),
+      sentiment: item.sentiment,
+      body: item.body || "",
+    }));
+  };
+
   const response = await fetchAPI<any>(endpoint);
-  // Benzinga returns { results: [...] }
-  const data = response.results || response || [];
-  if (!Array.isArray(data)) return [];
-  return data.map((item: any) => ({
-    id: item.id || item.benzinga_id?.toString?.() || item.url,
-    headline: item.title || item.headline,
-    summary: item.teaser || item.summary,
-    author: item.author,
-    source: item.source || "Benzinga",
-    url: item.url,
-    publishedAt: item.published || item.created || item.published_at || item.updated || item.last_updated,
-    symbols: item.tickers || item.stocks?.map((s: any) => s.name) || item.symbols || (ticker ? [ticker] : []),
-    tags: item.channels || item.tags || [],
-    sentiment: item.sentiment,
-  }));
+  let items = normalize(response);
+
+  // If global live feed is empty, widen lookback once to avoid blank panel.
+  if (!ticker && items.length === 0) {
+    const fallbackParams = new URLSearchParams();
+    fallbackParams.set("limit", Math.min(limit, 20).toString());
+    fallbackParams.set("days_back", "1");
+    const fallback = await fetchAPI<any>(`/api/news?${fallbackParams.toString()}`);
+    items = normalize(fallback);
+  }
+
+  return items;
+}
+
+// Live feed used by scanner/token panels
+export async function getNewsFeed(): Promise<NewsItem[]> {
+  // Keep this aligned with live panels: fast refresh + recent stories
+  return getNews(undefined, 30, 1);
+}
+
+// Ranked news view - deterministic keyword ranking for UI
+export async function getRankedNews(): Promise<NewsItem[]> {
+  const items = await getNews(undefined, 30, 1);
+  return [...items].sort((a, b) => b.keywordScore - a.keywordScore);
+}
+
+export interface TokenUsageSummary {
+  date: string;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_cost_estimate: number;
+  call_count: number;
+  by_model: Record<string, { input: number; output: number; cost: number; calls: number }>;
+  by_agent: Record<string, { input: number; output: number; calls: number }>;
+  by_hour: Array<{ hour: number; input: number; output: number; calls: number }>;
+}
+
+export async function getTokenUsage(): Promise<TokenUsageSummary> {
+  try {
+    return await fetchAPI<TokenUsageSummary>("/api/token-usage");
+  } catch {
+    // Graceful fallback keeps React Query consumers stable when endpoint is unavailable.
+    return {
+      date: new Date().toISOString().slice(0, 10),
+      total_input_tokens: 0,
+      total_output_tokens: 0,
+      total_cost_estimate: 0,
+      call_count: 0,
+      by_model: {},
+      by_agent: {},
+      by_hour: [],
+    };
+  }
 }
 
 // Earnings
@@ -323,6 +421,10 @@ export async function getPositions(): Promise<Position[]> {
       const pnlPctRatio = parseFloat(pos.pnl_pct) || parseFloat(pos.unrealized_plpc) || 0;
       const unrealizedPLPercent = pnlPctRatio * 100;
 
+      // intraday P&L = today's change only (from Alpaca unrealized_intraday_pl)
+      const intradayPL = parseFloat(pos.intraday_pl) || parseFloat(pos.unrealized_intraday_pl) || 0;
+      const intradayPLPctRatio = parseFloat(pos.intraday_pl_pct) || parseFloat(pos.unrealized_intraday_plpc) || 0;
+
       return {
         symbol: pos.symbol,
         qty, // Keep for heatmap compatibility
@@ -332,6 +434,8 @@ export async function getPositions(): Promise<Position[]> {
         marketValue,
         unrealizedPL: parseFloat(pos.pnl) || parseFloat(pos.unrealized_pl) || 0,
         unrealizedPLPercent,
+        intradayPL,
+        intradayPLPercent: intradayPLPctRatio * 100,
         stopLoss: pos.stop_loss ? parseFloat(pos.stop_loss) : null,
         takeProfit: pos.take_profit ? parseFloat(pos.take_profit) : null,
         exitSignal: pos.exit_signal || null,
@@ -345,9 +449,10 @@ export async function getPositions(): Promise<Position[]> {
 
 export async function getRiskStatus(): Promise<RiskStatus> {
   try {
-    const account = await getAccount();
+    const [account, positions] = await Promise.all([getAccount(), getPositions()]);
 
-    // Use Alpaca's actual day P&L (equity - last_equity)
+    // Use Alpaca account-level day_pl — it includes both open AND closed positions' P&L.
+    // Summing open positions' intraday_pl misses losses from positions closed earlier in the day.
     const dailyPL = account.dayPL;
     const dailyPLPercent = account.dayPLPercent;
 
@@ -597,18 +702,57 @@ export async function getAllDecisions(): Promise<AllDecisionsResponse> {
   return fetchAPI("/api/trading/all-decisions");
 }
 
+// Pre-market scanner status
+export interface PremarketStatus {
+  phase: "waiting" | "scanning" | "ready" | "bell_rush" | "completed" | "inactive";
+  ready_list: Array<{
+    ticker: string;
+    score: number;
+    gap_pct?: number | null;
+    source: string;
+  }>;
+  bell_rush_results: Array<{
+    ticker: string;
+    score: number;
+    gap_pct?: number | null;
+    source: string;
+    status: string;
+    quantity?: number | null;
+    price?: number | null;
+  }>;
+  built_today: string;
+  market_status: string;
+  next_event: string;
+}
+
+export async function getPremarketStatus(): Promise<PremarketStatus> {
+  try {
+    return await fetchAPI<PremarketStatus>("/api/premarket/status");
+  } catch {
+    return {
+      phase: "inactive",
+      ready_list: [],
+      bell_rush_results: [],
+      built_today: "",
+      market_status: "closed",
+      next_event: "Backend unavailable",
+    };
+  }
+}
+
 // Scan endpoints
 export async function scanWatchlist(): Promise<{ results: any[] }> {
   return fetchAPI("/api/scan/watchlist");
 }
 
-export async function scanUniverse(): Promise<{ results: any[] }> {
-  return fetchAPI("/api/scan/universe");
+export async function scanTrending(): Promise<{ results: any[]; discovered: number }> {
+  try {
+    return await fetchAPI("/api/scan/trending");
+  } catch {
+    return { results: [], discovered: 0 };
+  }
 }
 
-export async function scanSpicy(): Promise<{ results: any[] }> {
-  return fetchAPI("/api/scan/spicy");
-}
 
 // Trade History / Orders
 export async function getOrders(

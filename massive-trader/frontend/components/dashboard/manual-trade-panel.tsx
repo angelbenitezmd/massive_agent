@@ -171,56 +171,55 @@ export function ManualTradePanel({
 
   return (
     <Card className="card-hover border-primary/20">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2">
-          <ShoppingCart className="h-5 w-5 text-primary" />
+      <CardHeader className="pb-1 pt-2 px-2">
+        <CardTitle className="flex items-center gap-1 text-xs">
+          <ShoppingCart className="h-3 w-3 text-primary" />
           Manual Trade
-          <Badge variant="outline" className="text-[10px] font-bold">
+          <Badge variant="outline" className="text-[9px] px-1 py-0 font-bold">
             {ticker}
           </Badge>
         </CardTitle>
-        <CardDescription>
-          Override AI - trade with full control
-        </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-1.5 px-2 pb-2">
         {/* Buy/Sell Toggle */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-1">
           <Button
             variant={side === "buy" ? "default" : "outline"}
+            size="sm"
             className={cn(
-              "w-full",
+              "w-full h-6 text-[10px]",
               side === "buy" && "bg-green-600 hover:bg-green-700"
             )}
             onClick={() => setSide("buy")}
           >
-            <TrendingUp className="h-4 w-4 mr-2" />
+            <TrendingUp className="h-3 w-3 mr-1" />
             BUY
           </Button>
           <Button
             variant={side === "sell" ? "default" : "outline"}
+            size="sm"
             className={cn(
-              "w-full",
+              "w-full h-6 text-[10px]",
               side === "sell" && "bg-red-600 hover:bg-red-700"
             )}
             onClick={() => setSide("sell")}
           >
-            <TrendingDown className="h-4 w-4 mr-2" />
+            <TrendingDown className="h-3 w-3 mr-1" />
             SELL
           </Button>
         </div>
 
         {/* Order Type */}
-        <div className="space-y-2">
-          <label className="text-sm text-muted-foreground">Order Type</label>
-          <div className="grid grid-cols-3 gap-2">
+        <div className="space-y-0.5">
+          <label className="text-[10px] text-muted-foreground">Order Type</label>
+          <div className="grid grid-cols-3 gap-1">
             {(["market", "limit", "bracket"] as const).map((type) => (
               <Button
                 key={type}
                 variant={orderType === type ? "default" : "outline"}
                 size="sm"
                 onClick={() => setOrderType(type)}
-                className="capitalize"
+                className="capitalize h-5 text-[10px] px-1"
               >
                 {type}
               </Button>
@@ -229,80 +228,61 @@ export function ManualTradePanel({
         </div>
 
         {/* Quantity */}
-        <div className="space-y-2">
+        <div className="space-y-0.5">
           <div className="flex items-center justify-between">
-            <label className="text-sm text-muted-foreground">Shares</label>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Risk Calc</span>
+            <label className="text-[10px] text-muted-foreground">Shares</label>
+            <div className="flex items-center gap-1">
+              <span className="text-[9px] text-muted-foreground">Risk Calc</span>
               <Switch
                 checked={useRiskCalc}
                 onCheckedChange={setUseRiskCalc}
+                className="scale-75"
               />
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-1">
             <Input
               type="number"
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
               min="1"
-              className="flex-1"
+              className="flex-1 h-6 text-[10px]"
             />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setQuantity("10")}
-            >
-              10
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setQuantity("50")}
-            >
-              50
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setQuantity("100")}
-            >
-              100
-            </Button>
+            {[10, 50, 100].map((n) => (
+              <Button key={n} variant="outline" size="sm" onClick={() => setQuantity(String(n))} className="h-6 px-1.5 text-[10px]">
+                {n}
+              </Button>
+            ))}
           </div>
         </div>
 
         {/* Risk Calculator */}
         {useRiskCalc && (
-          <div className="bg-muted/30 rounded-lg p-3 space-y-2">
-            <div className="flex items-center gap-2 text-xs">
-              <Calculator className="h-3.5 w-3.5" />
-              <span className="text-muted-foreground">Risk-Based Position Sizing</span>
+          <div className="bg-muted/30 rounded p-1.5 space-y-0.5">
+            <div className="flex items-center gap-1 text-[9px]">
+              <Calculator className="h-2.5 w-2.5" />
+              <span className="text-muted-foreground">Risk Sizing</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm">Risk</span>
+            <div className="flex items-center gap-1">
               <Input
                 type="number"
                 value={riskPercent}
                 onChange={(e) => setRiskPercent(e.target.value)}
-                className="w-20 h-8"
+                className="w-14 h-5 text-[10px]"
                 min="0.1"
                 max="5"
                 step="0.1"
               />
-              <span className="text-sm">% of portfolio</span>
+              <span className="text-[10px]">% = {formatCurrency(buyingPower * (parseFloat(riskPercent) / 100))}</span>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Max risk: {formatCurrency(buyingPower * (parseFloat(riskPercent) / 100))}
-            </p>
           </div>
         )}
 
         {/* Limit Price (for limit orders) */}
         {orderType === "limit" && (
-          <div className="space-y-2">
-            <label className="text-sm text-muted-foreground flex items-center gap-2">
-              <DollarSign className="h-3.5 w-3.5" />
+          <div className="space-y-0.5">
+            <label className="text-[10px] text-muted-foreground flex items-center gap-1">
+              <DollarSign className="h-2.5 w-2.5" />
               Limit Price
             </label>
             <Input
@@ -311,29 +291,30 @@ export function ManualTradePanel({
               onChange={(e) => setLimitPrice(e.target.value)}
               step="0.01"
               placeholder={currentPrice.toFixed(2)}
+              className="h-6 text-[10px]"
             />
           </div>
         )}
 
         {/* Stop Loss & Take Profit (for bracket or optional) */}
         {(orderType === "bracket" || orderType === "market") && (
-          <div className="space-y-3">
+          <div className="space-y-1">
             {/* Stop Loss */}
-            <div className="space-y-2">
+            <div className="space-y-0.5">
               <div className="flex items-center justify-between">
-                <label className="text-sm text-muted-foreground flex items-center gap-2">
-                  <Shield className="h-3.5 w-3.5 text-red-500" />
-                  Stop Loss
+                <label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <Shield className="h-2.5 w-2.5 text-red-500" />
+                  SL
                 </label>
-                <span className="text-xs text-muted-foreground">-{stopLossPercent}%</span>
+                <span className="text-[9px] text-muted-foreground">-{stopLossPercent}%</span>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-1">
                 <Input
                   type="number"
                   value={stopLoss}
                   onChange={(e) => setStopLoss(e.target.value)}
                   step="0.01"
-                  className="flex-1 border-red-500/30"
+                  className="flex-1 border-red-500/30 h-5 text-[10px]"
                 />
                 {[1, 2, 3, 5].map((pct) => (
                   <Button
@@ -341,7 +322,7 @@ export function ManualTradePanel({
                     variant={stopLossPercent === pct ? "default" : "outline"}
                     size="sm"
                     onClick={() => setStopLossPercent(pct)}
-                    className="px-2 text-xs"
+                    className="h-5 px-1 text-[9px]"
                   >
                     {pct}%
                   </Button>
@@ -350,21 +331,21 @@ export function ManualTradePanel({
             </div>
 
             {/* Take Profit */}
-            <div className="space-y-2">
+            <div className="space-y-0.5">
               <div className="flex items-center justify-between">
-                <label className="text-sm text-muted-foreground flex items-center gap-2">
-                  <Target className="h-3.5 w-3.5 text-green-500" />
-                  Take Profit
+                <label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <Target className="h-2.5 w-2.5 text-green-500" />
+                  TP
                 </label>
-                <span className="text-xs text-muted-foreground">+{takeProfitPercent}%</span>
+                <span className="text-[9px] text-muted-foreground">+{takeProfitPercent}%</span>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-1">
                 <Input
                   type="number"
                   value={takeProfit}
                   onChange={(e) => setTakeProfit(e.target.value)}
                   step="0.01"
-                  className="flex-1 border-green-500/30"
+                  className="flex-1 border-green-500/30 h-5 text-[10px]"
                 />
                 {[2, 4, 6, 10].map((pct) => (
                   <Button
@@ -372,7 +353,7 @@ export function ManualTradePanel({
                     variant={takeProfitPercent === pct ? "default" : "outline"}
                     size="sm"
                     onClick={() => setTakeProfitPercent(pct)}
-                    className="px-2 text-xs"
+                    className="h-5 px-1 text-[9px]"
                   >
                     {pct}%
                   </Button>
@@ -383,64 +364,43 @@ export function ManualTradePanel({
         )}
 
         {/* Time in Force */}
-        <div className="space-y-2">
-          <label className="text-sm text-muted-foreground">Time in Force</label>
-          <div className="grid grid-cols-2 gap-2">
-            <Button
-              variant={timeInForce === "day" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setTimeInForce("day")}
-            >
-              Day
-            </Button>
-            <Button
-              variant={timeInForce === "gtc" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setTimeInForce("gtc")}
-            >
-              GTC
-            </Button>
+        <div className="space-y-0.5">
+          <label className="text-[10px] text-muted-foreground">TIF</label>
+          <div className="grid grid-cols-2 gap-1">
+            <Button variant={timeInForce === "day" ? "default" : "outline"} size="sm" onClick={() => setTimeInForce("day")} className="h-5 text-[10px]">Day</Button>
+            <Button variant={timeInForce === "gtc" ? "default" : "outline"} size="sm" onClick={() => setTimeInForce("gtc")} className="h-5 text-[10px]">GTC</Button>
           </div>
         </div>
 
-        <Separator />
-
         {/* Order Summary */}
-        <div className="bg-muted/30 rounded-lg p-3 space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Current Price</span>
+        <div className="bg-muted/30 rounded p-1.5 space-y-0.5 text-[10px]">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Price</span>
             <span className="font-medium">{formatCurrency(currentPrice)}</span>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Estimated Cost</span>
-            <span className={cn(
-              "font-medium",
-              estimatedCost > buyingPower && "text-red-500"
-            )}>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Cost</span>
+            <span className={cn("font-medium", estimatedCost > buyingPower && "text-red-500")}>
               {formatCurrency(estimatedCost)}
             </span>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Buying Power</span>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">BP</span>
             <span className="font-medium">{formatCurrency(buyingPower)}</span>
           </div>
           {stopLossPrice > 0 && takeProfitPrice > 0 && (
             <>
-              <Separator className="my-2" />
-              <div className="flex justify-between text-sm">
+              <Separator className="my-0.5" />
+              <div className="flex justify-between">
                 <span className="text-muted-foreground">Risk</span>
-                <span className="font-medium text-red-500">
-                  {formatCurrency(Math.abs(totalRisk))}
-                </span>
+                <span className="font-medium text-red-500">{formatCurrency(Math.abs(totalRisk))}</span>
               </div>
-              <div className="flex justify-between text-sm">
+              <div className="flex justify-between">
                 <span className="text-muted-foreground">Reward</span>
-                <span className="font-medium text-green-500">
-                  {formatCurrency(totalReward)}
-                </span>
+                <span className="font-medium text-green-500">{formatCurrency(totalReward)}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">R:R Ratio</span>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">R:R</span>
                 <span className="font-bold">1:{riskRewardRatio}</span>
               </div>
             </>
@@ -450,30 +410,22 @@ export function ManualTradePanel({
         {/* Submit Button */}
         <Button
           className={cn(
-            "w-full",
+            "w-full h-7 text-[11px]",
             side === "buy" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"
           )}
-          size="lg"
+          size="sm"
           disabled={!canTrade() || isExecuting}
           onClick={() => setConfirmOpen(true)}
         >
           {isExecuting ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Executing...
-            </>
+            <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Executing...</>
           ) : (
-            <>
-              {side === "buy" ? <TrendingUp className="h-4 w-4 mr-2" /> : <TrendingDown className="h-4 w-4 mr-2" />}
-              {side.toUpperCase()} {qty} {ticker}
-            </>
+            <>{side === "buy" ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}{side.toUpperCase()} {qty} {ticker}</>
           )}
         </Button>
 
         {estimatedCost > buyingPower && (
-          <p className="text-xs text-red-500 text-center">
-            Insufficient buying power
-          </p>
+          <p className="text-[9px] text-red-500 text-center">Insufficient buying power</p>
         )}
 
         {/* Confirmation Dialog */}

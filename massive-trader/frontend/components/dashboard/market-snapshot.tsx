@@ -28,7 +28,7 @@ import {
   formatNumber,
   cn,
 } from "@/lib/utils";
-import type { Quote, Technicals } from "@/types";
+import type { Quote, Technicals, Position, Order } from "@/types";
 import {
   ComposedChart,
   Line,
@@ -49,6 +49,16 @@ interface MarketSnapshotProps {
   isLoading: boolean;
   timeframe: string;
   onTimeframeChange: (timeframe: string) => void;
+  positions?: Position[];
+  orders?: Order[];
+}
+
+interface TradeMarker {
+  barIndex: number;
+  price: number;
+  side: "buy" | "sell";
+  time: string;
+  qty: number;
 }
 
 // Available timeframes
@@ -171,6 +181,8 @@ export function MarketSnapshot({
   isLoading,
   timeframe,
   onTimeframeChange,
+  positions,
+  orders,
 }: MarketSnapshotProps) {
   const [showVolume, setShowVolume] = useState(true);
   const [showSMA, setShowSMA] = useState(true);
@@ -287,6 +299,63 @@ export function MarketSnapshot({
   const rsiStatus = getRsiStatus(technicals?.rsi);
   const macdStatus = getMacdStatus(technicals?.macd);
 
+  // Map filled orders for this ticker to chart bar positions
+  const tradeMarkers = useMemo((): TradeMarker[] => {
+    if (!orders || !chartData.length || !quote?.symbol) return [];
+
+    // Get today's filled orders for this ticker
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const filledOrders = orders.filter(o =>
+      o.symbol === quote.symbol &&
+      o.status === "filled" &&
+      o.filled_at &&
+      o.filled_avg_price &&
+      new Date(o.filled_at) >= todayStart
+    );
+
+    if (!filledOrders.length) return [];
+
+    // Build bar timestamps for matching
+    const barTimestamps = chartData.map(d => {
+      if (d.timestamp) return new Date(d.timestamp).getTime();
+      return 0;
+    });
+
+    return filledOrders.map(order => {
+      const fillTime = new Date(order.filled_at!).getTime();
+
+      // Find nearest bar index
+      let bestIdx = 0;
+      let bestDist = Infinity;
+      for (let i = 0; i < barTimestamps.length; i++) {
+        if (!barTimestamps[i]) continue;
+        const dist = Math.abs(barTimestamps[i] - fillTime);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestIdx = i;
+        }
+      }
+
+      const fillDate = new Date(order.filled_at!);
+      const timeStr = fillDate.toLocaleTimeString("en-US", {
+        timeZone: "America/New_York",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
+
+      return {
+        barIndex: bestIdx,
+        price: order.filled_avg_price!,
+        side: order.side as "buy" | "sell",
+        time: timeStr,
+        qty: order.filled_qty || order.qty,
+      };
+    });
+  }, [orders, chartData, quote?.symbol]);
+
   // Calculate min/max for Y axis
   const yDomain = useMemo(() => {
     if (!chartData.length) return [0, 100];
@@ -307,7 +376,7 @@ export function MarketSnapshot({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center h-[400px]">
+          <div className="flex items-center justify-center h-[200px]">
             <Activity className="h-8 w-8 animate-pulse text-muted-foreground" />
           </div>
         </CardContent>
@@ -488,6 +557,55 @@ export function MarketSnapshot({
                   />
                 )}
 
+                {/* Trade entry/exit markers — vertical lines at fill time */}
+                {tradeMarkers
+                  .filter((marker) => chartData[marker.barIndex]?.t)
+                  .map((marker, idx) => {
+                    const isBuy = marker.side === "buy";
+                    const color = isBuy ? "#22c55e" : "#ef4444";
+                    return (
+                      <ReferenceLine
+                        key={`trade-vline-${idx}`}
+                        yAxisId="price"
+                        x={chartData[marker.barIndex].t}
+                        stroke={color}
+                        strokeDasharray="4 2"
+                        strokeWidth={2}
+                        label={{
+                          value: `${isBuy ? "▲ BUY" : "▼ SELL"} ${marker.time} @ ${formatCurrency(marker.price)}`,
+                          position: 'top',
+                          fontSize: 10,
+                          fill: color,
+                          fontWeight: 'bold',
+                        }}
+                      />
+                    );
+                  })}
+
+                {/* Entry price horizontal line for current position */}
+                {(() => {
+                  const pos = positions?.find(p => p.symbol === quote?.symbol);
+                  if (!pos) return null;
+                  const isLong = pos.quantity > 0;
+                  const color = isLong ? "#22c55e" : "#ef4444";
+                  return (
+                    <ReferenceLine
+                      yAxisId="price"
+                      y={pos.avgEntryPrice}
+                      stroke={color}
+                      strokeDasharray="3 3"
+                      strokeWidth={1.5}
+                      label={{
+                        value: `Entry: ${formatCurrency(pos.avgEntryPrice)}`,
+                        position: 'left',
+                        fontSize: 10,
+                        fill: color,
+                        fontWeight: 'bold',
+                      }}
+                    />
+                  );
+                })()}
+
                 {/* Volume bars */}
                 {showVolume && (
                   <Bar
@@ -585,6 +703,29 @@ export function MarketSnapshot({
               <div className="w-6 h-0.5 border-t border-dashed border-muted-foreground" />
               <span>Prev Close</span>
             </div>
+            {tradeMarkers.length > 0 && (
+              <>
+                <div className="flex items-center gap-1">
+                  <svg width="12" height="12" viewBox="0 0 12 12"><polygon points="6,1 1,11 11,11" fill="#22c55e" /></svg>
+                  <span>Buy</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <svg width="12" height="12" viewBox="0 0 12 12"><polygon points="6,11 1,1 11,1" fill="#ef4444" /></svg>
+                  <span>Sell</span>
+                </div>
+              </>
+            )}
+            {positions?.find(p => p.symbol === quote?.symbol) && (
+              <div className="flex items-center gap-1">
+                <div className={cn(
+                  "w-6 h-0.5 border-t-2 border-dashed",
+                  (positions.find(p => p.symbol === quote?.symbol)?.quantity ?? 0) > 0
+                    ? "border-green-500"
+                    : "border-red-500"
+                )} />
+                <span>Entry</span>
+              </div>
+            )}
           </div>
         )}
 

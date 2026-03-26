@@ -1,6 +1,9 @@
 """Alpaca paper trading integration for production trading."""
 import os
 import logging
+from dotenv import load_dotenv
+
+load_dotenv()
 from typing import Dict, Optional, List, Any
 from datetime import datetime, timedelta
 from types import MethodType
@@ -157,10 +160,16 @@ class AlpacaTrader:
         """Get current account status."""
         if not self.client:
             return {
-                "status": "simulated",
-                "cash": 100000,
-                "buying_power": 100000,
-                "positions": []
+                "status": "disconnected",
+                "message": "Alpaca client not initialized (missing API keys)",
+                "cash": 0,
+                "buying_power": 0,
+                "equity": 0,
+                "last_equity": 0,
+                "portfolio_value": 0,
+                "day_pl": 0,
+                "day_pl_pct": 0,
+                "positions": [],
             }
 
         try:
@@ -261,17 +270,20 @@ class AlpacaTrader:
                     take_profit = entry_price * 1.05  # 5% take-profit
 
             elif "SELL" in action.upper():
-                # Check if we have a position to sell
+                # Check if we have a position to sell (close long) or short (open new short)
                 positions = self.client.get_all_positions()
                 has_position = any(p.symbol == ticker for p in positions)
 
                 if has_position:
-                    side = OrderSide.SELL
+                    side = OrderSide.SELL  # Close long
                 else:
-                    return {
-                        "status": "skipped",
-                        "message": f"No position to sell for {ticker}"
-                    }
+                    # No position = open short (sell to open). Requires margin/short-selling enabled.
+                    side = OrderSide.SELL
+                    # For shorts: stop above entry, TP below (signal should already have these)
+                    if not stop_loss and entry_price:
+                        stop_loss = entry_price * 1.05  # 5% above = stop out on short
+                    if not take_profit and entry_price:
+                        take_profit = entry_price * 0.95  # 5% below = profit target
             else:
                 return {
                     "status": "skipped",
@@ -444,6 +456,8 @@ class AlpacaTrader:
                     "current": float(p.current_price) if p.current_price else 0,
                     "pnl": float(p.unrealized_pl) if p.unrealized_pl else 0,
                     "pnl_pct": float(p.unrealized_plpc) if p.unrealized_plpc else 0,
+                    "intraday_pl": float(p.unrealized_intraday_pl) if p.unrealized_intraday_pl else 0,
+                    "intraday_pl_pct": float(p.unrealized_intraday_plpc) if p.unrealized_intraday_plpc else 0,
                 }
                 for p in positions
             ]

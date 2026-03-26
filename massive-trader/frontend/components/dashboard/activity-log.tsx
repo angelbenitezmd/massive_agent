@@ -173,7 +173,7 @@ export const ActivityLog = memo(function ActivityLog({ logs, isLoading }: Activi
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[200px] pr-4">
+        <ScrollArea className="h-[130px] pr-4">
           {logs && logs.length > 0 ? (
             <div className="space-y-2">
               {logs.map((log) => (

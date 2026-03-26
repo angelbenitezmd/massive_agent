@@ -82,53 +82,56 @@ class AgentCache:
         self._upstream: Dict[str, UpstreamData] = {}
 
         # Configuration for cache expiration
+        # COST OPTIMIZATION: LLM calls are expensive. Cache aggressively.
+        # During market hours, news changes matter but intraday technical
+        # noise does not justify re-running LLMs every 5 minutes.
         self.config = {
             AgentType.NEWS: {
-                "max_age_minutes": 5,       # News can change fast
-                "min_interval_seconds": 60,  # Don't run more than once per minute
+                "max_age_minutes": 15,       # Re-check news every 15 min
+                "min_interval_seconds": 300,  # At most once per 5 min
             },
             AgentType.EARNINGS: {
-                "max_age_minutes": 60,       # Earnings don't change often
-                "min_interval_seconds": 300,  # Check every 5 minutes max
+                "max_age_minutes": 120,      # Earnings don't change often
+                "min_interval_seconds": 600,  # Check every 10 minutes max
                 "earnings_window_days": 1,   # Days around earnings to run agent
             },
             AgentType.ANALYST: {
-                "max_age_minutes": 15,       # Ratings change infrequently
-                "min_interval_seconds": 600,  # Check every 10 minutes max
+                "max_age_minutes": 60,       # Ratings change infrequently
+                "min_interval_seconds": 1800, # Check every 30 minutes max
             },
             AgentType.TECHNICAL: {
-                "max_age_minutes": 5,        # Technical can shift
-                "min_interval_seconds": 60,   # Once per minute
-                "threshold_change": 10,      # Score change threshold to re-run
+                "max_age_minutes": 15,       # Technical every 15 min is plenty
+                "min_interval_seconds": 300,  # Once per 5 min
+                "threshold_change": 20,      # Only re-run on big score swings
             },
             AgentType.CONSENSUS: {
-                "max_age_minutes": 5,        # Final decision cache
-                "min_interval_seconds": 60,   # Once per minute
+                "max_age_minutes": 15,       # Final decision cache 15 min
+                "min_interval_seconds": 300,  # Once per 5 min
             },
             # New specialized agents
             AgentType.MACRO: {
-                "max_age_minutes": 10,       # Macro changes slowly
-                "min_interval_seconds": 300,  # Every 5 minutes max
+                "max_age_minutes": 30,       # Macro changes slowly
+                "min_interval_seconds": 900,  # Every 15 minutes max
             },
             AgentType.CONTRARIAN: {
-                "max_age_minutes": 5,        # Needs to be responsive
-                "min_interval_seconds": 60,   # Once per minute
+                "max_age_minutes": 15,       # Check every 15 min
+                "min_interval_seconds": 300,  # Once per 5 min
             },
             AgentType.RISK: {
-                "max_age_minutes": 2,        # Risk needs fresh data
-                "min_interval_seconds": 30,   # Check often
+                "max_age_minutes": 10,       # Risk every 10 min
+                "min_interval_seconds": 300,  # Once per 5 min
             },
             AgentType.EXIT: {
-                "max_age_minutes": 3,        # Exit strategy changes with price
-                "min_interval_seconds": 60,   # Once per minute
+                "max_age_minutes": 10,       # Exit strategy every 10 min
+                "min_interval_seconds": 300,  # Once per 5 min
             },
             AgentType.TIMING: {
-                "max_age_minutes": 2,        # Very time-sensitive
-                "min_interval_seconds": 30,   # Check often
+                "max_age_minutes": 10,       # Timing every 10 min
+                "min_interval_seconds": 300,  # Once per 5 min
             },
             AgentType.DEBATE: {
-                "max_age_minutes": 5,        # Full debate outcome
-                "min_interval_seconds": 60,   # Once per minute
+                "max_age_minutes": 15,       # Full debate outcome
+                "min_interval_seconds": 300,  # Once per 5 min
             },
         }
 

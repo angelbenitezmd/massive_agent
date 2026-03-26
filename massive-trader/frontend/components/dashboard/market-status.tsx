@@ -114,13 +114,12 @@ export const MarketStatus = memo(function MarketStatus() {
           timeZone: "America/New_York",
           hour: "2-digit",
           minute: "2-digit",
-          second: "2-digit",
         })
       );
     };
 
     updateStatus();
-    const interval = setInterval(updateStatus, 1000);
+    const interval = setInterval(updateStatus, 10000);
     return () => clearInterval(interval);
   }, []);
 

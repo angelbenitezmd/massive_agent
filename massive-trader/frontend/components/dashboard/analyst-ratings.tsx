@@ -182,7 +182,7 @@ export const AnalystRatings = memo(function AnalystRatings({
           </CardTitle>
         </CardHeader>
       <CardContent className="pt-0">
-        <ScrollArea className="h-[220px]">
+        <ScrollArea className="h-[130px]">
           {isLoading ? (
             <div className="flex items-center justify-center h-full text-muted-foreground">
               Loading ratings...

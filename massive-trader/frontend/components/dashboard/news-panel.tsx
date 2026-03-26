@@ -20,6 +20,24 @@ interface NewsPanelProps {
 }
 
 export function NewsPanel({ news, isLoading }: NewsPanelProps) {
+  // Display invariant requested by user:
+  // Always show KW score. <30 red gradient, >70 green gradient.
+  const getKeywordScoreStyle = (score: number) => {
+    const safe = Math.max(0, Math.min(100, Number.isFinite(score) ? score : 50));
+
+    if (safe < 30) {
+      const lightness = 45 - ((30 - safe) / 30) * 20;
+      return { backgroundColor: `hsl(0 78% ${lightness}%)`, color: "white" };
+    }
+
+    if (safe > 70) {
+      const lightness = 42 - ((safe - 70) / 30) * 20;
+      return { backgroundColor: `hsl(140 65% ${lightness}%)`, color: "white" };
+    }
+
+    return { backgroundColor: "hsl(42 90% 45%)", color: "black" };
+  };
+
   const getSentimentBadge = (sentiment?: string) => {
     switch (sentiment?.toLowerCase()) {
       case "bullish":
@@ -75,7 +93,7 @@ export function NewsPanel({ news, isLoading }: NewsPanelProps) {
                     href={item.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="group block space-y-2 hover:bg-accent/50 rounded-lg p-3 -mx-3 transition-colors"
+                    className="group block space-y-2 hover:bg-accent/50 rounded-lg p-3 transition-colors"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <h4 className="font-medium leading-tight group-hover:text-primary transition-colors line-clamp-2">
@@ -89,6 +107,12 @@ export function NewsPanel({ news, isLoading }: NewsPanelProps) {
                         <Clock className="h-3 w-3" />
                         {formatNewsTime(item.publishedAt)}
                       </div>
+                      <Badge
+                        className="text-xs font-semibold border-0"
+                        style={getKeywordScoreStyle(item.keywordScore)}
+                      >
+                        KW {item.keywordScore}
+                      </Badge>
                       <span className="text-xs text-muted-foreground">
                         {item.source}
                       </span>

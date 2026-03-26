@@ -35,10 +35,50 @@ _scan_cache = {}
 SENTIMENT_CACHE_TTL = 30   # Cache sentiment for 30 seconds
 MOMENTUM_CACHE_TTL = 15    # Cache momentum for 15 seconds (price-sensitive)
 SCAN_CACHE_TTL = 20        # Cache scan results for 20 seconds
+TRENDING_CACHE_TTL = 300   # Cache trending results for 5 minutes
+
+# Excluded ETFs/indices from trending discovery (not individual stocks)
+_EXCLUDED_TICKERS = {
+    "SPY", "QQQ", "DIA", "IWM", "VTI", "VOO", "IVV", "RSP",
+    "XLF", "XLK", "XLE", "XLV", "XLI", "XLU", "XLP", "XLY", "XLB", "XLRE", "XLC",
+    "SMH", "SOXX", "GLD", "SLV", "USO", "TLT", "HYG", "AGG", "BND",
+    "TQQQ", "SQQQ", "SPXL", "SPXU", "UVXY", "VXX", "VIXY",
+}
 
 # Per-ticker trade cooldown — only trade each ticker ONCE per day
 _ticker_cooldowns = {}  # {ticker: datetime} - when ticker was last traded
 TICKER_COOLDOWN_MINUTES = 480  # 8 hours = effectively once per trading day
+
+# Pre-market ready list (built at 9:15 AM ET, consumed at bell rush)
+_premarket_ready_list: list = []
+_premarket_built_today: str = ""  # date string, e.g. "2026-03-24"
+_bell_rush_results: list = []  # Populated during bell rush, cleared next day
+_bell_rush_date: str = ""  # date string for when bell rush ran
+_last_market_state: str = ""
+
+# Dynamic watchlist: tickers auto-added when they score 70+ in keyword scan
+_dynamic_watchlist = {}  # {ticker: datetime_added} - auto-expires after 24h
+DYNAMIC_WATCHLIST_EXPIRY_HOURS = 24
+
+
+def _add_to_dynamic_watchlist(ticker: str, score: float):
+    """Add a ticker to the dynamic watchlist if it scored 70+ in keyword scan."""
+    if ticker in _EXCLUDED_TICKERS:
+        return
+    if ticker not in _dynamic_watchlist:
+        logger.info(f"[DYNAMIC-WL] Adding {ticker} (kw_score={score:.1f}) to dynamic watchlist")
+    _dynamic_watchlist[ticker] = datetime.utcnow()
+
+
+def _get_dynamic_tickers() -> set:
+    """Return active dynamic watchlist tickers, pruning expired ones."""
+    now = datetime.utcnow()
+    expired = [t for t, added in _dynamic_watchlist.items()
+               if (now - added).total_seconds() > DYNAMIC_WATCHLIST_EXPIRY_HOURS * 3600]
+    for t in expired:
+        logger.info(f"[DYNAMIC-WL] Expired {t} from dynamic watchlist")
+        del _dynamic_watchlist[t]
+    return set(_dynamic_watchlist.keys())
 
 # Risk management: Daily loss limit and market trend filter
 DAILY_LOSS_LIMIT_PCT = -0.01  # Stop trading if day P&L drops below -1% of equity
@@ -48,16 +88,16 @@ _daily_loss_limit_hit = False  # Flag to stop trading for the day
 # Position sizing defaults
 DEFAULT_RISK_PER_TRADE = 0.025  # 2.5% of portfolio per trade
 # Dynamic max position based on signal score (higher score = more conviction = larger position allowed)
-MAX_POSITION_PCT_BASE = 0.25      # 25% max for standard signals (score 70-79)
-MAX_POSITION_PCT_GOOD = 0.40      # 40% max for good signals (score 80-84)
-MAX_POSITION_PCT_STRONG = 0.55    # 55% max for strong signals (score 85-89)
-MAX_POSITION_PCT_EXCELLENT = 0.70  # 70% max for excellent signals (score 90+)
+MAX_POSITION_PCT_BASE = 0.35      # 35% max for standard signals (score 70-79)
+MAX_POSITION_PCT_GOOD = 0.55      # 55% max for good signals (score 80-84)
+MAX_POSITION_PCT_STRONG = 0.75    # 75% max for strong signals (score 85-89)
+MAX_POSITION_PCT_EXCELLENT = 1.00  # 100% max for excellent signals (score 90+)
 MIN_SHARES = 1
 MAX_SHARES = 500  # Safety cap
 MIN_POSITION_VALUE = 300  # Minimum $300 position to make trades meaningful
-TARGET_POSITION_PCT_HIGH_CONF = 0.12  # Target 12% position for high confidence (>0.8)
-TARGET_POSITION_PCT_MED_CONF = 0.07  # Target 7% position for medium confidence (0.6-0.8)
-TARGET_POSITION_PCT_LOW_CONF = 0.03  # Target 3% position for low confidence (<0.6)
+TARGET_POSITION_PCT_HIGH_CONF = 0.18  # Target 18% position for high confidence (>0.8)
+TARGET_POSITION_PCT_MED_CONF = 0.10   # Target 10% position for medium confidence (0.6-0.8)
+TARGET_POSITION_PCT_LOW_CONF = 0.05   # Target 5% position for low confidence (<0.6)
 
 
 def calculate_position_size(
@@ -120,13 +160,13 @@ def calculate_position_size(
 
         # Aggressive bonus for high signal scores
         if signal_score >= 90:
-            score_bonus = 2.0 + (signal_score - 90) * 0.03    # 2.0x at 90, up to 2.3x at 100
+            score_bonus = 2.5 + (signal_score - 90) * 0.05    # 2.5x at 90, up to 3.0x at 100
         elif signal_score >= 85:
-            score_bonus = 1.5 + (signal_score - 85) * 0.10    # 1.5x at 85, up to 2.0x at 90
+            score_bonus = 1.8 + (signal_score - 85) * 0.14    # 1.8x at 85, up to 2.5x at 90
         elif signal_score >= 80:
-            score_bonus = 1.2 + (signal_score - 80) * 0.06    # 1.2x at 80, up to 1.5x at 85
+            score_bonus = 1.4 + (signal_score - 80) * 0.08    # 1.4x at 80, up to 1.8x at 85
         else:
-            score_bonus = 1.0 + max(0, (signal_score - 70) * 0.02)  # 1.0-1.2x
+            score_bonus = 1.0 + max(0, (signal_score - 70) * 0.02)  # 1.0-1.2x (unchanged)
 
         risk_amount = equity * risk_pct * confidence_multiplier * score_bonus
         shares_from_risk = int(risk_amount / risk_per_share)
@@ -167,7 +207,7 @@ def calculate_position_size(
         shares_from_max_position = int(max_position_value / price)
 
         # Buying power constraint (use up to 60% of buying power per trade)
-        shares_from_buying_power = int(buying_power * 0.6 / price)
+        shares_from_buying_power = int(buying_power * 0.80 / price)
 
         # Final calculation: minimum of (base, constraints), but at least MIN_SHARES
         shares = min(shares_base, shares_from_max_position, shares_from_buying_power, MAX_SHARES)
@@ -787,24 +827,35 @@ async def get_quote(ticker: str):
                 except Exception as e:
                     logger.debug(f"Failed to get quote for {ticker}: {e}")
 
-            # Get previous day's close for change calculation
+            # Get daily bars for prev close, high, low, open, volume
+            day_high = 0
+            day_low = 0
+            day_open = 0
+            day_volume = 0
             if current_price > 0:
                 try:
-                    # Get the last 2 daily bars to find previous close
                     bars_request = StockBarsRequest(
                         symbol_or_symbols=[ticker],
                         timeframe=TimeFrame.Day,
-                        limit=2
+                        limit=5
                     )
-                    bars = client.get_stock_bars(bars_request)
-                    if ticker in bars and bars[ticker]:
-                        bar_list = list(bars[ticker])
-                        if len(bar_list) >= 2:
-                            # Previous day's close
-                            prev_close = float(bar_list[-2].close)
-                        elif len(bar_list) == 1:
-                            # Use today's open as fallback
-                            prev_close = float(bar_list[-1].open)
+                    bars_result = client.get_stock_bars(bars_request)
+                    bar_list = list(bars_result[ticker])
+
+                    if len(bar_list) >= 2:
+                        prev_close = float(bar_list[-2].close)
+                        today_bar = bar_list[-1]
+                    elif len(bar_list) == 1:
+                        prev_close = float(bar_list[0].open)
+                        today_bar = bar_list[0]
+                    else:
+                        today_bar = None
+
+                    if today_bar:
+                        day_high = float(today_bar.high) if today_bar.high else 0
+                        day_low = float(today_bar.low) if today_bar.low else 0
+                        day_open = float(today_bar.open) if today_bar.open else 0
+                        day_volume = int(today_bar.volume) if today_bar.volume else 0
                 except Exception as e:
                     logger.debug(f"Failed to get bars for change calc {ticker}: {e}")
 
@@ -817,7 +868,10 @@ async def get_quote(ticker: str):
                     "price": round(current_price, 2),
                     "change": round(change, 2),
                     "change_percent": round(change_percent, 2),
-                    "volume": volume,
+                    "volume": day_volume or volume,
+                    "high": round(day_high, 2) if day_high > 0 else None,
+                    "low": round(day_low, 2) if day_low > 0 else None,
+                    "open": round(day_open, 2) if day_open > 0 else None,
                     "prev_close": round(prev_close, 2) if prev_close > 0 else None,
                     "timestamp": datetime.utcnow().isoformat(),
                     "source": source
@@ -1061,7 +1115,7 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
         _now_llm = datetime.now(_ZI_llm("America/New_York"))
         _in_market_hours = (
             _now_llm.weekday() < 5
-            and (_now_llm.hour > 9 or (_now_llm.hour == 9 and _now_llm.minute >= 30))
+            and _now_llm.hour >= 9
             and _now_llm.hour < 16
         )
         if not _in_market_hours:
@@ -1197,6 +1251,10 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
         if components:
             total_weight = sum(w for _, w in components)
             sentiment_score = sum(s * w for s, w in components) / total_weight
+            # Low confidence: fewer than 2 data categories → blend toward neutral
+            if len(components) < 2:
+                confidence_factor = 0.5  # Only 1 category — halve deviation from 50
+                sentiment_score = 50 + (sentiment_score - 50) * confidence_factor
         else:
             sentiment_score = 50
 
@@ -1289,7 +1347,7 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
         # Momentum confirms sentiment (both bullish or both bearish)
         if ai_score >= 60 and momentum_score >= 55:
             # Positive sentiment + price rising = boost
-            momentum_boost = min((momentum_score - 50) / 5, 10)  # Up to +10 points
+            momentum_boost = min((momentum_score - 50) / 8, 8)  # Up to +8 points, wider spread
         elif ai_score >= 60 and momentum_score < 45:
             # Positive sentiment + price falling = warning (but still tradeable)
             momentum_boost = -5  # Small penalty
@@ -1410,7 +1468,7 @@ async def get_best_trading_signal():
 
 # Cache for all decisions
 _all_decisions_cache = {"data": None, "timestamp": 0}
-ALL_DECISIONS_CACHE_TTL = 20  # Cache for 20 seconds (real-time trading)
+ALL_DECISIONS_CACHE_TTL = 60  # Cache for 60 seconds (large watchlist)
 
 @app.get("/api/trading/all-decisions")
 async def get_all_trade_decisions():
@@ -1424,12 +1482,19 @@ async def get_all_trade_decisions():
         return _all_decisions_cache["data"]
 
     settings = get_settings()
-    # Use watchlist tickers
-    tickers = settings.watchlist[:50]  # Limit to 50 for performance
+    # Use full watchlist + dynamic tickers
+    static_tickers = settings.watchlist
+    dynamic_tickers = _get_dynamic_tickers() - set(static_tickers)
+    tickers = static_tickers + list(dynamic_tickers)
 
-    # Analyze all tickers in parallel
+    # Analyze all tickers with concurrency limit to avoid API overload
+    sem = asyncio.Semaphore(20)
+    async def analyze_limited(ticker):
+        async with sem:
+            return await _analyze_ticker_for_signal(ticker)
+
     results = await asyncio.gather(
-        *[_analyze_ticker_for_signal(ticker) for ticker in tickers],
+        *[analyze_limited(ticker) for ticker in tickers],
         return_exceptions=True
     )
 
@@ -1794,12 +1859,13 @@ async def get_positions():
         try:
             momentum = await get_momentum_analysis(ticker)
 
-            # Add exit recommendation
+            # pnl_pct from Alpaca is a ratio (e.g. 0.02 = +2%, -0.01 = -1%)
+            pnl_ratio = float(position.get("pnl_pct") or 0)
             if momentum["momentum_score"] < 40:
                 position["exit_signal"] = "MOMENTUM LOST - CONSIDER EXIT"
-            elif position["pnl_pct"] >= 2:
+            elif pnl_ratio >= 0.02:
                 position["exit_signal"] = "TARGET HIT - TAKE PROFIT"
-            elif position["pnl_pct"] <= -1:
+            elif pnl_ratio <= -0.01:
                 position["exit_signal"] = "STOP LOSS - EXIT NOW"
             else:
                 position["exit_signal"] = None
@@ -2118,10 +2184,17 @@ async def get_orders(
                 "filled_avg_price": float(order.filled_avg_price) if order.filled_avg_price else None,
                 "submitted_at": order.submitted_at.isoformat() if order.submitted_at else None,
                 "filled_at": order.filled_at.isoformat() if order.filled_at else None,
+                "expires_at": order.expires_at.isoformat() if getattr(order, "expires_at", None) else None,
                 "limit_price": float(order.limit_price) if order.limit_price else None,
                 "stop_price": float(order.stop_price) if order.stop_price else None,
             }
             order_list.append(order_data)
+
+        # Newest first (Alpaca may return ascending); matches dashboard "Recent Orders"
+        order_list.sort(
+            key=lambda o: o.get("submitted_at") or "",
+            reverse=True,
+        )
 
         return {
             "orders": order_list,
@@ -2673,18 +2746,223 @@ def _check_spy_trend():
         return False, 0.0
 
 
+# ============= PRE-MARKET GAP DETECTION =============
+
+def _get_premarket_gaps_sync(watchlist: list, min_gap_pct: float = 3.0) -> list:
+    """Fetch Alpaca snapshots for watchlist tickers, return gap movers. Sync — call via asyncio.to_thread()."""
+    if not alpaca_trader or not alpaca_trader.data_client:
+        return []
+    try:
+        from alpaca.data.requests import StockSnapshotRequest
+        request = StockSnapshotRequest(symbol_or_symbols=watchlist)
+        snapshots = alpaca_trader.data_client.get_stock_snapshot(request)
+    except Exception as e:
+        logger.error(f"[PRE-MARKET] Snapshot fetch failed: {e}")
+        return []
+
+    gappers = []
+    for symbol, snap in snapshots.items():
+        try:
+            prev_close = float(snap.previous_daily_bar.close)
+            current = float(snap.latest_trade.price)
+            if prev_close <= 0 or current < 25:  # Min $25 price rule
+                continue
+            gap_pct = (current - prev_close) / prev_close * 100
+            if abs(gap_pct) >= min_gap_pct:
+                gappers.append({
+                    "ticker": symbol,
+                    "gap_pct": round(gap_pct, 2),
+                    "prev_close": prev_close,
+                    "current_price": current,
+                    "source": "gap_scan",
+                })
+        except Exception:
+            continue
+    gappers.sort(key=lambda x: abs(x["gap_pct"]), reverse=True)
+    return gappers[:20]
+
+
 # ============= AUTO-TRADE BACKGROUND LOOP =============
 
 async def auto_trade_loop():
     """Background task that automatically scans and trades when enabled."""
-    global _auto_trade_enabled, _daily_loss_limit_hit
+    global _auto_trade_enabled, _daily_loss_limit_hit, _premarket_ready_list, _premarket_built_today, _bell_rush_results, _bell_rush_date, _last_market_state
 
     while True:
         try:
+            from zoneinfo import ZoneInfo
+            now_et = datetime.now(ZoneInfo("America/New_York"))
+            current_state = get_market_status()
+            today_str = now_et.strftime("%Y-%m-%d")
+
+            # === PRE-MARKET READY LIST (9:15 AM ET, once per day) ===
+            if (_auto_trade_enabled
+                and current_state == "pre_market"
+                and now_et.hour == 9 and now_et.minute >= 15
+                and _premarket_built_today != today_str):
+
+                _premarket_built_today = today_str
+                # Clear previous day's bell rush results
+                if _bell_rush_date != today_str:
+                    _bell_rush_results = []
+                    _bell_rush_date = today_str
+                logger.info("[PRE-MARKET] Building ready list...")
+
+                try:
+                    # 1. News-based scan (keyword pass; LLM available from 9:00 AM)
+                    scan_result = await scan_watchlist()
+                    trending_result = await scan_trending()
+
+                    news_candidates = {}
+                    for r in scan_result.get("results", []):
+                        if r["score"] >= 65:
+                            news_candidates[r["ticker"]] = r
+                    for tr in trending_result.get("results", []):
+                        if tr["score"] >= 65 and tr["ticker"] not in news_candidates:
+                            news_candidates[tr["ticker"]] = tr
+
+                    # 2. Gap detection via Alpaca snapshots
+                    settings = get_settings()
+                    gappers = await asyncio.to_thread(_get_premarket_gaps_sync, settings.watchlist)
+                    for g in gappers:
+                        ticker = g["ticker"]
+                        if ticker in news_candidates:
+                            news_candidates[ticker]["gap_pct"] = g["gap_pct"]
+                            news_candidates[ticker]["source"] = "news+gap"
+                        else:
+                            news_candidates[ticker] = {
+                                "ticker": ticker, "score": 50, "gap_pct": g["gap_pct"],
+                                "source": "gap_scan", "sentiment": "unknown",
+                            }
+
+                    # 3. Sort: news+gap > gap-only (by gap%) > news-only (by score)
+                    all_candidates = list(news_candidates.values())
+                    all_candidates.sort(key=lambda x: (
+                        x.get("source") == "news+gap",
+                        abs(x.get("gap_pct", 0)),
+                        x.get("score", 0),
+                    ), reverse=True)
+
+                    _premarket_ready_list = all_candidates[:30]
+                    logger.info(f"[PRE-MARKET] Ready list: {len(_premarket_ready_list)} tickers")
+                    for c in _premarket_ready_list[:10]:
+                        gap_str = f" gap={c.get('gap_pct')}%" if c.get("gap_pct") else ""
+                        logger.info(f"  {c['ticker']}: kw={c['score']:.0f}{gap_str} ({c.get('source', 'news')})")
+
+                except Exception as e:
+                    logger.error(f"[PRE-MARKET] Error building ready list: {e}")
+
+            # === BELL RUSH: Market just opened ===
+            if (current_state == "open" and _last_market_state != "open"
+                and _premarket_ready_list and _auto_trade_enabled):
+
+                logger.info(f"[BELL-RUSH] Market opened! Scoring {len(_premarket_ready_list)} pre-screened tickers...")
+
+                try:
+                    settings = get_settings()
+                    min_score = float(settings.TRADING_MIN_SIGNAL_SCORE)
+                    positions = alpaca_trader.get_positions() if alpaca_trader else []
+                    owned = {p["symbol"] for p in positions}
+
+                    rush_sem = asyncio.Semaphore(5)
+
+                    async def rush_score(candidate):
+                        async with rush_sem:
+                            ticker = candidate["ticker"]
+                            if ticker in owned:
+                                return None
+                            cooldown_until = _ticker_cooldowns.get(ticker)
+                            if cooldown_until and datetime.utcnow() < cooldown_until:
+                                return None
+                            try:
+                                llm_data = await get_sentiment(ticker, use_llm=True)
+                                if llm_data["score"] >= min_score and llm_data.get("llm_enhanced"):
+                                    return {
+                                        "ticker": ticker, "score": llm_data["score"],
+                                        "gap_pct": candidate.get("gap_pct"),
+                                        "source": candidate.get("source", "news"),
+                                    }
+                            except Exception as e:
+                                logger.warning(f"[BELL-RUSH] Score failed for {ticker}: {e}")
+                            return None
+
+                    rush_results = await asyncio.gather(*[rush_score(c) for c in _premarket_ready_list])
+                    rush_buys = [r for r in rush_results if r is not None]
+                    rush_buys.sort(key=lambda x: x["score"], reverse=True)
+
+                    for buy in rush_buys:
+                        ticker = buy["ticker"]
+                        trade_score = buy["score"]
+                        logger.info(f"[BELL-RUSH] BUY signal: {ticker} score={trade_score:.1f} gap={buy.get('gap_pct', 'N/A')}%")
+
+                        # Get full signal data for execution
+                        signal = await _analyze_ticker_for_signal(ticker)
+                        if not signal:
+                            continue
+                        signal["combined_score"] = trade_score
+                        signal["action"] = "BUY"
+
+                        # For 90+ scores, free capital
+                        if trade_score >= 90:
+                            account = alpaca_trader.get_account_status()
+                            acct_equity = float(account.get("equity", 0)) if account else 0
+                            entry_price = float(signal.get("entry_price") or signal.get("price", 0))
+                            if acct_equity > 0 and entry_price > 0:
+                                await _free_capital_for_excellent_signal(ticker, entry_price, acct_equity)
+
+                        result = alpaca_trader.execute_trade(signal)
+
+                        pm = get_position_manager()
+                        if pm and result and result.get("status") == "executed":
+                            pm.register_entry(
+                                symbol=ticker,
+                                entry_price=signal.get("price", result.get("entry_price", 0)),
+                                quantity=result.get("quantity", 1),
+                                thesis=signal.get("reasoning", "")[:500],
+                                stop_loss=result.get("stop_loss"),
+                                take_profit=result.get("take_profit"),
+                            )
+
+                        log_activity(
+                            log_type="AUTO_TRADE",
+                            ticker=ticker,
+                            action="BUY",
+                            details={
+                                "price": signal.get("entry_price"),
+                                "quantity": result.get("quantity") if result else None,
+                                "score": trade_score,
+                                "reasoning": (signal.get("reasoning") or "")[:200],
+                                "order_id": result.get("order_id") if result else None,
+                                "status": result.get("status") if result else None,
+                                "source": f"bell_rush ({buy.get('source', 'news')})",
+                                "gap_pct": buy.get("gap_pct"),
+                                "auto": True,
+                            }
+                        )
+                        _ticker_cooldowns[ticker] = datetime.utcnow() + timedelta(minutes=TICKER_COOLDOWN_MINUTES)
+                        logger.info(f"[BELL-RUSH] Trade executed: {ticker} -> {result}")
+
+                        _bell_rush_results.append({
+                            "ticker": ticker,
+                            "score": trade_score,
+                            "gap_pct": buy.get("gap_pct"),
+                            "source": buy.get("source", "news"),
+                            "status": result.get("status") if result else "failed",
+                            "quantity": result.get("quantity") if result else None,
+                            "price": signal.get("entry_price"),
+                        })
+
+                        # Refresh owned set so we don't double-buy
+                        owned.add(ticker)
+
+                except Exception as e:
+                    logger.error(f"[BELL-RUSH] Error during bell rush: {e}")
+
+                _premarket_ready_list = []  # Clear after use
+
+            _last_market_state = current_state
+
             if _auto_trade_enabled and is_market_open():
-                # Don't open new positions in the last 30 minutes before close
-                from zoneinfo import ZoneInfo
-                now_et = datetime.now(ZoneInfo("America/New_York"))
                 if now_et.hour == 15 and now_et.minute >= 30:
                     logger.info("🤖 [AUTO-TRADE] Skipping scan - too close to market close (3:30 PM+ ET)")
                     await asyncio.sleep(_auto_trade_interval)
@@ -2832,6 +3110,89 @@ async def auto_trade_loop():
                         reason = "no signal" if not signal else f"action={action}, score={float(score):.1f} (need {min_score}+)"
                         logger.info(f"🤖 [AUTO-TRADE] No trade - {reason}")
 
+                    # === TRENDING PASS: Discover non-watchlist tickers from global news ===
+                    try:
+                        trending_result = await scan_trending()
+                        trending_hits = trending_result.get("results", [])
+                        if trending_hits:
+                            logger.info(f"🤖 [TRENDING] {len(trending_hits)} trending tickers discovered")
+                            trending_traded = False
+                            for tr in trending_hits:
+                                if trending_traded:
+                                    break
+                                tr_ticker = tr["ticker"]
+                                tr_score = tr["score"]
+                                tr_action = tr.get("recommendation", "HOLD")
+
+                                if tr_action != "BUY" or tr_score < min_score:
+                                    continue
+                                if tr_ticker in owned_symbols:
+                                    logger.info(f"🤖 [TRENDING] Skipping {tr_ticker} - already own")
+                                    continue
+                                cooldown_until = _ticker_cooldowns.get(tr_ticker)
+                                if cooldown_until and datetime.utcnow() < cooldown_until:
+                                    remaining = (cooldown_until - datetime.utcnow()).total_seconds() / 60
+                                    logger.info(f"🤖 [TRENDING] Skipping {tr_ticker} - cooldown ({remaining:.0f}min)")
+                                    continue
+
+                                # Get full signal data
+                                tr_signal = await _analyze_ticker_for_signal(tr_ticker)
+                                if not tr_signal:
+                                    continue
+                                tr_signal["combined_score"] = tr_score
+                                tr_signal["action"] = tr_action
+
+                                # Must be LLM-confirmed for trading
+                                if not tr.get("llm_enhanced"):
+                                    # Try LLM scoring now
+                                    try:
+                                        llm_data = await get_sentiment(tr_ticker, use_llm=True)
+                                        tr_signal["combined_score"] = llm_data["score"]
+                                        tr_score = llm_data["score"]
+                                        if tr_score < min_score:
+                                            logger.info(f"🤖 [TRENDING] {tr_ticker} LLM score {tr_score:.1f} below threshold")
+                                            continue
+                                    except Exception:
+                                        logger.info(f"🤖 [TRENDING] Skipping {tr_ticker} - LLM unavailable")
+                                        continue
+
+                                logger.info(f"🤖 [TRENDING] Executing BUY on {tr_ticker} (score: {tr_score:.1f}, mentions: {tr.get('mention_count', 1)})")
+                                result = alpaca_trader.execute_trade(tr_signal)
+
+                                # Register with position manager
+                                pm = get_position_manager()
+                                if pm and result and result.get("status") == "executed":
+                                    pm.register_entry(
+                                        symbol=tr_ticker,
+                                        entry_price=tr_signal.get("price", result.get("entry_price", 0)),
+                                        quantity=result.get("quantity", 1),
+                                        thesis=tr_signal.get("reasoning", "")[:500],
+                                        stop_loss=result.get("stop_loss"),
+                                        take_profit=result.get("take_profit"),
+                                    )
+
+                                log_activity(
+                                    log_type="AUTO_TRADE",
+                                    ticker=tr_ticker,
+                                    action="BUY",
+                                    details={
+                                        "price": tr_signal.get("entry_price"),
+                                        "quantity": result.get("quantity") if result else None,
+                                        "score": tr_score,
+                                        "reasoning": (tr_signal.get("reasoning") or "")[:200],
+                                        "order_id": result.get("order_id") if result else None,
+                                        "status": result.get("status") if result else None,
+                                        "source": "trending",
+                                        "mention_count": tr.get("mention_count", 1),
+                                        "auto": True,
+                                    }
+                                )
+                                _ticker_cooldowns[tr_ticker] = datetime.utcnow() + timedelta(minutes=TICKER_COOLDOWN_MINUTES)
+                                logger.info(f"🤖 [TRENDING] ✅ Trade executed: {result}")
+                                trending_traded = True
+                    except Exception as e:
+                        logger.error(f"🤖 [TRENDING] Error in trending scan: {e}")
+
                 except Exception as e:
                     logger.error(f"🤖 [AUTO-TRADE] Error getting signal: {e}")
 
@@ -2978,6 +3339,63 @@ async def get_auto_trade_status():
     }
 
 
+@app.get("/api/premarket/status")
+async def get_premarket_status():
+    """Get pre-market scanner status, ready list, and bell rush results."""
+    from zoneinfo import ZoneInfo
+    now_et = datetime.now(ZoneInfo("America/New_York"))
+    today_str = now_et.strftime("%Y-%m-%d")
+    market_status = get_market_status()
+
+    # Determine phase
+    if not _auto_trade_enabled or market_status in ("closed", "closed_weekend"):
+        phase = "inactive"
+    elif market_status == "after_hours":
+        phase = "completed" if _bell_rush_date == today_str else "inactive"
+    elif market_status == "open":
+        if _bell_rush_results or (_bell_rush_date == today_str and not _premarket_ready_list):
+            phase = "completed"
+        elif _premarket_ready_list:
+            phase = "bell_rush"
+        else:
+            phase = "completed"
+    elif market_status == "pre_market":
+        if _premarket_ready_list and _premarket_built_today == today_str:
+            phase = "ready"
+        elif _premarket_built_today == today_str:
+            phase = "scanning"
+        elif now_et.hour == 9 and now_et.minute >= 15:
+            phase = "scanning"
+        else:
+            phase = "waiting"
+    else:
+        phase = "inactive"
+
+    # Next event hint
+    if phase == "waiting":
+        next_event = "Ready list builds at 9:15 AM ET"
+    elif phase == "scanning":
+        next_event = "Building ready list..."
+    elif phase == "ready":
+        next_event = f"Bell rush at market open (9:30 AM ET) — {len(_premarket_ready_list)} tickers queued"
+    elif phase == "bell_rush":
+        next_event = "Bell rush in progress..."
+    elif phase == "completed":
+        traded = len([r for r in _bell_rush_results if r.get("status") == "executed"])
+        next_event = f"Bell rush complete — {traded} trade(s) executed" if _bell_rush_results else "Pre-market complete"
+    else:
+        next_event = "Available during pre-market hours (4:00-9:30 AM ET)"
+
+    return {
+        "phase": phase,
+        "ready_list": _premarket_ready_list if _premarket_built_today == today_str else [],
+        "bell_rush_results": _bell_rush_results if _bell_rush_date == today_str else [],
+        "built_today": _premarket_built_today,
+        "market_status": market_status,
+        "next_event": next_event,
+    }
+
+
 @app.post("/api/auto-trade/enable")
 async def enable_auto_trade(interval: int = 60):
     """Enable auto-trading with specified interval (seconds)."""
@@ -3105,7 +3523,7 @@ async def get_momentum_analysis(ticker: str):
         signals.append("📊 MODERATE ACTIVITY")
 
     # Cap score
-    momentum_score = max(10, min(90, momentum_score))  # Don't allow extreme 0 or 100
+    momentum_score = max(5, min(95, momentum_score))  # Wider range for differentiation
 
     # Generate instant trade decision
     if momentum_score >= 75:
@@ -3711,17 +4129,22 @@ async def get_watchlist():
     """Return the configured watchlist tickers from .env."""
     return {
         "tickers": settings.watchlist,
-        "universe": settings.universe,
-        "spicy": settings.spicy,
-        "high_volume": settings.high_volume,
-        "all": settings.all_tickers,
         "count": {
             "watchlist": len(settings.watchlist),
-            "universe": len(settings.universe),
-            "spicy": len(settings.spicy),
-            "high_volume": len(settings.high_volume),
-            "total_unique": len(settings.all_tickers),
+            "dynamic": len(_dynamic_watchlist),
         }
+    }
+
+
+@app.get("/api/watchlist/dynamic")
+async def get_dynamic_watchlist():
+    """Return dynamically discovered tickers (auto-added when kw score >= 70)."""
+    dynamic = _get_dynamic_tickers()
+    return {
+        "tickers": sorted(dynamic),
+        "count": len(dynamic),
+        "expiry_hours": DYNAMIC_WATCHLIST_EXPIRY_HOURS,
+        "entries": {t: _dynamic_watchlist[t].isoformat() for t in sorted(dynamic)},
     }
 
 
@@ -3768,13 +4191,20 @@ async def scan_watchlist():
                 "error": str(e)
             }
 
-    # Run scans with limited concurrency (5 at a time to avoid API overload)
-    scan_semaphore = asyncio.Semaphore(5)
+    # Run scans with limited concurrency (15 at a time — keyword-only, cheap API calls)
+    scan_semaphore = asyncio.Semaphore(15)
     async def scan_with_limit(ticker):
         async with scan_semaphore:
             return await scan_ticker(ticker)
 
-    results = await asyncio.gather(*[scan_with_limit(t) for t in settings.watchlist])
+    # Merge static watchlist + dynamic tickers (discovered from trending)
+    static_tickers = settings.watchlist
+    dynamic_tickers = _get_dynamic_tickers() - set(static_tickers)
+    all_tickers = static_tickers + list(dynamic_tickers)
+    if dynamic_tickers:
+        logger.info(f"[DYNAMIC-WL] Scanning {len(dynamic_tickers)} dynamic tickers: {sorted(dynamic_tickers)}")
+
+    results = await asyncio.gather(*[scan_with_limit(t) for t in all_tickers])
     results = list(results)
 
     # === PASS 2: LLM re-scoring on candidates above strict gate ===
@@ -3816,7 +4246,8 @@ async def scan_watchlist():
 
     response = {
         "scan_time": datetime.utcnow().isoformat(),
-        "watchlist_count": len(settings.watchlist),
+        "watchlist_count": len(all_tickers),
+        "dynamic_count": len(dynamic_tickers),
         "llm_rescored": len(candidates) if candidates else 0,
         "results": results,
         "top_opportunities": [r for r in results if r["score"] >= scan_buy_threshold],
@@ -3828,141 +4259,170 @@ async def scan_watchlist():
     return response
 
 
-@app.get("/api/scan/universe")
-async def scan_universe():
-    """Scan extended momentum universe for opportunities."""
-    scan_buy_threshold = float(settings.TRADING_SCAN_BUY_SCORE)
+@app.get("/api/scan/trending")
+async def scan_trending():
+    """Discover high-scoring tickers from global news (not on watchlist)."""
+    # Allow pre-market (8 AM+ ET weekdays) in addition to market hours
+    from zoneinfo import ZoneInfo as _ZI_trend
+    _now_trend = datetime.now(_ZI_trend("America/New_York"))
+    _trend_allowed = is_market_open() or (_now_trend.weekday() < 5 and _now_trend.hour >= 8)
+    if not _trend_allowed:
+        return {"results": [], "message": "Market closed", "scan_time": datetime.utcnow().isoformat()}
 
-    if not benzinga_client:
-        return {
-            "message": "Benzinga API not configured",
-            "universe": settings.universe
-        }
-
-    universe_tickers = settings.universe
-    if not universe_tickers:
-        return {
-            "message": "No universe tickers configured",
-            "universe": []
-        }
-
-    async def scan_ticker(ticker: str):
-        """Scan a single ticker and return result."""
-        try:
-            sentiment_data = await get_sentiment(ticker)
-            return {
-                "ticker": ticker,
-                "sentiment": sentiment_data["sentiment"],
-                "score": sentiment_data["score"],
-                "recommendation": "BUY" if sentiment_data["score"] >= scan_buy_threshold else
-                                 "STRONG SELL" if sentiment_data["score"] <= 10 else
-                                 "SELL" if sentiment_data["score"] <= 30 else "HOLD"
-            }
-        except Exception as e:
-            logger.error(f"Error scanning {ticker}: {e}")
-            return {
-                "ticker": ticker,
-                "sentiment": "unknown",
-                "score": 50,
-                "recommendation": "HOLD",
-                "error": str(e)
-            }
-
-    # Run scans with limited concurrency (5 at a time to avoid API overload)
-    scan_semaphore = asyncio.Semaphore(5)
-    async def scan_with_limit(ticker):
-        async with scan_semaphore:
-            return await scan_ticker(ticker)
-
-    results = await asyncio.gather(*[scan_with_limit(t) for t in universe_tickers])
-    results = list(results)
-
-    # Sort by score (highest first)
-    results.sort(key=lambda x: x["score"], reverse=True)
-
-    return {
-        "scan_time": datetime.utcnow().isoformat(),
-        "universe_count": len(universe_tickers),
-        "results": results,
-        "top_opportunities": [r for r in results if r["score"] >= scan_buy_threshold],
-        "warnings": [r for r in results if r["score"] <= 30]
-    }
-
-
-@app.get("/api/scan/spicy")
-async def scan_spicy():
-    """Scan high-volatility spicy list for opportunities."""
-    scan_buy_threshold = float(settings.TRADING_SCAN_BUY_SCORE)
-
-    # Check cache first
-    cache_key = "spicy"
+    # Check cache
+    cache_key = "trending"
     now = datetime.utcnow()
     if cache_key in _scan_cache:
         cached_data, cache_time = _scan_cache[cache_key]
-        if (now - cache_time).total_seconds() < SCAN_CACHE_TTL:
-            logger.debug("Scan spicy cache HIT")
+        if (now - cache_time).total_seconds() < TRENDING_CACHE_TTL:
+            logger.debug("[TRENDING] Cache HIT")
             return cached_data
 
     if not benzinga_client:
-        return {
-            "message": "Benzinga API not configured",
-            "spicy": settings.spicy
-        }
+        return {"results": [], "message": "Benzinga API not configured"}
 
-    spicy_tickers = settings.spicy
-    if not spicy_tickers:
-        return {
-            "message": "No spicy tickers configured",
-            "spicy": []
-        }
+    settings = get_settings()
+    watchlist_set = set(settings.watchlist)
+    scan_buy_threshold = float(settings.TRADING_SCAN_BUY_SCORE)
 
-    async def scan_ticker(ticker: str):
-        """Scan a single ticker and return result."""
-        try:
-            sentiment_data = await get_sentiment(ticker)
-            return {
-                "ticker": ticker,
-                "sentiment": sentiment_data["sentiment"],
-                "score": sentiment_data["score"],
-                "recommendation": "BUY" if sentiment_data["score"] >= scan_buy_threshold else
-                                 "STRONG SELL" if sentiment_data["score"] <= 10 else
-                                 "SELL" if sentiment_data["score"] <= 25 else "HOLD",
-                "risk_level": "HIGH",
-                "warning": "High volatility - trade with caution"
-            }
-        except Exception as e:
-            logger.error(f"Error scanning {ticker}: {e}")
-            return {
-                "ticker": ticker,
-                "sentiment": "unknown",
-                "score": 50,
-                "recommendation": "HOLD",
-                "risk_level": "HIGH",
-                "error": str(e)
-            }
+    # Fetch 50 latest articles with NO ticker filter
+    try:
+        raw_news = await benzinga_client.get_news(limit=50)
+        articles = raw_news.get("results", []) if isinstance(raw_news, dict) else []
+    except Exception as e:
+        logger.error(f"[TRENDING] Failed to fetch global news: {e}")
+        return {"results": [], "error": str(e)}
 
-    # Run scans with limited concurrency (5 at a time to avoid API overload)
-    scan_semaphore = asyncio.Semaphore(5)
-    async def scan_with_limit(ticker):
-        async with scan_semaphore:
-            return await scan_ticker(ticker)
-
-    results = await asyncio.gather(*[scan_with_limit(t) for t in spicy_tickers])
-    results = list(results)
-
-    # Sort by score (highest first)
-    results.sort(key=lambda x: x["score"], reverse=True)
-
-    response = {
-        "scan_time": datetime.utcnow().isoformat(),
-        "spicy_count": len(spicy_tickers),
-        "results": results,
-        "top_opportunities": [r for r in results if r["score"] >= scan_buy_threshold],
-        "warnings": [r for r in results if r["score"] <= 25],
-        "risk_warning": "⚠️ SPICY LIST - High volatility stocks with elevated risk"
+    # Extract tickers from each article
+    ticker_mentions = {}  # {ticker: count}
+    strong_headline_keywords = {
+        "surge", "soar", "plunge", "crash", "beats", "misses", "upgrade", "downgrade",
+        "partnership", "approval", "contract", "breakthrough", "record", "bankruptcy",
+        "raises guidance", "cuts guidance", "investigation", "probe",
     }
 
-    # Cache the result
+    for article in articles:
+        # Extract tickers from all possible fields
+        tickers_in_article = set()
+        for stock in (article.get("stocks") or []):
+            sym = stock.get("symbol") or stock.get("ticker") or stock.get("name")
+            if sym:
+                tickers_in_article.add(sym.upper())
+        for sym in (article.get("tickers") or []):
+            if isinstance(sym, str):
+                tickers_in_article.add(sym.upper())
+        for sec in (article.get("securities") or []):
+            sym = sec.get("symbol") or sec.get("ticker")
+            if sym:
+                tickers_in_article.add(sym.upper())
+
+        for sym in tickers_in_article:
+            # Filter out excluded ETFs, watchlist tickers, and invalid symbols
+            if sym in _EXCLUDED_TICKERS or sym in watchlist_set:
+                continue
+            if not sym.isalpha() or len(sym) > 5:
+                continue
+            ticker_mentions[sym] = ticker_mentions.get(sym, 0) + 1
+
+    if not ticker_mentions:
+        response = {"results": [], "scan_time": now.isoformat(), "discovered": 0}
+        _scan_cache[cache_key] = (response, now)
+        return response
+
+    # Separate multi-mention (2+) from single-mention tickers
+    multi_mention = {t: c for t, c in ticker_mentions.items() if c >= 2}
+    single_mention = {t: c for t, c in ticker_mentions.items() if c == 1}
+
+    # For single-mention: only keep if headline has strong keywords
+    strong_singles = set()
+    for article in articles:
+        headline = (article.get("title") or article.get("headline") or "").lower()
+        if any(kw in headline for kw in strong_headline_keywords):
+            # Extract tickers from this article
+            for stock in (article.get("stocks") or []):
+                sym = (stock.get("symbol") or stock.get("ticker") or stock.get("name") or "").upper()
+                if sym in single_mention:
+                    strong_singles.add(sym)
+            for sym in (article.get("tickers") or []):
+                if isinstance(sym, str) and sym.upper() in single_mention:
+                    strong_singles.add(sym.upper())
+
+    # Build candidate list: all multi-mention + strong singles
+    candidates = list(multi_mention.keys())[:15]
+    remaining_slots = max(0, 15 - len(candidates))
+    candidates.extend(list(strong_singles)[:remaining_slots])
+
+    if not candidates:
+        response = {"results": [], "scan_time": now.isoformat(), "discovered": 0}
+        _scan_cache[cache_key] = (response, now)
+        return response
+
+    # Keyword-score each candidate
+    scan_semaphore = asyncio.Semaphore(5)
+
+    async def score_ticker(ticker):
+        async with scan_semaphore:
+            try:
+                sentiment = await get_sentiment(ticker)
+                return {
+                    "ticker": ticker,
+                    "score": sentiment["score"],
+                    "sentiment": sentiment["sentiment"],
+                    "mention_count": ticker_mentions.get(ticker, 1),
+                    "source": "trending",
+                    "recommendation": (
+                        "BUY" if sentiment["score"] >= scan_buy_threshold else
+                        "SELL" if sentiment["score"] <= 30 else "HOLD"
+                    ),
+                }
+            except Exception as e:
+                logger.warning(f"[TRENDING] Score failed for {ticker}: {e}")
+                return None
+
+    raw_results = await asyncio.gather(*[score_ticker(t) for t in candidates])
+    results = [r for r in raw_results if r is not None and r["score"] >= 70]
+
+    # Add all 70+ keyword-scoring tickers to dynamic watchlist
+    for r in results:
+        _add_to_dynamic_watchlist(r["ticker"], r["score"])
+
+    # LLM re-score any tickers that passed keyword gate (>= 70)
+    llm_candidates = [r for r in results if r["score"] >= 70]
+    if llm_candidates:
+        llm_semaphore = asyncio.Semaphore(3)
+
+        async def llm_rescore(entry):
+            async with llm_semaphore:
+                try:
+                    llm_data = await get_sentiment(entry["ticker"], use_llm=True)
+                    old_score = entry["score"]
+                    entry["score"] = llm_data["score"]
+                    entry["sentiment"] = llm_data["sentiment"]
+                    entry["llm_enhanced"] = True
+                    entry["keyword_score"] = old_score
+                    entry["recommendation"] = (
+                        "BUY" if llm_data["score"] >= scan_buy_threshold else
+                        "SELL" if llm_data["score"] <= 30 else "HOLD"
+                    )
+                    logger.info(f"[TRENDING] LLM rescore {entry['ticker']}: {old_score:.1f} -> {llm_data['score']:.1f}")
+                except Exception as e:
+                    logger.warning(f"[TRENDING] LLM rescore failed for {entry['ticker']}: {e}")
+
+        await asyncio.gather(*[llm_rescore(r) for r in llm_candidates])
+
+    # Re-filter after LLM (scores may have changed) and sort
+    results = [r for r in results if r["score"] >= 70]
+    results.sort(key=lambda x: x["score"], reverse=True)
+    results = results[:15]
+
+    logger.info(f"[TRENDING] Discovered {len(results)} tickers scoring 70+ from {len(ticker_mentions)} unique tickers")
+
+    response = {
+        "scan_time": now.isoformat(),
+        "discovered": len(results),
+        "total_tickers_seen": len(ticker_mentions),
+        "results": results,
+    }
     _scan_cache[cache_key] = (response, now)
     return response
 
@@ -4118,20 +4578,21 @@ async def websocket_production(websocket: WebSocket):
 
 def get_market_status():
     """Get current market status."""
-    from datetime import timezone
-    now_utc = datetime.now(timezone.utc)
-    et_hour = (now_utc.hour - 5) % 24
-    weekday = now_utc.weekday()
+    from zoneinfo import ZoneInfo
+    now_et = datetime.now(ZoneInfo("America/New_York"))
+    weekday = now_et.weekday()
 
     if weekday >= 5:
         return "closed_weekend"
-    elif et_hour >= 4 and et_hour < 9:
+    elif now_et.hour >= 4 and now_et.hour < 9:
         return "pre_market"
-    elif et_hour == 9 and now_utc.minute >= 30:
+    elif now_et.hour == 9 and now_et.minute < 30:
+        return "pre_market"
+    elif now_et.hour == 9 and now_et.minute >= 30:
         return "open"
-    elif et_hour >= 10 and et_hour < 16:
+    elif now_et.hour >= 10 and now_et.hour < 16:
         return "open"
-    elif et_hour >= 16 and et_hour < 20:
+    elif now_et.hour >= 16 and now_et.hour < 20:
         return "after_hours"
     else:
         return "closed"
@@ -4737,9 +5198,8 @@ if __name__ == "__main__":
     print(f"📊 System Status: http://localhost:{port}/status")
     print(f"📰 Real News: http://localhost:{port}/api/news?ticker=AAPL")
     print(f"💹 Sentiment: http://localhost:{port}/api/sentiment/AAPL")
-    print(f"🔎 Scan Core Watchlist: http://localhost:{port}/api/scan/watchlist")
-    print(f"🌊 Scan Momentum Universe: http://localhost:{port}/api/scan/universe")
-    print(f"🌶️  Scan Spicy High-Vol: http://localhost:{port}/api/scan/spicy\n")
+    print(f"🔎 Scan Watchlist: http://localhost:{port}/api/scan/watchlist")
+    print(f"📡 Scan Trending: http://localhost:{port}/api/scan/trending\n")
 
     uvicorn.run(
         "app.main:app",

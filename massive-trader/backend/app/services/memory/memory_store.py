@@ -170,6 +170,29 @@ class MemoryStore:
             )
         """)
 
+        # Completed trades table (performance tracking)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS completed_trades (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT NOT NULL,
+                side TEXT NOT NULL,
+                entry_price REAL NOT NULL,
+                exit_price REAL NOT NULL,
+                entry_time TEXT NOT NULL,
+                exit_time TEXT NOT NULL,
+                quantity REAL NOT NULL,
+                pnl REAL NOT NULL,
+                pnl_pct REAL NOT NULL,
+                hold_time_minutes REAL,
+                score_at_entry REAL,
+                atr_at_entry REAL,
+                rvol_at_entry REAL,
+                regime_at_entry TEXT,
+                source TEXT,
+                exit_reason TEXT
+            )
+        """)
+
         # Create indices
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_memories_ticker
@@ -182,6 +205,14 @@ class MemoryStore:
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_memories_regime
             ON trade_memories(market_regime)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_completed_ticker
+            ON completed_trades(ticker)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_completed_exit_time
+            ON completed_trades(exit_time)
         """)
 
         conn.commit()
@@ -558,5 +589,130 @@ class MemoryStore:
                 "avg_pnl_percent": avg_pnl,
             }
 
+        finally:
+            conn.close()
+
+    def record_completed_trade(
+        self,
+        ticker: str,
+        side: str,
+        entry_price: float,
+        exit_price: float,
+        entry_time: str,
+        exit_time: str,
+        quantity: float,
+        pnl: float,
+        pnl_pct: float,
+        hold_time_minutes: float = 0,
+        score_at_entry: Optional[float] = None,
+        atr_at_entry: Optional[float] = None,
+        rvol_at_entry: Optional[float] = None,
+        regime_at_entry: Optional[str] = None,
+        source: Optional[str] = None,
+        exit_reason: Optional[str] = None,
+    ):
+        """Record a completed trade for performance tracking."""
+        conn = self._get_connection()
+        try:
+            conn.execute("""
+                INSERT INTO completed_trades (
+                    ticker, side, entry_price, exit_price, entry_time, exit_time,
+                    quantity, pnl, pnl_pct, hold_time_minutes,
+                    score_at_entry, atr_at_entry, rvol_at_entry, regime_at_entry,
+                    source, exit_reason
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                ticker, side, entry_price, exit_price, entry_time, exit_time,
+                quantity, pnl, pnl_pct, hold_time_minutes,
+                score_at_entry, atr_at_entry, rvol_at_entry, regime_at_entry,
+                source, exit_reason,
+            ))
+            conn.commit()
+            logger.info(f"Recorded completed trade: {ticker} {side} pnl={pnl:+.2f} ({pnl_pct:+.2f}%)")
+        except Exception as e:
+            logger.error(f"Error recording completed trade: {e}")
+        finally:
+            conn.close()
+
+    def get_performance_stats(self) -> Dict[str, Any]:
+        """Get performance statistics from completed trades."""
+        conn = self._get_connection()
+        try:
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT COUNT(*) as n FROM completed_trades")
+            total = cursor.fetchone()["n"]
+            if total == 0:
+                return {"total_trades": 0, "message": "No completed trades yet"}
+
+            cursor.execute("SELECT COUNT(*) as n FROM completed_trades WHERE pnl > 0")
+            wins = cursor.fetchone()["n"]
+
+            cursor.execute("SELECT AVG(pnl_pct) as v FROM completed_trades WHERE pnl > 0")
+            avg_win = cursor.fetchone()["v"] or 0
+
+            cursor.execute("SELECT AVG(pnl_pct) as v FROM completed_trades WHERE pnl <= 0")
+            avg_loss = cursor.fetchone()["v"] or 0
+
+            cursor.execute("SELECT SUM(pnl) as v FROM completed_trades WHERE pnl > 0")
+            gross_profit = cursor.fetchone()["v"] or 0
+
+            cursor.execute("SELECT SUM(ABS(pnl)) as v FROM completed_trades WHERE pnl <= 0")
+            gross_loss = cursor.fetchone()["v"] or 0
+
+            cursor.execute("SELECT SUM(pnl) as v FROM completed_trades")
+            net_pnl = cursor.fetchone()["v"] or 0
+
+            cursor.execute("SELECT AVG(hold_time_minutes) as v FROM completed_trades")
+            avg_hold = cursor.fetchone()["v"] or 0
+
+            # Stats by score range
+            score_stats = {}
+            for lo, hi, label in [(80, 85, "80-84"), (85, 90, "85-89"), (90, 101, "90+")]:
+                cursor.execute(
+                    "SELECT COUNT(*) as n, SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as w, AVG(pnl_pct) as avg "
+                    "FROM completed_trades WHERE score_at_entry >= ? AND score_at_entry < ?",
+                    (lo, hi)
+                )
+                row = cursor.fetchone()
+                if row["n"] > 0:
+                    score_stats[label] = {
+                        "trades": row["n"],
+                        "win_rate": round(row["w"] / row["n"] * 100, 1),
+                        "avg_pnl_pct": round(row["avg"], 2),
+                    }
+
+            # Stats by regime
+            regime_stats = {}
+            cursor.execute(
+                "SELECT regime_at_entry, COUNT(*) as n, "
+                "SUM(CASE WHEN pnl > 0 THEN 1 ELSE 0 END) as w, AVG(pnl_pct) as avg "
+                "FROM completed_trades WHERE regime_at_entry IS NOT NULL "
+                "GROUP BY regime_at_entry"
+            )
+            for row in cursor.fetchall():
+                regime_stats[row["regime_at_entry"]] = {
+                    "trades": row["n"],
+                    "win_rate": round(row["w"] / row["n"] * 100, 1),
+                    "avg_pnl_pct": round(row["avg"], 2),
+                }
+
+            profit_factor = gross_profit / gross_loss if gross_loss > 0 else float('inf') if gross_profit > 0 else 0
+
+            return {
+                "total_trades": total,
+                "wins": wins,
+                "losses": total - wins,
+                "win_rate": round(wins / total * 100, 1),
+                "avg_win_pct": round(avg_win, 2),
+                "avg_loss_pct": round(avg_loss, 2),
+                "profit_factor": round(profit_factor, 2),
+                "net_pnl": round(net_pnl, 2),
+                "gross_profit": round(gross_profit, 2),
+                "gross_loss": round(gross_loss, 2),
+                "avg_hold_minutes": round(avg_hold, 1),
+                "by_score_range": score_stats,
+                "by_regime": regime_stats,
+            }
         finally:
             conn.close()

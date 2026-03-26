@@ -134,7 +134,9 @@ ANTHROPIC_API_KEY=your_claude_key
 # Risk Parameters
 TRADING_DEFAULT_MAX_POSITION_RISK=0.01  # 1% per trade
 TRADING_DAILY_MAX_DRAWDOWN=0.05        # 5% daily limit
-TRADING_MIN_SIGNAL_SCORE=70            # Minimum score to trade (strict 70+)
+TRADING_MIN_SIGNAL_SCORE=75            # Minimum score to trade (strict 75+)
+TRADING_SCAN_BUY_SCORE=75              # Scanner BUY/top-opportunity threshold
+TRADING_LLM_RESCORE_MIN_SCORE=75       # LLM rescoring gate (best-only candidates)
 ```
 
 ### Auto-Trade Exit Rules

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState, useEffect } from "react";
+import { memo, useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,14 @@ export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading,
       .finally(() => setIsLoadingTrades(false));
   }, [timePeriod]);
 
+  const sortedRecentOrders = useMemo(() => {
+    return [...(orders || [])].sort((a, b) => {
+      const tb = new Date(b.submitted_at || 0).getTime();
+      const ta = new Date(a.submitted_at || 0).getTime();
+      return tb - ta;
+    });
+  }, [orders]);
+
   // Count pending orders that can be canceled
   const pendingOrders = orders.filter((o) =>
     ["new", "held", "pending_new", "accepted", "partially_filled"].includes(o.status)
@@ -103,13 +111,12 @@ export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading,
             <TooltipContent side="bottom" className="max-w-[280px] p-3">
               <div className="space-y-2 text-xs">
                 <p className="font-semibold">Trade Journal</p>
-                <p>Record of closed trades with realized P&L.</p>
+                <p><strong>Recent orders</strong> mirrors Alpaca (all fills &amp; statuses). <strong>Round trips</strong> below pairs buy/sell FIFO for a simple P&amp;L log — it will not match every broker row.</p>
                 <div className="space-y-1 pt-1">
                   <p><strong>Win Rate:</strong> Percentage of profitable closed trades</p>
                   <p><strong>Total P&L:</strong> Cumulative P&L percentage</p>
                   <p><strong>W/L:</strong> Wins vs losses count</p>
                 </div>
-                <p className="text-muted-foreground">Shows your most recent closed positions with entry/exit details.</p>
               </div>
             </TooltipContent>
           </Tooltip>
@@ -154,7 +161,62 @@ export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading,
           </TabsList>
         </Tabs>
       </CardHeader>
-      <CardContent className="pt-0">
+      <CardContent className="pt-0 space-y-4">
+        {/* Live Alpaca order history (same source as Alpaca Recent Orders) */}
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-semibold text-foreground">Recent orders</span>
+            <span className="text-[10px] text-muted-foreground">
+              {sortedRecentOrders.length} loaded
+            </span>
+          </div>
+          {isLoading ? (
+            <div className="flex items-center justify-center py-6 text-muted-foreground text-xs">
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              Loading orders…
+            </div>
+          ) : sortedRecentOrders.length === 0 ? (
+            <div className="text-xs text-muted-foreground py-3 px-2 rounded-md bg-muted/30 text-center">
+              No orders in the last week from Alpaca. Check API keys or widen the date range in the backend.
+            </div>
+          ) : (
+            <div className="rounded-md border border-border overflow-x-auto max-h-[200px] overflow-y-auto">
+              <table className="w-full text-[10px] sm:text-xs text-left">
+                <thead>
+                  <tr className="border-b border-border bg-muted/40 sticky top-0">
+                    <th className="px-1.5 py-1 font-medium">Sym</th>
+                    <th className="px-1.5 py-1 font-medium">Side</th>
+                    <th className="px-1.5 py-1 font-medium">Type</th>
+                    <th className="px-1.5 py-1 font-medium text-right">Qty</th>
+                    <th className="px-1.5 py-1 font-medium text-right">Fill</th>
+                    <th className="px-1.5 py-1 font-medium text-right">Avg</th>
+                    <th className="px-1.5 py-1 font-medium">Status</th>
+                    <th className="px-1.5 py-1 font-medium whitespace-nowrap">Submitted</th>
+                    <th className="px-1.5 py-1 font-medium whitespace-nowrap">Filled</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedRecentOrders.map((o) => (
+                    <tr key={o.id} className="border-b border-border/60 hover:bg-muted/20">
+                      <td className="px-1.5 py-1 font-semibold">{o.symbol}</td>
+                      <td className="px-1.5 py-1 uppercase">{String(o.side)}</td>
+                      <td className="px-1.5 py-1 capitalize">{o.type}</td>
+                      <td className="px-1.5 py-1 text-right tabular-nums">{o.qty}</td>
+                      <td className="px-1.5 py-1 text-right tabular-nums">{o.filled_qty}</td>
+                      <td className="px-1.5 py-1 text-right tabular-nums">{formatPrice(o.filled_avg_price)}</td>
+                      <td className="px-1.5 py-1 capitalize">{o.status}</td>
+                      <td className="px-1.5 py-1 text-muted-foreground whitespace-nowrap">{formatTime(o.submitted_at)}</td>
+                      <td className="px-1.5 py-1 text-muted-foreground whitespace-nowrap">{formatTime(o.filled_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-border pt-3">
+          <div className="text-xs font-semibold mb-2">Round trips (journal)</div>
         {/* Summary Stats */}
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs text-muted-foreground">
@@ -198,8 +260,8 @@ export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading,
         </div>
 
         {/* Trade List */}
-        <ScrollArea className="h-[160px]">
-          {isLoading || isLoadingTrades ? (
+        <ScrollArea className="h-[110px]">
+          {isLoadingTrades ? (
             <div className="flex items-center justify-center h-full text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
               Loading trades...
@@ -261,6 +323,7 @@ export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading,
             </div>
           )}
         </ScrollArea>
+        </div>
       </CardContent>
     </Card>
     </TooltipProvider>

@@ -43,7 +43,7 @@ export const TodaysSummary = memo(function TodaysSummary({
   riskStatus,
   activityLog = [],
 }: TodaysSummaryProps) {
-  // Use Alpaca's actual day P&L (equity - last_equity) for accuracy
+  // Use Alpaca account-level day_pl — includes both open AND closed positions' P&L
   const totalPL = account?.dayPL ?? 0;
   const totalPLPct = account?.dayPLPercent ?? 0;
 
@@ -98,6 +98,9 @@ export const TodaysSummary = memo(function TodaysSummary({
                   ({formatPercent(totalPLPct)})
                 </span>
               </div>
+              <p className="text-[10px] text-muted-foreground leading-tight mt-0.5 max-w-[14rem]">
+                Same as Alpaca portfolio day: equity vs last equity (includes fees &amp; realized P&amp;L today).
+              </p>
             </div>
           </div>
 

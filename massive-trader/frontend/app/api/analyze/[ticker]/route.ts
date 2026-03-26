@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { contractPath } from "@/lib/api-contract";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
@@ -12,13 +13,13 @@ export async function POST(
   try {
     // Fetch all data in parallel
     const [quoteRes, newsRes, earningsRes, barsRes, sentimentRes, accountRes, riskRes] = await Promise.allSettled([
-      fetch(`${BACKEND_URL}/api/quote/${ticker}`),
-      fetch(`${BACKEND_URL}/api/news?ticker=${ticker}`),
-      fetch(`${BACKEND_URL}/api/earnings?ticker=${ticker}`),
-      fetch(`${BACKEND_URL}/api/bars/${ticker}?timeframe=1Min&limit=100`),
-      fetch(`${BACKEND_URL}/api/sentiment/${ticker}`),
-      fetch(`${BACKEND_URL}/api/account`),
-      fetch(`${BACKEND_URL}/api/risk`),
+      fetch(`${BACKEND_URL}${contractPath("market.quote", { ticker })}`),
+      fetch(`${BACKEND_URL}${contractPath("market.news")}?ticker=${ticker}`),
+      fetch(`${BACKEND_URL}${contractPath("market.earnings")}?ticker=${ticker}`),
+      fetch(`${BACKEND_URL}${contractPath("market.bars", { ticker })}?timeframe=1Min&limit=100`),
+      fetch(`${BACKEND_URL}${contractPath("analysis.sentiment", { ticker })}`),
+      fetch(`${BACKEND_URL}${contractPath("trading.account")}`),
+      fetch(`${BACKEND_URL}${contractPath("trading.metrics")}`),
     ]);
 
     // Extract data with fallbacks

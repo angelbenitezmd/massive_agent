@@ -45,12 +45,23 @@ export function useNews(ticker: string) {
   });
 }
 
-// Global news feed (no ticker filter) - limited to 1 hour for speed
-export function useLatestNews(limit: number = 15, hoursBack: number = 1) {
+// Global news feed (no ticker filter) - full day of news
+export function useLatestNews(limit: number = 30) {
   return useQuery({
-    queryKey: ["news", "all", limit, hoursBack],
-    queryFn: () => api.getNews(undefined, limit, hoursBack),
+    queryKey: ["news", "all", limit],
+    queryFn: () => api.getNews(undefined, limit),
     staleTime: 60000,  // Cache for 1 minute
+    refetchInterval: 120000,  // Refresh every 2 minutes
+  });
+}
+
+// Live news feed that drives the scan (feed-first: last 30 min, same as scanner)
+export function useNewsFeed() {
+  return useQuery({
+    queryKey: ["news", "feed"],
+    queryFn: api.getNewsFeed,
+    refetchInterval: 15000,  // Match scanner refresh
+    staleTime: 10000,
   });
 }
 
@@ -183,6 +194,15 @@ export function useClosePosition() {
   });
 }
 
+export function usePremarketStatus() {
+  return useQuery({
+    queryKey: ["premarket", "status"],
+    queryFn: api.getPremarketStatus,
+    refetchInterval: 15000, // 15s — pre-market changes slowly
+    staleTime: 10000,
+  });
+}
+
 export function useScanWatchlist() {
   return useQuery({
     queryKey: ["scan", "watchlist"],
@@ -190,6 +210,15 @@ export function useScanWatchlist() {
     staleTime: 10000,  // 10 sec
     refetchInterval: 20000,  // Refresh every 20 sec
     refetchOnWindowFocus: true,
+  });
+}
+
+export function useScanTrending() {
+  return useQuery({
+    queryKey: ["scan", "trending"],
+    queryFn: api.scanTrending,
+    staleTime: 60000,  // 1 min
+    refetchInterval: 300000,  // 5 min (matches backend cache TTL)
   });
 }
 
@@ -203,25 +232,6 @@ export function useAllDecisions() {
   });
 }
 
-export function useScanUniverse() {
-  return useQuery({
-    queryKey: ["scan", "universe"],
-    queryFn: api.scanUniverse,
-    staleTime: 10000,
-    refetchInterval: 20000,
-    refetchOnWindowFocus: true,
-  });
-}
-
-export function useScanSpicy() {
-  return useQuery({
-    queryKey: ["scan", "spicy"],
-    queryFn: api.scanSpicy,
-    staleTime: 10000,
-    refetchInterval: 20000,
-    refetchOnWindowFocus: true,
-  });
-}
 
 export function useOrders(status: string = "all", limit: number = 50, days: number = 7) {
   return useQuery({
@@ -395,6 +405,26 @@ export function useMemoryStats() {
     queryFn: api.getMemoryStats,
     staleTime: 60000, // 1 minute
     refetchInterval: 300000, // 5 minutes
+  });
+}
+
+// Ranked news dashboard (keyword-scored, refreshes every 60s)
+export function useRankedNews() {
+  return useQuery({
+    queryKey: ["rankedNews"],
+    queryFn: api.getRankedNews,
+    refetchInterval: 60000,
+    staleTime: 30000,
+  });
+}
+
+// Token usage monitoring
+export function useTokenUsage() {
+  return useQuery({
+    queryKey: ["tokenUsage"],
+    queryFn: api.getTokenUsage,
+    refetchInterval: 10000,
+    staleTime: 5000,
   });
 }
 

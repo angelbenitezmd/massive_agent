@@ -77,6 +77,12 @@ class PositionState:
     last_analysis_time: Optional[datetime] = None
     trailing_stop_active: bool = False
     trailing_stop_price: Optional[float] = None
+    # Trading intelligence fields
+    atr: Optional[float] = None
+    score_at_entry: Optional[float] = None
+    rvol_at_entry: Optional[float] = None
+    regime_at_entry: Optional[str] = None
+    source: Optional[str] = None
 
     @property
     def days_held(self) -> int:
@@ -389,10 +395,13 @@ class PositionManager:
         position: Dict,
         pos_state: PositionState
     ):
-        """Check simple exit rules without LLM - AGGRESSIVE rules to protect capital."""
+        """Check simple exit rules without LLM - ATR-based + direction-aware."""
         current_price = position.get("current", 0)
         pnl_pct = position.get("pnl_pct", 0) * 100
         entry_price = pos_state.entry_price
+        qty = float(position.get("qty", 0))
+        is_short = qty < 0  # Negative qty = short position
+        atr = pos_state.atr
 
         # ===== END-OF-DAY LIQUIDATION (No overnight holds) =====
         now_et = datetime.now(ZoneInfo("America/New_York"))
@@ -406,70 +415,95 @@ class PositionManager:
             return
 
         if is_market_day and now_et >= market_close_warning:
-            logger.info(f"{symbol}: ⚠️ Market closing soon - will liquidate at 3:55 PM ET ({pnl_pct:+.1f}%)")
+            logger.info(f"{symbol}: Market closing soon - will liquidate at 3:55 PM ET ({pnl_pct:+.1f}%)")
 
-        # ===== LOSS PROTECTION (Cut losers fast) =====
-
-        # Emergency stop: -5% loss (was -10%, now more aggressive)
-        if pnl_pct < -5:
-            logger.warning(f"{symbol}: Emergency stop triggered at {pnl_pct:.1f}%")
-            await self._close_position(symbol, position, f"Emergency stop: {pnl_pct:.1f}% loss")
-            return
-
-        # Quick exit: -3% loss AND held > 30 minutes (bad trade, get out)
-        if pnl_pct < -3 and pos_state.days_held >= 0:
-            mins_held = (datetime.utcnow() - pos_state.entry_time).total_seconds() / 60
-            if mins_held > 30:
-                logger.warning(f"{symbol}: Quick stop at {pnl_pct:.1f}% after {mins_held:.0f}min")
-                await self._close_position(symbol, position, f"Quick stop: {pnl_pct:.1f}% loss after 30min")
-                return
-
-        # ===== PROFIT TAKING (Don't let winners become losers) =====
-
-        # Auto take profit at +5%
-        if pnl_pct >= 5:
-            logger.info(f"{symbol}: Taking profit at {pnl_pct:.1f}%")
-            await self._close_position(symbol, position, f"Take profit: +{pnl_pct:.1f}%")
-            return
-
-        # Activate trailing stop automatically when +2% profitable
-        if pnl_pct >= 2 and not pos_state.trailing_stop_active and current_price and entry_price:
-            pos_state.trailing_stop_active = True
-            pos_state.trailing_stop_price = current_price * 0.98  # 2% trail
-            logger.info(f"{symbol}: Auto-trailing stop activated at ${pos_state.trailing_stop_price:.2f} (+{pnl_pct:.1f}%)")
-
-        # Trailing stop check
-        if pos_state.trailing_stop_active and pos_state.trailing_stop_price:
-            if current_price <= pos_state.trailing_stop_price:
-                logger.info(
-                    f"{symbol}: Trailing stop hit at ${pos_state.trailing_stop_price:.2f}"
-                )
-                await self._close_position(symbol, position, "Trailing stop hit")
-                return
-
-            # Update trailing stop if price moved up (tighter 2% trail)
-            if entry_price:
-                new_trail = current_price * 0.98  # 2% trailing (was 3%)
-                if new_trail > pos_state.trailing_stop_price:
-                    pos_state.trailing_stop_price = new_trail
-                    logger.info(f"{symbol}: Trailing stop raised to ${new_trail:.2f}")
-
-        # ===== TIME-BASED EXITS (Signals don't last forever) =====
+        # ===== LOSS PROTECTION =====
 
         mins_held = (datetime.utcnow() - pos_state.entry_time).total_seconds() / 60
         hours_held = mins_held / 60
 
-        # Force exit after 4 hours if not profitable (momentum trade failed)
-        if hours_held >= 4 and pnl_pct <= 0:
-            logger.warning(f"{symbol}: Time exit - held {hours_held:.1f}hrs with {pnl_pct:.1f}% P&L")
-            await self._close_position(symbol, position, f"Time exit: {hours_held:.1f}hrs, not profitable")
+        # ATR-based stop loss (if ATR available)
+        if atr and atr > 0 and current_price and entry_price:
+            if is_short:
+                # Short: stop if price >= entry + 1.2*ATR (price moving against us)
+                atr_stop = entry_price + 1.2 * atr
+                atr_tp = entry_price - 2.0 * atr
+                if current_price >= atr_stop:
+                    logger.warning(f"{symbol}: ATR stop (short) at ${current_price:.2f} >= ${atr_stop:.2f} (entry+1.2*ATR)")
+                    await self._close_position(symbol, position, f"ATR stop (short): price ${current_price:.2f} >= ${atr_stop:.2f}")
+                    return
+                if current_price <= atr_tp and mins_held >= 60:
+                    logger.info(f"{symbol}: ATR take-profit (short) at ${current_price:.2f} <= ${atr_tp:.2f}")
+                    await self._close_position(symbol, position, f"ATR TP (short): ${current_price:.2f} <= ${atr_tp:.2f}")
+                    return
+            else:
+                # Long: stop if price <= entry - 1.5*ATR
+                atr_stop = entry_price - 1.5 * atr
+                atr_tp = entry_price + 2.5 * atr
+                if current_price <= atr_stop:
+                    logger.warning(f"{symbol}: ATR stop (long) at ${current_price:.2f} <= ${atr_stop:.2f} (entry-1.5*ATR)")
+                    await self._close_position(symbol, position, f"ATR stop (long): price ${current_price:.2f} <= ${atr_stop:.2f}")
+                    return
+                if current_price >= atr_tp and mins_held >= 60:
+                    logger.info(f"{symbol}: ATR take-profit (long) at ${current_price:.2f} >= ${atr_tp:.2f}")
+                    await self._close_position(symbol, position, f"ATR TP (long): ${current_price:.2f} >= ${atr_tp:.2f}")
+                    return
+        else:
+            # Fallback: fixed % emergency stop when no ATR
+            if pnl_pct < -5:
+                logger.warning(f"{symbol}: Emergency stop triggered at {pnl_pct:.1f}%")
+                await self._close_position(symbol, position, f"Emergency stop: {pnl_pct:.1f}% loss")
+                return
+
+        # Minimum hold time: 1 hour before any non-emergency exit
+        if mins_held < 60:
+            if pnl_pct < -3:
+                logger.info(f"{symbol}: Down {pnl_pct:.1f}% but only {mins_held:.0f}min held - holding (min 60min)")
             return
 
-        # Force exit after 1 day regardless (day trading style)
-        if pos_state.days_held >= 1:
-            logger.warning(f"{symbol}: Day limit - closing after {pos_state.days_held} days ({pnl_pct:.1f}%)")
-            await self._close_position(symbol, position, f"Day limit: held {pos_state.days_held} days")
-            return
+        # ===== PROFIT TAKING (fallback when no ATR TP hit) =====
+
+        if not atr:
+            if pnl_pct >= 5:
+                logger.info(f"{symbol}: Taking profit at {pnl_pct:.1f}%")
+                await self._close_position(symbol, position, f"Take profit: +{pnl_pct:.1f}%")
+                return
+
+        # ===== TRAILING STOP (ATR-based width when available) =====
+        trail_width = atr / current_price if atr and current_price else 0.02  # ATR-based or 2%
+
+        if is_short:
+            # Short trailing: activate when price drops 2%+ below entry (profitable)
+            if pnl_pct >= 2 and not pos_state.trailing_stop_active and current_price and entry_price:
+                pos_state.trailing_stop_active = True
+                pos_state.trailing_stop_price = current_price * (1 + trail_width)
+                logger.info(f"{symbol}: Trailing stop (short) activated at ${pos_state.trailing_stop_price:.2f}")
+
+            if pos_state.trailing_stop_active and pos_state.trailing_stop_price:
+                if current_price >= pos_state.trailing_stop_price:
+                    logger.info(f"{symbol}: Trailing stop (short) hit at ${pos_state.trailing_stop_price:.2f}")
+                    await self._close_position(symbol, position, "Trailing stop hit (short)")
+                    return
+                new_trail = current_price * (1 + trail_width)
+                if new_trail < pos_state.trailing_stop_price:
+                    pos_state.trailing_stop_price = new_trail
+                    logger.info(f"{symbol}: Trailing stop (short) lowered to ${new_trail:.2f}")
+        else:
+            # Long trailing
+            if pnl_pct >= 2 and not pos_state.trailing_stop_active and current_price and entry_price:
+                pos_state.trailing_stop_active = True
+                pos_state.trailing_stop_price = current_price * (1 - trail_width)
+                logger.info(f"{symbol}: Trailing stop activated at ${pos_state.trailing_stop_price:.2f}")
+
+            if pos_state.trailing_stop_active and pos_state.trailing_stop_price:
+                if current_price <= pos_state.trailing_stop_price:
+                    logger.info(f"{symbol}: Trailing stop hit at ${pos_state.trailing_stop_price:.2f}")
+                    await self._close_position(symbol, position, "Trailing stop hit")
+                    return
+                new_trail = current_price * (1 - trail_width)
+                if new_trail > pos_state.trailing_stop_price:
+                    pos_state.trailing_stop_price = new_trail
+                    logger.info(f"{symbol}: Trailing stop raised to ${new_trail:.2f}")
 
         # Warn at 2 hours
         if hours_held >= 2 and hours_held < 2.5:
@@ -496,6 +530,39 @@ class PositionManager:
                 pnl = result.get("pnl", position.get("pnl", 0))
                 self.state.positions_closed += 1
                 self.state.total_realized_pnl += pnl
+
+                # Record completed trade for performance tracking
+                pos_state = self.state.positions.get(symbol)
+                if pos_state:
+                    try:
+                        from app.services.memory.memory_store import MemoryStore
+                        store = MemoryStore()
+                        current_price = position.get("current", 0)
+                        qty = abs(float(position.get("qty", 0)))
+                        is_short = float(position.get("qty", 0)) < 0
+                        mins_held = (datetime.utcnow() - pos_state.entry_time).total_seconds() / 60
+                        entry_val = pos_state.entry_price * qty
+                        pnl_pct = (pnl / entry_val * 100) if entry_val > 0 else 0
+                        store.record_completed_trade(
+                            ticker=symbol,
+                            side="short" if is_short else "long",
+                            entry_price=pos_state.entry_price,
+                            exit_price=current_price,
+                            entry_time=pos_state.entry_time.isoformat(),
+                            exit_time=datetime.utcnow().isoformat(),
+                            quantity=qty,
+                            pnl=pnl,
+                            pnl_pct=pnl_pct,
+                            hold_time_minutes=mins_held,
+                            score_at_entry=pos_state.score_at_entry,
+                            atr_at_entry=pos_state.atr,
+                            rvol_at_entry=pos_state.rvol_at_entry,
+                            regime_at_entry=pos_state.regime_at_entry,
+                            source=pos_state.source,
+                            exit_reason=reason,
+                        )
+                    except Exception as e:
+                        logger.warning(f"{symbol}: Failed to record completed trade: {e}")
 
                 # Remove from tracking
                 if symbol in self.state.positions:
@@ -695,6 +762,11 @@ class PositionManager:
         thesis: Optional[str] = None,
         stop_loss: Optional[float] = None,
         take_profit: Optional[float] = None,
+        atr: Optional[float] = None,
+        score_at_entry: Optional[float] = None,
+        rvol_at_entry: Optional[float] = None,
+        regime_at_entry: Optional[str] = None,
+        source: Optional[str] = None,
     ):
         """
         Register a new position entry for tracking.
@@ -710,13 +782,20 @@ class PositionManager:
             original_stop_loss=stop_loss,
             original_take_profit=take_profit,
             current_stop_loss=stop_loss,
+            atr=atr,
+            score_at_entry=score_at_entry,
+            rvol_at_entry=rvol_at_entry,
+            regime_at_entry=regime_at_entry,
+            source=source,
         )
 
         stop_str = f"${stop_loss:.2f}" if stop_loss else "none"
         target_str = f"${take_profit:.2f}" if take_profit else "none"
+        atr_str = f"${atr:.2f}" if atr else "none"
         logger.info(
             f"Registered entry: {symbol} @ ${entry_price:.2f}, "
-            f"qty={quantity}, stop={stop_str}, target={target_str}"
+            f"qty={quantity}, stop={stop_str}, target={target_str}, "
+            f"atr={atr_str}, score={score_at_entry}, regime={regime_at_entry}, source={source}"
         )
 
 

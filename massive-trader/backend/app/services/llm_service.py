@@ -61,7 +61,8 @@ class LLMService:
         user_prompt: str,
         model: str = "claude-haiku-4-5-20251001",  # Fast model for trading
         max_tokens: int = 512,  # Reduced for faster response
-        temperature: float = 0.3
+        temperature: float = 0.3,
+        agent_type: str = "unknown",
     ) -> Dict[str, Any]:
         """
         Analyze using Claude.
@@ -86,6 +87,15 @@ class LLMService:
                 temperature=temperature,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}]
+            )
+
+            # Record token usage
+            from app.services.token_tracker import token_tracker
+            token_tracker.record(
+                model=model,
+                input_tokens=message.usage.input_tokens,
+                output_tokens=message.usage.output_tokens,
+                agent_type=agent_type,
             )
 
             response_text = message.content[0].text
@@ -118,7 +128,8 @@ class LLMService:
         user_prompt: str,
         model: str = "gpt-4.1-mini",  # Fast model for trading
         max_tokens: int = 512,  # Reduced for faster response
-        temperature: float = 0.3
+        temperature: float = 0.3,
+        agent_type: str = "unknown",
     ) -> Dict[str, Any]:
         """
         Analyze using OpenAI.
@@ -147,6 +158,16 @@ class LLMService:
                     {"role": "user", "content": user_prompt}
                 ]
             )
+
+            # Record token usage
+            if response.usage:
+                from app.services.token_tracker import token_tracker
+                token_tracker.record(
+                    model=model,
+                    input_tokens=response.usage.prompt_tokens,
+                    output_tokens=response.usage.completion_tokens,
+                    agent_type=agent_type,
+                )
 
             response_text = response.choices[0].message.content
 
@@ -181,30 +202,31 @@ class LLMService:
             Analysis result dict
         """
         result = None
+        agent_type = kwargs.pop("agent_type", "unknown")
 
         if prefer == LLMProvider.CLAUDE:
             if self.has_claude:
-                result = await self.analyze_with_claude(system_prompt, user_prompt, **kwargs)
+                result = await self.analyze_with_claude(system_prompt, user_prompt, agent_type=agent_type, **kwargs)
                 if not result.get("error") and not result.get("fallback"):
                     result["provider"] = "claude"
                     return result
 
             if fallback and self.has_openai:
                 logger.info("Falling back to OpenAI")
-                result = await self.analyze_with_openai(system_prompt, user_prompt, **kwargs)
+                result = await self.analyze_with_openai(system_prompt, user_prompt, agent_type=agent_type, **kwargs)
                 if not result.get("error"):
                     result["provider"] = "openai"
                     return result
         else:
             if self.has_openai:
-                result = await self.analyze_with_openai(system_prompt, user_prompt, **kwargs)
+                result = await self.analyze_with_openai(system_prompt, user_prompt, agent_type=agent_type, **kwargs)
                 if not result.get("error") and not result.get("fallback"):
                     result["provider"] = "openai"
                     return result
 
             if fallback and self.has_claude:
                 logger.info("Falling back to Claude")
-                result = await self.analyze_with_claude(system_prompt, user_prompt, **kwargs)
+                result = await self.analyze_with_claude(system_prompt, user_prompt, agent_type=agent_type, **kwargs)
                 if not result.get("error"):
                     result["provider"] = "claude"
                     return result

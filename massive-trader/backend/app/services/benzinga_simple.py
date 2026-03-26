@@ -90,6 +90,7 @@ class BenzingaClient:
         params = self._build_params(
             tickers=tickers,
             channels=channels,
+            published_gte=published_gte,
             limit=limit,
             sort=sort
         )

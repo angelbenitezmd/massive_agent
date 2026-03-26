@@ -39,7 +39,7 @@ class NewsIntelligenceAgent:
 Your job is to analyze ALL available data for a stock — news, earnings, analyst ratings, and consensus — and determine whether to trade TODAY.
 
 You will receive:
-- Recent news articles (read carefully for actionable catalysts)
+- Recent news articles with freshness labels (read carefully for actionable catalysts)
 - Earnings data (EPS beats/misses, revenue)
 - Recent analyst rating changes (upgrades/downgrades with price targets)
 - Overall analyst consensus (Strong Buy/Buy/Hold/Sell)
@@ -49,6 +49,8 @@ CRITICAL RULES:
 - Stale analyst ratings alone are NOT a reason to buy. A "Strong Buy" consensus with no recent news = score ~50.
 - Recent earnings beats matter, but only if the stock hasn't already priced them in.
 - Focus on what is NEW and ACTIONABLE, not what the street already knows.
+- WEIGHT NEWS BY FRESHNESS: [BREAKING] articles (< 15 min) deserve 3x weight vs [STALE] (> 4 hours). A [BREAKING] catalyst is far more actionable than old news.
+- Score ≤ 25 indicates a STRONG SELL / SHORT signal (severe negative catalyst).
 
 Return JSON with your analysis."""
 
@@ -59,6 +61,7 @@ Return JSON with your analysis."""
         earnings_data: Optional[List[Dict]] = None,
         ratings_data: Optional[List[Dict]] = None,
         consensus_data: Optional[Dict] = None,
+        market_context: Optional[Dict] = None,
     ) -> Dict[str, Any]:
         """
         Analyze all available market data using Claude.
@@ -88,21 +91,40 @@ Return JSON with your analysis."""
         # === Format all data for the LLM ===
         prompt_parts = [f"Full analysis for {ticker}:\n"]
 
-        # News articles
+        # News articles (with freshness labels)
         if news_items:
             prompt_parts.append("== RECENT NEWS ==")
-            for i, item in enumerate(news_items[:7], 1):
+            now = datetime.utcnow()
+            for i, item in enumerate(news_items[:5], 1):
                 title = item.get("title", "")
                 teaser = item.get("teaser", item.get("body", ""))[:400]
                 published = item.get("published", item.get("created", ""))
-                prompt_parts.append(f"[{i}] {title}\n    Published: {published}\n    {teaser}\n")
+                # Calculate age and add freshness label
+                age_label = ""
+                if published:
+                    try:
+                        pub_dt = datetime.fromisoformat(str(published).replace("Z", "+00:00"))
+                        if pub_dt.tzinfo:
+                            pub_dt = pub_dt.replace(tzinfo=None)
+                        age_minutes = (now - pub_dt).total_seconds() / 60
+                        if age_minutes < 15:
+                            age_label = f"[BREAKING - {int(age_minutes)}m]"
+                        elif age_minutes < 60:
+                            age_label = f"[FRESH - {int(age_minutes)}m]"
+                        elif age_minutes < 240:
+                            age_label = f"[RECENT - {age_minutes / 60:.1f}h]"
+                        else:
+                            age_label = f"[STALE - {age_minutes / 60:.1f}h]"
+                    except (ValueError, TypeError):
+                        pass
+                prompt_parts.append(f"[{i}] {age_label} {title}\n    Published: {published}\n    {teaser}\n")
         else:
             prompt_parts.append("== RECENT NEWS ==\nNo recent news articles found.\n")
 
         # Earnings
         if earnings_data:
             prompt_parts.append("== EARNINGS ==")
-            for earn in earnings_data[:3]:
+            for earn in earnings_data[:2]:
                 date = earn.get("date", "")
                 est_eps = earn.get("estimated_eps", "N/A")
                 act_eps = earn.get("actual_eps", "N/A")
@@ -131,6 +153,33 @@ Return JSON with your analysis."""
             pt = cons.get("target_price", cons.get("consensus_price_target", "N/A"))
             prompt_parts.append(f"== ANALYST CONSENSUS ==\n  Rating: {rating} | Target Price: ${pt}\n")
 
+        # Market context (momentum, volume, SPY, RSI, earnings dates) when available
+        if market_context:
+            prompt_parts.append("== MARKET CONTEXT ==")
+            prompt_parts.append(f"  Price: ${market_context.get('price', 'N/A')}")
+            prompt_parts.append(f"  Day Change: {market_context.get('change_pct', 'N/A')}%")
+            mom5 = market_context.get('momentum_5d_pct')
+            if mom5 is not None:
+                prompt_parts.append(f"  5-Day Momentum: {mom5:+.1f}%")
+            rsi_val = market_context.get('rsi')
+            if rsi_val is not None:
+                prompt_parts.append(f"  RSI(14): {rsi_val} (overbought >70, oversold <30)")
+            prompt_parts.append(f"  Volume: {market_context.get('volume', 'N/A'):,}" if isinstance(market_context.get('volume'), (int, float)) else f"  Volume: {market_context.get('volume', 'N/A')}")
+            vol_vs_avg = market_context.get('volume_vs_avg')
+            if vol_vs_avg is not None:
+                elev = " (elevated)" if market_context.get('volume_elevated') else ""
+                prompt_parts.append(f"  Volume vs 20d Avg: {vol_vs_avg:.1f}x{elev}")
+            spy = market_context.get('spy_change_pct')
+            if spy is not None:
+                prompt_parts.append(f"  SPY (market) today: {spy}%")
+            next_earn = market_context.get('next_earnings_date')
+            last_earn = market_context.get('last_earnings_date')
+            if next_earn:
+                prompt_parts.append(f"  Next earnings: {next_earn}")
+            if last_earn:
+                prompt_parts.append(f"  Last earnings: {last_earn}")
+            prompt_parts.append("")
+
         data_text = "\n".join(prompt_parts)
 
         user_prompt = f"""{data_text}
@@ -149,7 +198,8 @@ Based on ALL the data above, provide your trading analysis in this JSON format:
             system_prompt=NewsIntelligenceAgent.SYSTEM_PROMPT,
             user_prompt=user_prompt,
             prefer=LLMProvider.CLAUDE,
-            temperature=0.2
+            temperature=0.2,
+            agent_type="news",
         )
 
         if result.get("error"):
@@ -175,6 +225,7 @@ Based on ALL the data above, provide your trading analysis in this JSON format:
         earnings_data: Optional[List[Dict]] = None,
         ratings_data: Optional[List[Dict]] = None,
         consensus_data: Optional[Dict] = None,
+        market_context: Optional[Dict] = None,
     ) -> Dict[str, Any]:
         """
         Analyze with caching - only calls LLM if needed.
@@ -187,6 +238,7 @@ Based on ALL the data above, provide your trading analysis in this JSON format:
             earnings_data: Recent earnings results
             ratings_data: Recent analyst rating changes
             consensus_data: Overall analyst consensus
+            market_context: Optional momentum, volume, price (when LLM runs with full context)
 
         Returns:
             Analysis result (may be cached)
@@ -200,13 +252,14 @@ Based on ALL the data above, provide your trading analysis in this JSON format:
                 logger.info(f"NewsAgent for {ticker}: Using cached result")
                 return cached
 
-        # Run the agent with all available data
+        # Run the agent with all available data (news, earnings, ratings, consensus, market context)
         logger.info(f"NewsAgent for {ticker}: Running LLM analysis")
         result = await NewsIntelligenceAgent.analyze(
             news_items, ticker,
             earnings_data=earnings_data,
             ratings_data=ratings_data,
             consensus_data=consensus_data,
+            market_context=market_context,
         )
 
         # Cache the result
@@ -334,7 +387,8 @@ Provide your analysis in this JSON format:
             system_prompt=TechnicalAnalysisAgent.SYSTEM_PROMPT,
             user_prompt=user_prompt,
             prefer=LLMProvider.OPENAI,  # Use OpenAI for technical
-            temperature=0.2
+            temperature=0.2,
+            agent_type="technical",
         )
 
         if result.get("error"):
@@ -592,7 +646,8 @@ Provide your FINAL trading decision in this JSON format:
             system_prompt=SentimentSynthesisAgent.SYSTEM_PROMPT,
             user_prompt=user_prompt,
             prefer=LLMProvider.CLAUDE,
-            temperature=0.3
+            temperature=0.3,
+            agent_type="synthesis",
         )
 
         if result.get("error"):
@@ -733,6 +788,10 @@ async def run_full_analysis(
     sma_50: Optional[float] = None,
     sma_200: Optional[float] = None,
     earnings: Optional[Dict] = None,
+    earnings_items: Optional[List[Dict]] = None,
+    ratings_data: Optional[List[Dict]] = None,
+    consensus_data: Optional[Dict] = None,
+    market_context: Optional[Dict] = None,
     account: Optional[Dict] = None,
     positions: Optional[List] = None,
     latest_news_ts: Optional[datetime] = None,
@@ -742,10 +801,12 @@ async def run_full_analysis(
     """
     Run full multi-agent analysis WITH SMART CACHING.
 
-    This is the main entry point for deep analysis. It:
-    1. Checks caches before calling LLMs
-    2. Only runs agents when upstream data changed
-    3. Returns cached results when appropriate
+    All three agents work together before producing a trade score:
+    1. NewsIntelligenceAgent (news + earnings + ratings + consensus + market context)
+    2. TechnicalAnalysisAgent (price bars, RSI, MACD, MAs)
+    3. SentimentSynthesisAgent (synthesizes both into final BUY/SELL/HOLD + score)
+
+    The trade score (final_score) comes from the synthesis - never from a single agent.
 
     Args:
         ticker: Stock ticker
@@ -753,7 +814,11 @@ async def run_full_analysis(
         current_price: Current price
         bars: Price bars
         rsi, macd, sma_*: Technical indicators
-        earnings: Earnings data
+        earnings: Earnings dict for synthesis (legacy)
+        earnings_items: Earnings list for News agent (Benzinga)
+        ratings_data: Analyst ratings for News agent
+        consensus_data: Analyst consensus for News agent
+        market_context: Price, volume, momentum, SPY for News agent
         account: Account info
         positions: Current positions
         latest_news_ts: Timestamp of most recent news (for cache check)
@@ -761,13 +826,18 @@ async def run_full_analysis(
         force_llm: Force LLM calls even if cache valid
 
     Returns:
-        Complete analysis with all agent outputs
+        Complete analysis with synthesis.final_score as the trade score
     """
     ticker = ticker.upper()
 
     # Run news and technical analysis in parallel (with caching)
+    # News agent gets full context: earnings, ratings, consensus, market (same as feed LLM path)
     news_task = NewsIntelligenceAgent.analyze_with_cache(
-        news_items, ticker, latest_news_ts, force=force_llm
+        news_items, ticker, latest_news_ts, force=force_llm,
+        earnings_data=earnings_items,
+        ratings_data=ratings_data,
+        consensus_data=consensus_data,
+        market_context=market_context,
     )
     tech_task = TechnicalAnalysisAgent.analyze_with_cache(
         ticker, current_price, bars, rsi, macd, sma_20, sma_50, sma_200,

@@ -57,28 +57,45 @@ function MiniChart({ data, dataKey, color, height = 60 }: MiniChartProps) {
   // Create area fill
   const areaPoints = `0,100 ${points} 100,100`;
 
+  // Y-axis labels (5 ticks)
+  const ticks = 5;
+  const yLabels = Array.from({ length: ticks }, (_, i) => {
+    const val = max - (i / (ticks - 1)) * range;
+    if (dataKey === "profit_loss_pct") return `${val >= 0 ? "+" : ""}${val.toFixed(1)}%`;
+    if (val >= 1000) return `$${(val / 1000).toFixed(1)}k`;
+    return `$${val.toFixed(0)}`;
+  });
+
   return (
-    <svg
-      viewBox="0 0 100 100"
-      preserveAspectRatio="none"
-      className="w-full"
-      style={{ height }}
-    >
-      {/* Area fill */}
-      <polygon
-        points={areaPoints}
-        fill={color}
-        fillOpacity="0.1"
-      />
-      {/* Line */}
-      <polyline
-        points={points}
-        fill="none"
-        stroke={color}
-        strokeWidth="2"
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
+    <div className="flex gap-1" style={{ height }}>
+      {/* Y-axis labels */}
+      <div className="flex flex-col justify-between text-[9px] text-muted-foreground shrink-0 py-0.5" style={{ writingMode: "initial" }}>
+        {yLabels.map((label, i) => (
+          <span key={i} className="leading-none text-right min-w-[40px]">{label}</span>
+        ))}
+      </div>
+      {/* Chart */}
+      <svg
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        className="w-full h-full"
+      >
+        {/* Area fill */}
+        <polygon
+          points={areaPoints}
+          fill={color}
+          fillOpacity="0.1"
+        />
+        {/* Line */}
+        <polyline
+          points={points}
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+    </div>
   );
 }
 
@@ -110,7 +127,7 @@ export function PortfolioChart() {
 
   if (isLoading) {
     return (
-      <Card>
+      <Card className="h-full">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-sm">
             <BarChart3 className="h-4 w-4 text-primary" />
@@ -128,7 +145,7 @@ export function PortfolioChart() {
 
   return (
     <TooltipProvider>
-      <Card>
+      <Card className="h-full">
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-sm">
@@ -166,7 +183,7 @@ export function PortfolioChart() {
                 </div>
                 <div
                   className={cn(
-                    "text-lg font-bold",
+                    "text-xs font-bold",
                     isPositive ? "text-green-500" : "text-red-500"
                   )}
                 >
@@ -184,7 +201,7 @@ export function PortfolioChart() {
                   <TrendingDown className="h-3 w-3 text-orange-500" />
                   Max Drawdown
                 </div>
-                <div className="text-lg font-bold text-orange-500">
+                <div className="text-xs font-bold text-orange-500">
                   -{(summary.max_drawdown_pct ?? 0).toFixed(2)}%
                 </div>
                 <div className="text-xs text-muted-foreground">
@@ -198,7 +215,7 @@ export function PortfolioChart() {
                   <TrendingUp className="h-3 w-3 text-green-500" />
                   Best Day
                 </div>
-                <div className="text-lg font-bold text-green-500">
+                <div className="text-xs font-bold text-green-500">
                   +{(summary.best_day?.pct ?? 0).toFixed(2)}%
                 </div>
                 <div className="text-xs text-muted-foreground">
@@ -212,7 +229,7 @@ export function PortfolioChart() {
                   <TrendingDown className="h-3 w-3 text-red-500" />
                   Worst Day
                 </div>
-                <div className="text-lg font-bold text-red-500">
+                <div className="text-xs font-bold text-red-500">
                   {(summary.worst_day?.pct ?? 0).toFixed(2)}%
                 </div>
                 <div className="text-xs text-muted-foreground">
@@ -237,7 +254,7 @@ export function PortfolioChart() {
                 data={chartData}
                 dataKey="equity"
                 color={isPositive ? "#22c55e" : "#ef4444"}
-                height={80}
+                height={140}
               />
             </div>
           </div>

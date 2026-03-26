@@ -49,7 +49,10 @@ export interface NewsItem {
   publishedAt: string;
   symbols: string[];
   tags?: string[];
+  keywordScore: number;
   sentiment?: "bullish" | "bearish" | "neutral";
+  on_watchlist?: boolean;
+  body?: string;
 }
 
 // Earnings Types
@@ -144,6 +147,8 @@ export interface Position {
   marketValue: number;
   unrealizedPL: number;
   unrealizedPLPercent: number;
+  intradayPL: number;
+  intradayPLPercent: number;
   stopLoss?: number | null;
   takeProfit?: number | null;
   exitSignal?: string | null;
@@ -197,7 +202,7 @@ export interface SystemStatus {
 export interface Order {
   id: string;
   symbol: string;
-  side: "buy" | "sell";
+  side: "buy" | "sell" | string;
   qty: number;
   filled_qty: number;
   type: string;
@@ -205,6 +210,7 @@ export interface Order {
   filled_avg_price: number | null;
   submitted_at: string | null;
   filled_at: string | null;
+  expires_at?: string | null;
   limit_price?: number | null;
   stop_price?: number | null;
   pnl?: number;
@@ -336,4 +342,36 @@ export interface MemoryStats {
   winningTrades: number;
   winRate: number;
   avgPnlPercent: number;
+}
+
+// Token Usage Types
+export interface TokenUsageByModel {
+  input: number;
+  output: number;
+  cost: number;
+  calls: number;
+}
+
+export interface TokenUsageByAgent {
+  input: number;
+  output: number;
+  calls: number;
+}
+
+export interface TokenUsageByHour {
+  hour: number;
+  input: number;
+  output: number;
+  calls: number;
+}
+
+export interface TokenUsage {
+  date: string;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_cost_estimate: number;
+  call_count: number;
+  by_model: Record<string, TokenUsageByModel>;
+  by_agent: Record<string, TokenUsageByAgent>;
+  by_hour: TokenUsageByHour[];
 }

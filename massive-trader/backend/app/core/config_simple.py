@@ -1,26 +1,7 @@
 """
 Simplified configuration for Python 3.14 compatibility.
 
-WATCHLIST CONFIGURATION
-=======================
-This config reads ticker lists from environment variables (.env file):
-
-- WATCHLIST_TICKERS: Core "Best Stocks" universe
-  High-quality, highly liquid S&P 100-style large caps.
-  Sector-balanced for diversification.
-  Used by: Scanner "Watchlist" tab, primary AI analysis.
-
-- SCAN_UNIVERSE_TICKERS: Extended momentum universe
-  Growth & momentum stocks for broader scanning.
-
-- SPICY_TICKERS: High Volatility / "Spicy" list
-  Meme stocks, high beta, story stocks.
-  Used by: Scanner "High Volatility" tab.
-
-All major US exchanges (NYSE, NASDAQ, AMEX) are supported.
-No exchange-specific filtering is applied - Alpaca + Benzinga cover all.
-
-TODO (future): Dynamic universe selection via nightly scoring/rotation.
+Reads WATCHLIST_TICKERS from .env — one consolidated list of all tickers.
 """
 import os
 from dotenv import load_dotenv
@@ -55,7 +36,10 @@ class Settings:
         self.TRADING_HYBRID_INTERVAL_SECONDS = int(os.getenv("TRADING_HYBRID_INTERVAL_SECONDS", "60"))
         self.TRADING_DEFAULT_MAX_POSITION_RISK = float(os.getenv("TRADING_DEFAULT_MAX_POSITION_RISK", "0.01"))
         self.TRADING_DAILY_MAX_DRAWDOWN = float(os.getenv("TRADING_DAILY_MAX_DRAWDOWN", "0.05"))
-        self.TRADING_MIN_SIGNAL_SCORE = float(os.getenv("TRADING_MIN_SIGNAL_SCORE", "50"))
+        self.TRADING_MIN_SIGNAL_SCORE = float(os.getenv("TRADING_MIN_SIGNAL_SCORE", "75"))
+        self.TRADING_SCAN_BUY_SCORE = float(os.getenv("TRADING_SCAN_BUY_SCORE", "75"))
+        self.TRADING_LLM_RESCORE_MIN_SCORE = float(os.getenv("TRADING_LLM_RESCORE_MIN_SCORE", "75"))
+        self.TRADING_ELITE_SIGNAL_SCORE = float(os.getenv("TRADING_ELITE_SIGNAL_SCORE", "80"))
         self.TRADING_FAST_MODE_URGENCY_THRESHOLD = float(os.getenv("TRADING_FAST_MODE_URGENCY_THRESHOLD", "0.8"))
 
         # WebSocket
@@ -69,11 +53,8 @@ class Settings:
         self.LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
         self.LOG_FILE = os.getenv("LOG_FILE", "trading_system.log")
 
-        # Watchlists
+        # Watchlist
         self.WATCHLIST_TICKERS = os.getenv("WATCHLIST_TICKERS", "AAPL,MSFT,GOOGL")
-        self.SCAN_UNIVERSE_TICKERS = os.getenv("SCAN_UNIVERSE_TICKERS", "")
-        self.SPICY_TICKERS = os.getenv("SPICY_TICKERS", "")
-        self.HIGH_VOLUME_TICKERS = os.getenv("HIGH_VOLUME_TICKERS", "")
 
         # Print trading mode
         if self.ALPACA_ENV == "live":
@@ -97,31 +78,9 @@ class Settings:
         return [ticker.strip() for ticker in self.WATCHLIST_TICKERS.split(",") if ticker.strip()]
 
     @property
-    def universe(self) -> list:
-        """Parse extended universe tickers into a list."""
-        if not self.SCAN_UNIVERSE_TICKERS:
-            return []
-        return [ticker.strip() for ticker in self.SCAN_UNIVERSE_TICKERS.split(",") if ticker.strip()]
-
-    @property
-    def spicy(self) -> list:
-        """Parse spicy high-vol tickers into a list."""
-        if not self.SPICY_TICKERS:
-            return []
-        return [ticker.strip() for ticker in self.SPICY_TICKERS.split(",") if ticker.strip()]
-
-    @property
-    def high_volume(self) -> list:
-        """Parse high volume runner tickers into a list."""
-        if not self.HIGH_VOLUME_TICKERS:
-            return []
-        return [ticker.strip() for ticker in self.HIGH_VOLUME_TICKERS.split(",") if ticker.strip()]
-
-    @property
     def all_tickers(self) -> list:
-        """Get all unique tickers from all lists combined."""
-        all_ticks = set(self.watchlist + self.universe + self.spicy + self.high_volume)
-        return sorted(list(all_ticks))
+        """Get all unique tickers (same as watchlist now)."""
+        return self.watchlist
 
     @property
     def is_paper_trading(self) -> bool:

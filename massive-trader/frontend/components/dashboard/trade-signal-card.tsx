@@ -82,7 +82,7 @@ export const TradeSignalCard = memo(function TradeSignalCard({
               <>
                 <Radio className="h-4 w-4 text-yellow-500" />
                 <span className="text-yellow-500 font-medium text-sm">
-                  {marketOpen ? "SCANNING" : "MARKET CLOSED"}
+                  {marketOpen ? "SCANNING" : "WAITING — Market Closed"}
                 </span>
               </>
             ) : (
@@ -105,7 +105,7 @@ export const TradeSignalCard = memo(function TradeSignalCard({
         {/* Trade threshold indicator */}
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-xs bg-background">
-            Min Score: 70+
+            Min Score: 75+
           </Badge>
           {autoTradeStatus.market_open && (
             <Badge variant="outline" className="text-xs border-green-500 text-green-500 bg-green-500/10">
@@ -117,48 +117,10 @@ export const TradeSignalCard = memo(function TradeSignalCard({
     );
   };
 
-  if (isLoading) {
-    return (
-      <Card className="overflow-hidden">
-        <AutoTradeStatusBanner />
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Target className="h-4 w-4 text-muted-foreground" />
-            Trade Decisions
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
-            <div className="flex items-center gap-2">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-              Analyzing watchlist...
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!decisions || decisions.total === 0) {
-    return (
-      <Card className="border-dashed overflow-hidden">
-        <AutoTradeStatusBanner />
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <Target className="h-4 w-4 text-muted-foreground" />
-            Trade Decisions
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
-            No trade decisions available
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const { buy, hold, sell, counts } = decisions;
+  const buy = decisions?.buy ?? [];
+  const hold = decisions?.hold ?? [];
+  const sell = decisions?.sell ?? [];
+  const counts = decisions?.counts ?? { buy: 0, hold: 0, sell: 0 };
 
   return (
     <Card className="overflow-hidden">
@@ -199,7 +161,7 @@ export const TradeSignalCard = memo(function TradeSignalCard({
             selectedTicker={selectedTicker}
           />
 
-          {/* HOLD Column */}
+          {/* HOLD Column - only LLM-analyzed */}
           <DecisionColumn
             title="HOLD"
             icon={<Minus className="h-4 w-4" />}
@@ -273,17 +235,22 @@ function DecisionColumn({
   return (
     <div className="flex flex-col">
       {/* Column Header */}
-      <div className={cn("flex items-center justify-center gap-1.5 py-2 px-3", c.header)}>
-        {icon}
-        <span className="font-semibold text-sm">{title}</span>
-        <span className="text-xs opacity-70">({decisions.length})</span>
+      <div className={cn("flex flex-col items-center justify-center py-2 px-3", c.header)}>
+        <div className="flex items-center gap-1.5">
+          {icon}
+          <span className="font-semibold text-sm">{title}</span>
+          <span className="text-xs opacity-70">({decisions.length})</span>
+        </div>
+        <span className="text-[10px] opacity-80 mt-0.5">
+          {title === "BUY" ? "75+" : title === "SELL" ? "0-30" : "31-74"}
+        </span>
       </div>
 
       {/* Decision List */}
-      <ScrollArea className="h-[220px]">
+      <ScrollArea className="h-[130px]">
         <div className="p-2 space-y-1">
           {decisions.length === 0 ? (
-            <div className="flex items-center justify-center h-[200px] text-muted-foreground text-xs">
+            <div className="flex items-center justify-center h-[100px] text-muted-foreground text-xs">
               No {title.toLowerCase()} decisions
             </div>
           ) : (
@@ -325,10 +292,22 @@ function DecisionColumn({
 
                 {/* Score breakdown */}
                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground pl-7">
-                  <div className="flex items-center gap-0.5">
-                    <Brain className="h-3 w-3" />
-                    <span>AI: {decision.aiScore}</span>
-                  </div>
+                  {decision.llmEnhanced ? (
+                    <div className="flex items-center gap-0.5">
+                      <Brain className="h-3 w-3 text-purple-400" />
+                      <span className="text-purple-400">LLM: {decision.combinedScore}</span>
+                      {decision.keywordScore != null && decision.keywordScore !== decision.combinedScore && (
+                        <span className="opacity-80 line-through" style={{
+                          color: `hsl(${Math.max(0, Math.min(100, decision.keywordScore)) * 1.2}, 85%, 50%)`
+                        }}>{decision.keywordScore}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-0.5">
+                      <Brain className="h-3 w-3" />
+                      <span>AI: {decision.aiScore}</span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-0.5">
                     <Zap className="h-3 w-3" />
                     <span>Mom: {decision.momentumScore}</span>

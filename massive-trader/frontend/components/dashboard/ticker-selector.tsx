@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useEffect } from "react";
-import { Search, TrendingUp, TrendingDown, Star, Flame, Zap, Building2, Cpu, Heart, Fuel, ShoppingCart, Factory, Tv } from "lucide-react";
+import { TrendingUp, TrendingDown, Star, Flame, Zap, Building2, Cpu, Heart, Fuel, ShoppingCart, Factory, Tv } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -272,6 +272,141 @@ const TICKER_INFO: Record<string, { name: string; sector: string }> = {
   // ============ AUTO ============
   F: { name: "Ford", sector: "Auto" },
   GM: { name: "GM", sector: "Auto" },
+  // ============ ETFs - BROAD MARKET ============
+  SPY: { name: "S&P 500", sector: "ETF" },
+  QQQ: { name: "Nasdaq 100", sector: "ETF" },
+  DIA: { name: "Dow Jones", sector: "ETF" },
+  IWM: { name: "Russell 2000", sector: "ETF" },
+  VTI: { name: "Total Market", sector: "ETF" },
+  VOO: { name: "Vanguard S&P", sector: "ETF" },
+  IVV: { name: "iShares S&P", sector: "ETF" },
+  MDY: { name: "S&P MidCap", sector: "ETF" },
+  IJR: { name: "S&P SmallCap", sector: "ETF" },
+  RSP: { name: "Equal Weight S&P", sector: "ETF" },
+  // ============ ETFs - GROWTH / VALUE ============
+  VUG: { name: "Growth", sector: "ETF" },
+  VTV: { name: "Value", sector: "ETF" },
+  IWF: { name: "Russell Growth", sector: "ETF" },
+  IWD: { name: "Russell Value", sector: "ETF" },
+  SPYG: { name: "S&P 500 Growth", sector: "ETF" },
+  SPYV: { name: "S&P 500 Value", sector: "ETF" },
+  MTUM: { name: "Momentum", sector: "ETF" },
+  QUAL: { name: "Quality", sector: "ETF" },
+  // ============ ETFs - INTERNATIONAL ============
+  VEA: { name: "Intl Developed", sector: "ETF" },
+  VWO: { name: "Emerging Mkts", sector: "ETF" },
+  EFA: { name: "EAFE", sector: "ETF" },
+  EEM: { name: "Emerging Mkts iS", sector: "ETF" },
+  IEMG: { name: "Core EM", sector: "ETF" },
+  FXI: { name: "China Large Cap", sector: "ETF" },
+  KWEB: { name: "China Internet", sector: "ETF" },
+  MCHI: { name: "China MSCI", sector: "ETF" },
+  EWJ: { name: "Japan", sector: "ETF" },
+  EWZ: { name: "Brazil", sector: "ETF" },
+  INDA: { name: "India", sector: "ETF" },
+  EWG: { name: "Germany", sector: "ETF" },
+  EWU: { name: "UK", sector: "ETF" },
+  // ============ ETFs - SECTOR ============
+  XLF: { name: "Financials", sector: "ETF" },
+  XLK: { name: "Technology", sector: "ETF" },
+  XLE: { name: "Energy", sector: "ETF" },
+  XLV: { name: "Healthcare", sector: "ETF" },
+  XLI: { name: "Industrials", sector: "ETF" },
+  XLU: { name: "Utilities", sector: "ETF" },
+  XLP: { name: "Staples", sector: "ETF" },
+  XLY: { name: "Discretionary", sector: "ETF" },
+  XLB: { name: "Materials", sector: "ETF" },
+  XLRE: { name: "Real Estate", sector: "ETF" },
+  XLC: { name: "Communication", sector: "ETF" },
+  // ============ ETFs - THEMATIC / INDUSTRY ============
+  SMH: { name: "Semiconductors", sector: "ETF" },
+  SOXX: { name: "Semis iShares", sector: "ETF" },
+  XBI: { name: "Biotech", sector: "ETF" },
+  IBB: { name: "Biotech iShares", sector: "ETF" },
+  KRE: { name: "Regional Banks", sector: "ETF" },
+  KBE: { name: "Banks", sector: "ETF" },
+  XHB: { name: "Homebuilders", sector: "ETF" },
+  ITB: { name: "Home Construct", sector: "ETF" },
+  XRT: { name: "Retail", sector: "ETF" },
+  IYT: { name: "Transportation", sector: "ETF" },
+  ITA: { name: "Defense", sector: "ETF" },
+  XOP: { name: "Oil & Gas Expl", sector: "ETF" },
+  OIH: { name: "Oil Services", sector: "ETF" },
+  GDX: { name: "Gold Miners", sector: "ETF" },
+  GDXJ: { name: "Jr Gold Miners", sector: "ETF" },
+  SIL: { name: "Silver Miners", sector: "ETF" },
+  JETS: { name: "Airlines", sector: "ETF" },
+  HACK: { name: "Cybersecurity", sector: "ETF" },
+  CIBR: { name: "Cyber iShares", sector: "ETF" },
+  BOTZ: { name: "Robotics & AI", sector: "ETF" },
+  ARKK: { name: "ARK Innovation", sector: "ETF" },
+  ARKW: { name: "ARK Next Gen", sector: "ETF" },
+  ARKG: { name: "ARK Genomic", sector: "ETF" },
+  ARKF: { name: "ARK Fintech", sector: "ETF" },
+  ARKQ: { name: "ARK Autonomous", sector: "ETF" },
+  // ============ ETFs - CLEAN ENERGY ============
+  ICLN: { name: "Clean Energy", sector: "ETF" },
+  TAN: { name: "Solar", sector: "ETF" },
+  QCLN: { name: "Clean Edge", sector: "ETF" },
+  LIT: { name: "Lithium & Batt", sector: "ETF" },
+  // ============ ETFs - BONDS / FIXED INCOME ============
+  AGG: { name: "Agg Bond", sector: "ETF" },
+  BND: { name: "Total Bond", sector: "ETF" },
+  TLT: { name: "20+ Yr Treasury", sector: "ETF" },
+  IEF: { name: "7-10 Yr Treasury", sector: "ETF" },
+  SHY: { name: "1-3 Yr Treasury", sector: "ETF" },
+  TIP: { name: "TIPS", sector: "ETF" },
+  LQD: { name: "Inv Grade Corp", sector: "ETF" },
+  HYG: { name: "High Yield Corp", sector: "ETF" },
+  JNK: { name: "Junk Bonds", sector: "ETF" },
+  EMB: { name: "EM Bonds", sector: "ETF" },
+  // ============ ETFs - COMMODITIES ============
+  GLD: { name: "Gold", sector: "ETF" },
+  IAU: { name: "Gold iShares", sector: "ETF" },
+  SLV: { name: "Silver", sector: "ETF" },
+  USO: { name: "Oil", sector: "ETF" },
+  UNG: { name: "Natural Gas", sector: "ETF" },
+  DBA: { name: "Agriculture", sector: "ETF" },
+  DBC: { name: "Commodities", sector: "ETF" },
+  WEAT: { name: "Wheat", sector: "ETF" },
+  CORN: { name: "Corn", sector: "ETF" },
+  // ============ ETFs - DIVIDEND ============
+  VYM: { name: "High Dividend", sector: "ETF" },
+  SCHD: { name: "Div Schwab", sector: "ETF" },
+  DVY: { name: "Div Select", sector: "ETF" },
+  HDV: { name: "High Div iS", sector: "ETF" },
+  JEPI: { name: "JPM Equity Prem", sector: "ETF" },
+  JEPQ: { name: "JPM Nasdaq Prem", sector: "ETF" },
+  // ============ ETFs - REAL ESTATE ============
+  VNQ: { name: "US REITs", sector: "ETF" },
+  VNQI: { name: "Intl REITs", sector: "ETF" },
+  // ============ ETFs - LEVERAGED / INVERSE ============
+  TQQQ: { name: "3x Nasdaq", sector: "ETF" },
+  SQQQ: { name: "-3x Nasdaq", sector: "ETF" },
+  SPXL: { name: "3x S&P Bull", sector: "ETF" },
+  SPXU: { name: "-3x S&P", sector: "ETF" },
+  SPXS: { name: "-3x S&P Bear", sector: "ETF" },
+  UPRO: { name: "3x S&P", sector: "ETF" },
+  TNA: { name: "3x SmallCap", sector: "ETF" },
+  TZA: { name: "-3x SmallCap", sector: "ETF" },
+  SOXL: { name: "3x Semis", sector: "ETF" },
+  SOXS: { name: "-3x Semis", sector: "ETF" },
+  LABU: { name: "3x Biotech", sector: "ETF" },
+  LABD: { name: "-3x Biotech", sector: "ETF" },
+  FAS: { name: "3x Financials", sector: "ETF" },
+  FAZ: { name: "-3x Financials", sector: "ETF" },
+  NUGT: { name: "2x Gold Miners", sector: "ETF" },
+  DUST: { name: "-2x Gold Miners", sector: "ETF" },
+  UVXY: { name: "1.5x VIX", sector: "ETF" },
+  VXX: { name: "VIX Short-Term", sector: "ETF" },
+  VIXY: { name: "VIX Futures", sector: "ETF" },
+  SVXY: { name: "-0.5x VIX", sector: "ETF" },
+  // ============ ETFs - CRYPTO ============
+  BITO: { name: "Bitcoin Futures", sector: "ETF" },
+  IBIT: { name: "Bitcoin iShares", sector: "ETF" },
+  FBTC: { name: "Bitcoin Fidelity", sector: "ETF" },
+  ETHE: { name: "Ethereum", sector: "ETF" },
+  GBTC: { name: "Grayscale BTC", sector: "ETF" },
 };
 
 // Sector categories with icons
@@ -298,6 +433,7 @@ const SECTORS: Record<string, { icon: React.ElementType; color: string }> = {
   Travel: { icon: Zap, color: "text-blue-400" },
   Mining: { icon: Factory, color: "text-stone-500" },
   Auto: { icon: Zap, color: "text-zinc-500" },
+  ETF: { icon: TrendingUp, color: "text-blue-400" },
 };
 
 interface TickerSelectorProps {
@@ -374,7 +510,6 @@ export function TickerSelector({
     <div ref={containerRef} className={cn("relative", className)}>
       {/* Search Input */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           value={isOpen ? searchValue : selectedTicker}
           onChange={(e) => {
@@ -383,7 +518,7 @@ export function TickerSelector({
           }}
           onFocus={() => setIsOpen(true)}
           placeholder="Search ticker, name, or sector..."
-          className="pl-10 pr-24 bg-secondary/50"
+          className="pr-24 bg-secondary/50"
         />
         {/* Current ticker badge */}
         {!isOpen && currentInfo && (

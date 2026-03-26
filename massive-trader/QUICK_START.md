@@ -59,6 +59,9 @@ python -m app.apps.trading_loop
 - Health Check: http://localhost:8000/health
 - System Status: http://localhost:8000/status
 
+> **Security note (local use only)**  
+> This app is designed to run on your local machine. The backend API has **no authentication**; do **not** expose it directly to the public internet or untrusted networks.
+
 ## Key Endpoints to Test
 
 ### Get Market News

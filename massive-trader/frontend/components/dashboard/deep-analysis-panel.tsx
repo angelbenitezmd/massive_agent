@@ -279,7 +279,7 @@ export const DeepAnalysisPanel = memo(function DeepAnalysisPanel({
             </Button>
 
             {expanded && (
-              <ScrollArea className="h-[300px]">
+              <ScrollArea className="h-[150px]">
                 <div className="space-y-4 pr-3">
                   {/* Risk Management */}
                   {result.synthesis?.risk_management && (

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { contractPath } from "@/lib/api-contract";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
 
@@ -6,19 +7,20 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    const response = await fetch(`${BACKEND_URL}/api/trade`, {
+    const response = await fetch(`${BACKEND_URL}${contractPath("trading.manual")}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        symbol: body.symbol,
-        action: body.action,
+        ticker: body.symbol || body.ticker,
+        side: (body.action || body.side || "buy").toLowerCase(),
         quantity: body.quantity,
-        entry_price: body.entry_price || body.entryPrice,
+        limit_price: body.limit_price || body.limitPrice,
         stop_loss: body.stop_loss || body.stopLoss,
         take_profit: body.take_profit || body.takeProfit,
-        order_type: body.order_type || "bracket",
+        order_type: body.order_type || "market",
+        time_in_force: body.time_in_force || "day",
       }),
     });
 

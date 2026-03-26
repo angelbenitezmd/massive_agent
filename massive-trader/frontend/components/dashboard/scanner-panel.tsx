@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import {
   Radar,
   TrendingUp,
@@ -28,7 +26,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { API_BASE } from "@/lib/api";
 
 interface ScanResult {
   ticker: string;
@@ -37,35 +34,45 @@ interface ScanResult {
   recommendation: string;
 }
 
+interface TrendingResult {
+  ticker: string;
+  score: number;
+  sentiment: string;
+  mention_count: number;
+  recommendation: string;
+  source: string;
+  llm_enhanced?: boolean;
+}
+
 interface ScannerPanelProps {
   selectedTicker: string;
   onSelectTicker: (ticker: string) => void;
+  watchlistResults?: ScanResult[];
+  trendingResults?: TrendingResult[];
+  isLoading?: boolean;
+  isFetching?: boolean;
+  onRefresh?: () => void;
+  updatedAt?: number;
 }
 
-export function ScannerPanel({ selectedTicker, onSelectTicker }: ScannerPanelProps) {
-  const [scanType, setScanType] = useState<"watchlist" | "spicy">("watchlist");
-
-  const { data, isLoading, refetch, isFetching, dataUpdatedAt } = useQuery({
-    queryKey: ["scan", scanType],
-    queryFn: async () => {
-      const res = await fetch(`${API_BASE}/api/scan/${scanType}`);
-      if (!res.ok) throw new Error("Scan failed");
-      return res.json();
-    },
-    refetchInterval: 15000, // Auto-refresh every 15 seconds for real-time
-    staleTime: 5000, // Consider stale after 5 seconds
-    refetchOnWindowFocus: true,
-    refetchIntervalInBackground: false,
-  });
-
-  const results: ScanResult[] = data?.results || [];
+export function ScannerPanel({
+  selectedTicker,
+  onSelectTicker,
+  watchlistResults,
+  trendingResults,
+  isLoading = false,
+  isFetching = false,
+  onRefresh,
+  updatedAt,
+}: ScannerPanelProps) {
+  const results: ScanResult[] = watchlistResults || [];
 
   // Sort by score descending
   const sortedResults = [...results].sort((a, b) => b.score - a.score);
 
-  // Get top opportunities (BUY recommendations with score >= 70)
+  // Get top opportunities (BUY recommendations with score >= 75)
   const topOpportunities = sortedResults.filter(
-    (r) => r.recommendation === "BUY" && r.score >= 70
+    (r) => r.recommendation === "BUY" && r.score >= 75
   );
 
   const getScoreColor = (score: number) => {
@@ -113,12 +120,8 @@ export function ScannerPanel({ selectedTicker, onSelectTicker }: ScannerPanelPro
                 <TooltipContent side="bottom" className="max-w-[280px] p-3">
                   <div className="space-y-2 text-xs">
                     <p className="font-semibold">Stock Scanner</p>
-                    <p>Scans your watchlist and high-volatility stocks for trading opportunities using AI analysis.</p>
-                    <div className="space-y-1 pt-1">
-                      <p><strong>Watchlist:</strong> Stocks you&apos;re tracking</p>
-                      <p><strong>High Volatility:</strong> Stocks with unusual movement</p>
-                    </div>
-                    <p className="text-muted-foreground">Score 70+ with BUY = strong opportunity. Click any ticker to analyze.</p>
+                    <p>Scans your full watchlist for trading opportunities using AI analysis.</p>
+                    <p className="text-muted-foreground">Score 75+ with BUY = strong opportunity. Click any ticker to analyze.</p>
                   </div>
                 </TooltipContent>
               </Tooltip>
@@ -132,31 +135,10 @@ export function ScannerPanel({ selectedTicker, onSelectTicker }: ScannerPanelPro
           <Button
             variant="outline"
             size="sm"
-            onClick={() => refetch()}
+            onClick={() => onRefresh?.()}
             disabled={isFetching}
           >
             <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
-          </Button>
-        </div>
-
-        {/* Scan Type Toggle */}
-        <div className="flex gap-2 mt-2">
-          <Button
-            variant={scanType === "watchlist" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setScanType("watchlist")}
-            className="text-xs"
-          >
-            Watchlist
-          </Button>
-          <Button
-            variant={scanType === "spicy" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setScanType("spicy")}
-            className="text-xs"
-          >
-            <Zap className="h-3 w-3 mr-1" />
-            High Volatility
           </Button>
         </div>
       </CardHeader>
@@ -186,7 +168,7 @@ export function ScannerPanel({ selectedTicker, onSelectTicker }: ScannerPanelPro
         )}
 
         {/* All Results */}
-        <ScrollArea className="h-[140px]">
+        <ScrollArea className="h-[110px]">
           {isLoading ? (
             <div className="space-y-2">
               {[1, 2, 3, 4, 5].map((i) => (
@@ -237,12 +219,45 @@ export function ScannerPanel({ selectedTicker, onSelectTicker }: ScannerPanelPro
           )}
         </ScrollArea>
 
+        {/* Trending Discoveries */}
+        {trendingResults && trendingResults.length > 0 && (
+          <div className="mt-3 p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
+            <div className="flex items-center gap-2 text-sm font-medium text-blue-500 mb-1">
+              <TrendingUp className="h-4 w-4" />
+              Trending Discoveries
+              <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 text-blue-400 border-blue-400/40">
+                {trendingResults.length}
+              </Badge>
+            </div>
+            <div className="space-y-0.5">
+              {trendingResults.slice(0, 5).map((tr) => (
+                <button
+                  key={tr.ticker}
+                  onClick={() => onSelectTicker(tr.ticker)}
+                  className="w-full flex items-center justify-between px-2 py-1 rounded text-left hover:bg-blue-500/10 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm">{tr.ticker}</span>
+                    {tr.llm_enhanced && (
+                      <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 text-purple-400 border-purple-400/40">AI</Badge>
+                    )}
+                    <span className="text-[10px] text-muted-foreground">{tr.mention_count}x</span>
+                  </div>
+                  <span className={cn("font-bold text-sm", getScoreColor(tr.score))}>
+                    {tr.score}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Last Update */}
         <div className="mt-2 text-xs text-muted-foreground text-center flex items-center justify-center gap-2">
           {isFetching && <RefreshCw className="h-3 w-3 animate-spin" />}
-          {dataUpdatedAt ? (
+          {updatedAt ? (
             <span>
-              Updated: {new Date(dataUpdatedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "America/New_York" })} ET
+              Updated: {new Date(updatedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "America/New_York" })} ET
             </span>
           ) : (
             <span>Loading...</span>

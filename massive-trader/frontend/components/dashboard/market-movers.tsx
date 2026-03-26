@@ -21,34 +21,26 @@ interface MoverItem {
 
 interface MarketMoversProps {
   watchlistResults?: MoverItem[];
-  spicyResults?: MoverItem[];
   onSelectTicker?: (ticker: string) => void;
   isLoading?: boolean;
 }
 
 export const MarketMovers = memo(function MarketMovers({
   watchlistResults = [],
-  spicyResults = [],
   onSelectTicker,
   isLoading,
 }: MarketMoversProps) {
-  // Get top gainers and losers from combined results
-  const allResults = [...watchlistResults, ...spicyResults];
-  const uniqueResults = allResults.filter(
-    (item, index, self) => index === self.findIndex((t) => t.ticker === item.ticker)
-  );
-
-  const topBullish = uniqueResults
+  const topBullish = watchlistResults
     .filter((r) => r.score >= 60)
     .sort((a, b) => b.score - a.score)
     .slice(0, 4);
 
-  const topBearish = uniqueResults
+  const topBearish = watchlistResults
     .filter((r) => r.score <= 40)
     .sort((a, b) => a.score - b.score)
     .slice(0, 4);
 
-  const hotMomentum = spicyResults
+  const hotMomentum = watchlistResults
     .filter((r) => r.score >= 65)
     .sort((a, b) => b.score - a.score)
     .slice(0, 3);

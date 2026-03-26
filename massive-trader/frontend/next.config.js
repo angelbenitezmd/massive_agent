@@ -2,6 +2,9 @@
 const nextConfig = {
   reactStrictMode: true,
   output: "standalone", // Required for Docker
+  experimental: {
+    externalDir: true,
+  },
   async rewrites() {
     return [
       {
