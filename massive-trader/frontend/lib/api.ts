@@ -683,6 +683,21 @@ export interface TradeDecisionItem {
   entryPrice: number;
   stopLoss: number;
   takeProfit: number;
+  shrinkage?: {
+    categories_used?: string[];
+    quality?: Record<string, number>;
+    blended_shrinkage?: number;
+    multi_source_factor?: number;
+    final_shrinkage?: number;
+    pre_shrinkage_score?: number;
+    post_shrinkage_score?: number;
+    mode?: string;
+  };
+  scoredAt?: string;
+  signals?: string[];
+  reasoning?: string;
+  tradeStatus?: "executed" | "blocked" | null;
+  tradeReason?: string;
 }
 
 export interface AllDecisionsResponse {

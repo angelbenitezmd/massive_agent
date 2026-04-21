@@ -35,8 +35,8 @@ interface TradeJournalProps {
 function formatTime(dateString: string | null): string {
   if (!dateString) return "-";
   const date = new Date(dateString);
-  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }) +
-    " " + date.toLocaleDateString([], { month: "short", day: "numeric" });
+  return date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" }) +
+    " " + date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
 }
 
 function formatPrice(price: number | null | undefined): string {

@@ -15,10 +15,31 @@ import {
   Activity,
   Radio,
   Clock,
+  CheckCircle,
+  XCircle,
+  Info,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { AllDecisionsResponse, TradeDecisionItem } from "@/lib/api";
 import { useAutoTradeStatus } from "@/hooks/use-trading-data";
+
+function formatScoreTime(isoStr?: string) {
+  if (!isoStr) return null;
+  const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return null;
+  return d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "America/New_York",
+  });
+}
 
 interface TradeSignalCardProps {
   decisions?: AllDecisionsResponse;
@@ -105,7 +126,7 @@ export const TradeSignalCard = memo(function TradeSignalCard({
         {/* Trade threshold indicator */}
         <div className="flex items-center gap-2">
           <Badge variant="outline" className="text-xs bg-background">
-            Min Score: 75+
+            Min Score: 70+
           </Badge>
           {autoTradeStatus.market_open && (
             <Badge variant="outline" className="text-xs border-green-500 text-green-500 bg-green-500/10">
@@ -242,7 +263,7 @@ function DecisionColumn({
           <span className="text-xs opacity-70">({decisions.length})</span>
         </div>
         <span className="text-[10px] opacity-80 mt-0.5">
-          {title === "BUY" ? "75+" : title === "SELL" ? "0-30" : "31-74"}
+          {title === "BUY" ? "70+" : title === "SELL" ? "0-30" : "31-69"}
         </span>
       </div>
 
@@ -323,6 +344,77 @@ function DecisionColumn({
                   >
                     {decision.urgency}
                   </Badge>
+                  {decision.shrinkage && (decision.shrinkage.final_shrinkage ?? 0) > 0 && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-0.5 cursor-help">
+                            {decision.shrinkage.categories_used?.map((cat) => (
+                              <span key={cat} className={cn(
+                                "w-1.5 h-1.5 rounded-full",
+                                cat === "news" && "bg-blue-400",
+                                cat === "earnings" && "bg-amber-400",
+                                cat === "ratings" && "bg-purple-400",
+                                cat === "consensus" && "bg-gray-400",
+                              )} />
+                            ))}
+                            <span className={cn(
+                              "text-[9px]",
+                              (decision.shrinkage.final_shrinkage ?? 0) > 0.4
+                                ? "text-orange-400"
+                                : "text-muted-foreground"
+                            )}>
+                              Shrink: {Math.round((decision.shrinkage.final_shrinkage ?? 0) * 100)}%
+                            </span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-xs max-w-[220px]">
+                          <div className="space-y-1">
+                            <p>Score: {decision.shrinkage.pre_shrinkage_score} → {decision.shrinkage.post_shrinkage_score}</p>
+                            <p>Categories: {decision.shrinkage.categories_used?.map(
+                              (c) => `${c} (q=${decision.shrinkage?.quality?.[c] ?? "?"})`
+                            ).join(", ")}</p>
+                            <p>Shrinkage: {Math.round((decision.shrinkage.blended_shrinkage ?? 0) * 100)}% × {decision.shrinkage.multi_source_factor} ({decision.shrinkage.categories_used?.length === 1 ? "single" : "multi"} source)</p>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
+
+                {/* Timestamp + trade status + reasoning */}
+                <div className="flex items-center gap-2 text-[10px] text-muted-foreground pl-7 flex-wrap">
+                    <div className="flex items-center gap-0.5">
+                      <Clock className="h-3 w-3" />
+                      <span>{formatScoreTime(decision.scoredAt) || "—"}</span>
+                    </div>
+                    {decision.tradeStatus === "executed" && (
+                      <div className="flex items-center gap-0.5 text-green-500">
+                        <CheckCircle className="h-3 w-3" />
+                        <span>TRADED</span>
+                      </div>
+                    )}
+                    {decision.tradeStatus === "blocked" && (
+                      <div className="flex items-center gap-0.5 text-orange-400">
+                        <XCircle className="h-3 w-3" />
+                        <span className="truncate max-w-[140px]">{decision.tradeReason || "Blocked"}</span>
+                      </div>
+                    )}
+                    {decision.reasoning && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="h-3 w-3 cursor-help text-purple-400" />
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="text-xs max-w-[280px]">
+                            <p>{decision.reasoning}</p>
+                            {decision.signals && decision.signals.length > 0 && (
+                              <p className="mt-1 opacity-70">Signals: {decision.signals.join(", ")}</p>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
                 </div>
 
                 {/* Confidence bar */}

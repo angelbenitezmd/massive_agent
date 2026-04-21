@@ -58,7 +58,7 @@ export function formatRelativeTime(date: Date | string | undefined | null): stri
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
   if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
 
-  return then.toLocaleDateString();
+  return then.toLocaleDateString("en-US", { timeZone: "America/New_York" });
 }
 
 export function formatDateTime(date: Date | string | undefined | null): string {

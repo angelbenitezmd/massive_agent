@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import os
+import sqlite3
 
 # Use simple config
 from app.core.config_simple import get_settings
@@ -48,6 +49,7 @@ _EXCLUDED_TICKERS = {
 # Per-ticker trade cooldown — only trade each ticker ONCE per day
 _ticker_cooldowns = {}  # {ticker: datetime} - when ticker was last traded
 TICKER_COOLDOWN_MINUTES = 480  # 8 hours = effectively once per trading day
+_recent_trade_decisions: dict[str, dict] = {}  # ticker -> {status, reason, timestamp}
 
 # Pre-market ready list (built at 9:15 AM ET, consumed at bell rush)
 _premarket_ready_list: list = []
@@ -59,6 +61,17 @@ _last_market_state: str = ""
 # Dynamic watchlist: tickers auto-added when they score 70+ in keyword scan
 _dynamic_watchlist = {}  # {ticker: datetime_added} - auto-expires after 24h
 DYNAMIC_WATCHLIST_EXPIRY_HOURS = 24
+
+# --- Sparse-data shrinkage config (per scoring category) ---
+# base_trust: conceptual reliability when this is the only source
+# min/max_shrinkage: range of pull-toward-50 (0=no shrinkage, 1=full collapse to 50)
+SHRINKAGE_CONFIG = {
+    "news":      {"base_trust": 0.75, "min_shrinkage": 0.15, "max_shrinkage": 0.60},
+    "earnings":  {"base_trust": 0.60, "min_shrinkage": 0.20, "max_shrinkage": 0.60},
+    "ratings":   {"base_trust": 0.50, "min_shrinkage": 0.25, "max_shrinkage": 0.65},
+    "consensus": {"base_trust": 0.35, "min_shrinkage": 0.40, "max_shrinkage": 0.70},
+}
+MULTI_SOURCE_SHRINKAGE = {1: 1.0, 2: 0.5, 3: 0.15, 4: 0.0}
 
 
 def _add_to_dynamic_watchlist(ticker: str, score: float):
@@ -80,24 +93,269 @@ def _get_dynamic_tickers() -> set:
         del _dynamic_watchlist[t]
     return set(_dynamic_watchlist.keys())
 
+def _newest_article_age_hours(articles: list, now: datetime) -> float | None:
+    """Return age in hours of the newest article, or None if no dates found."""
+    from dateutil import parser as _dateutil_parser
+    newest = None
+    for art in articles:
+        raw = art.get("published") or art.get("created")
+        if not raw:
+            continue
+        try:
+            dt = _dateutil_parser.parse(str(raw))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=None)
+                cmp_now = now.replace(tzinfo=None) if now.tzinfo else now
+            else:
+                from zoneinfo import ZoneInfo as _ZI_art
+                cmp_now = now.astimezone(_ZI_art("UTC")) if now.tzinfo else now.replace(tzinfo=_ZI_art("UTC"))
+                dt = dt.astimezone(_ZI_art("UTC"))
+            if newest is None or dt > newest[0]:
+                newest = (dt, cmp_now)
+        except (ValueError, TypeError):
+            continue
+    if newest is None:
+        return None
+    return max(0.0, (newest[1] - newest[0]).total_seconds() / 3600)
+
+
+def _compute_category_quality(
+    category: str,
+    *,
+    news_items: list | None = None,
+    earnings_items: list | None = None,
+    ratings_items: list | None = None,
+    net_signals: float = 0,
+    now: datetime | None = None,
+) -> float:
+    """Return quality score 0–1 for a scoring category based on available data."""
+    if now is None:
+        now = datetime.utcnow()
+
+    if category == "news":
+        count = len(news_items) if news_items else 0
+        count_q = min(1.0, 0.3 if count <= 1 else (0.7 if count < 6 else 1.0))
+        age = _newest_article_age_hours(news_items or [], now)
+        if age is None:
+            freshness_q = 0.2
+        elif age <= 2:
+            freshness_q = 1.0
+        else:
+            freshness_q = max(0.0, 1.0 - (age - 2) / 58)  # decays over 60h
+        abs_net = abs(net_signals)
+        strength_q = min(1.0, 0.2 + abs_net * 0.267) if abs_net < 3 else 1.0
+        return 0.40 * count_q + 0.35 * freshness_q + 0.25 * strength_q
+
+    if category == "earnings":
+        if not earnings_items:
+            return 0.3
+        # Recency: days since latest earnings
+        from dateutil import parser as _dateutil_parser
+        days_old = 150.0
+        surprise_mag = 0.0
+        for e in earnings_items:
+            date_str = e.get("date") or e.get("report_date")
+            if date_str:
+                try:
+                    dt = _dateutil_parser.parse(str(date_str))
+                    naive_now = now.replace(tzinfo=None) if now.tzinfo else now
+                    naive_dt = dt.replace(tzinfo=None) if dt.tzinfo else dt
+                    d = (naive_now - naive_dt).days
+                    if d < days_old:
+                        days_old = d
+                except (ValueError, TypeError):
+                    pass
+            # Surprise magnitude
+            try:
+                est = float(e.get("estimated_eps", 0))
+                act = float(e.get("actual_eps", 0))
+                if est != 0:
+                    mag = abs((act - est) / abs(est)) * 100
+                    surprise_mag = max(surprise_mag, mag)
+            except (ValueError, TypeError):
+                pass
+        recency_q = max(0.3, 1.0 - days_old / 150)
+        surprise_q = min(1.0, surprise_mag / 20) if surprise_mag > 0 else 0.3
+        return 0.50 * recency_q + 0.50 * surprise_q
+
+    if category == "ratings":
+        if not ratings_items:
+            return 0.2
+        count = len(ratings_items)
+        count_q = min(1.0, 0.4 + count * 0.15) if count < 5 else 1.0
+        from dateutil import parser as _dateutil_parser
+        days_old = 90.0
+        for r in ratings_items:
+            date_str = r.get("date") or r.get("action_date")
+            if date_str:
+                try:
+                    dt = _dateutil_parser.parse(str(date_str))
+                    naive_now = now.replace(tzinfo=None) if now.tzinfo else now
+                    naive_dt = dt.replace(tzinfo=None) if dt.tzinfo else dt
+                    d = (naive_now - naive_dt).days
+                    if d < days_old:
+                        days_old = d
+                except (ValueError, TypeError):
+                    pass
+        recency_q = max(0.2, 1.0 - days_old / 90)
+        return 0.50 * count_q + 0.50 * recency_q
+
+    # consensus: fixed 0.5
+    return 0.5
+
+
+# === SCORING SNAPSHOT RECORDER (for backtesting) ===
+_scoring_db_path = str(Path(__file__).parent.parent / "data" / "trading_memory.db")
+
+
+def _init_scoring_snapshots_table():
+    """Create scoring_snapshots table if it doesn't exist. Called at startup."""
+    try:
+        conn = sqlite3.connect(_scoring_db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS scoring_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                news_items TEXT,
+                earnings_items TEXT,
+                ratings_items TEXT,
+                consensus TEXT,
+                score REAL,
+                shrinkage TEXT,
+                components TEXT
+            )
+        """)
+        cursor.execute("DELETE FROM scoring_snapshots WHERE timestamp < datetime('now', '-30 days')")
+        conn.commit()
+        conn.close()
+        logger.info("✅ scoring_snapshots table ready")
+    except Exception as e:
+        logger.warning(f"Failed to init scoring_snapshots table: {e}")
+
+
+def _record_scoring_snapshot_sync(
+    ticker: str, mode: str, news_items: list, earnings_items: list,
+    ratings_items: list, consensus_data, score: float,
+    shrinkage_info: dict, components_data: dict,
+):
+    """Write a scoring snapshot row (runs in thread via asyncio.to_thread)."""
+    try:
+        conn = sqlite3.connect(_scoring_db_path)
+        conn.execute(
+            """INSERT INTO scoring_snapshots
+               (ticker, timestamp, mode, news_items, earnings_items, ratings_items, consensus, score, shrinkage, components)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                ticker,
+                datetime.utcnow().isoformat(),
+                mode,
+                json.dumps(news_items[:10]) if news_items else None,
+                json.dumps(earnings_items[:5]) if earnings_items else None,
+                json.dumps(ratings_items[:5]) if ratings_items else None,
+                json.dumps(consensus_data) if isinstance(consensus_data, dict) else None,
+                score,
+                json.dumps(shrinkage_info),
+                json.dumps(components_data),
+            ),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.debug(f"Scoring snapshot write failed for {ticker}: {e}")
+
+
+# === TRADE GATE LOGGING ===
+def _log_trade_gate(ticker: str, score: float, allowed: bool, reason: str, source: str = "auto"):
+    """Log trade gate decision for transparency."""
+    status = "ALLOWED" if allowed else "BLOCKED"
+    from zoneinfo import ZoneInfo
+    et_now = datetime.now(ZoneInfo("America/New_York")).strftime("%H:%M:%S ET")
+    logger.info(f"[TRADE-GATE] {status} {ticker} from={source} score={score:.1f} | {reason} | {et_now}")
+    # Also log blocked high-score tickers to activity log for frontend visibility
+    if not allowed and score >= 70:
+        log_activity(
+            log_type="TRADE_BLOCKED",
+            ticker=ticker,
+            action="BLOCKED",
+            details={
+                "score": score,
+                "reason": reason,
+                "source": source,
+            },
+        )
+
+
 # Risk management: Daily loss limit and market trend filter
 DAILY_LOSS_LIMIT_PCT = -0.01  # Stop trading if day P&L drops below -1% of equity
 SPY_TREND_THRESHOLD = -0.005  # Skip buys if SPY is down more than -0.5% on the day
 _daily_loss_limit_hit = False  # Flag to stop trading for the day
 
 # Position sizing defaults
-DEFAULT_RISK_PER_TRADE = 0.025  # 2.5% of portfolio per trade
+DEFAULT_RISK_PER_TRADE = 0.01  # 1% of portfolio per trade
 # Dynamic max position based on signal score (higher score = more conviction = larger position allowed)
-MAX_POSITION_PCT_BASE = 0.35      # 35% max for standard signals (score 70-79)
-MAX_POSITION_PCT_GOOD = 0.55      # 55% max for good signals (score 80-84)
-MAX_POSITION_PCT_STRONG = 0.75    # 75% max for strong signals (score 85-89)
-MAX_POSITION_PCT_EXCELLENT = 1.00  # 100% max for excellent signals (score 90+)
+MAX_POSITION_PCT_BASE = 0.12      # 12% max for standard signals (score 70-79)
+MAX_POSITION_PCT_GOOD = 0.18      # 18% max for good signals (score 80-84)
+MAX_POSITION_PCT_STRONG = 0.25    # 25% max for strong signals (score 85-89)
+MAX_POSITION_PCT_EXCELLENT = 0.35  # 35% max for excellent signals (score 90+)
 MIN_SHARES = 1
 MAX_SHARES = 500  # Safety cap
 MIN_POSITION_VALUE = 300  # Minimum $300 position to make trades meaningful
-TARGET_POSITION_PCT_HIGH_CONF = 0.18  # Target 18% position for high confidence (>0.8)
-TARGET_POSITION_PCT_MED_CONF = 0.10   # Target 10% position for medium confidence (0.6-0.8)
-TARGET_POSITION_PCT_LOW_CONF = 0.05   # Target 5% position for low confidence (<0.6)
+TARGET_POSITION_PCT_HIGH_CONF = 0.10  # Target 10% position for high confidence (>0.8)
+TARGET_POSITION_PCT_MED_CONF = 0.06   # Target 6% position for medium confidence (0.6-0.8)
+TARGET_POSITION_PCT_LOW_CONF = 0.03   # Target 3% position for low confidence (<0.6)
+
+# Live auto-trade gate: keep good catalyst trades like MRVL, reject weaker names.
+AUTO_TRADE_MIN_COMBINED_SCORE = 72.0
+AUTO_TRADE_MIN_AI_SCORE = 65.0
+AUTO_TRADE_MIN_MOMENTUM_SCORE = 58.0
+AUTO_TRADE_MAX_ABS_MOVE_PCT = 3.5
+AUTO_TRADE_MAX_FINANCIAL_POSITIONS = 1
+_FINANCIAL_TICKERS = {
+    "JPM", "BAC", "WFC", "C", "GS", "MS", "SCHW", "PNC", "USB", "BK", "BLK",
+}
+
+
+def _auto_trade_sector_bucket(ticker: str) -> Optional[str]:
+    """Group tickers into coarse sector buckets for concentration control."""
+    if ticker in _FINANCIAL_TICKERS:
+        return "financials"
+    return None
+
+
+def _passes_live_auto_trade_gate(signal: dict, owned_symbols: set[str]) -> tuple[bool, str]:
+    """Require stronger agreement before live auto-trading."""
+    ticker = str(signal.get("ticker", "")).upper()
+    action = str(signal.get("action", "WAIT"))
+    combined_score = float(signal.get("combined_score", 0) or 0)
+    ai_score = float(signal.get("ai_score", 0) or 0)
+    momentum_score = float(signal.get("momentum_score", 0) or 0)
+    price_change_pct = abs(float(signal.get("price_change_pct", 0) or 0))
+
+    if action != "BUY":
+        return False, f"action={action}"
+    if not signal.get("llm_enhanced", False):
+        return False, "llm_confirmation_required"
+    if combined_score < AUTO_TRADE_MIN_COMBINED_SCORE:
+        return False, f"score={combined_score:.1f}<min={AUTO_TRADE_MIN_COMBINED_SCORE:.1f}"
+    if ai_score < AUTO_TRADE_MIN_AI_SCORE:
+        return False, f"ai_score={ai_score:.1f}<min={AUTO_TRADE_MIN_AI_SCORE:.1f}"
+    if momentum_score < AUTO_TRADE_MIN_MOMENTUM_SCORE:
+        return False, f"momentum_score={momentum_score:.1f}<min={AUTO_TRADE_MIN_MOMENTUM_SCORE:.1f}"
+    if signal.get("momentum_warning"):
+        return False, "momentum_warning"
+    if price_change_pct > AUTO_TRADE_MAX_ABS_MOVE_PCT:
+        return False, f"price_move={price_change_pct:.1f}%>max={AUTO_TRADE_MAX_ABS_MOVE_PCT:.1f}%"
+
+    bucket = _auto_trade_sector_bucket(ticker)
+    if bucket == "financials":
+        owned_in_bucket = sum(1 for symbol in owned_symbols if _auto_trade_sector_bucket(symbol) == bucket)
+        if owned_in_bucket >= AUTO_TRADE_MAX_FINANCIAL_POSITIONS:
+            return False, "financial_sector_limit"
+
+    return True, "passed"
 
 
 def calculate_position_size(
@@ -371,6 +629,9 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("✅ Paper trading mode (safe)")
 
+    # Initialize scoring snapshots table for backtesting
+    _init_scoring_snapshots_table()
+
     # Initialize Benzinga client
     if settings.BENZINGA_API_KEY:
         benzinga_client = BenzingaClient(
@@ -381,14 +642,11 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("⚠️ Benzinga API key not configured")
 
-    # Start position monitoring background task (simple rules)
-    asyncio.create_task(auto_monitor_positions())
-    logger.info("✅ Position monitoring started (simple rules)")
-
     # Initialize and start smart position manager (LLM-powered exits)
     pm = init_position_manager(check_interval=30, min_analysis_interval=120)
     asyncio.create_task(pm.start())
     logger.info("✅ Smart Position Manager started (LLM-powered exits)")
+    logger.info("✅ Legacy simple auto-exit loop disabled in favor of Position Manager")
 
     # Load auto-trade state and start background loop
     load_auto_trade_state()
@@ -1105,8 +1363,9 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
     earnings_items = earnings.get("results", [])[:3] if isinstance(earnings, dict) else []
     ratings_items = ratings.get("results", [])[:5] if isinstance(ratings, dict) else []
 
-    components = []  # List of (score, weight) tuples
+    components = []  # List of (category, score, weight) tuples
     llm_used = False
+    shrinkage_info = {"mode": "keywords", "final_shrinkage": 0.0}
 
     # === LLM MODE: Feed everything to Claude, get one holistic score ===
     # Only allow LLM calls during market hours (Mon-Fri 9:30AM-4PM ET) to save credits
@@ -1150,6 +1409,7 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
             )
             sentiment_score = float(llm_result.get("score", 50))
             llm_used = True
+            shrinkage_info = {"mode": "llm", "final_shrinkage": 0.0}
             logger.info(f"LLM score for {ticker}: {sentiment_score} (confidence: {llm_result.get('confidence', 'N/A')})")
         except Exception as e:
             logger.warning(f"LLM analysis failed for {ticker}, falling back to keywords: {e}")
@@ -1163,6 +1423,7 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
         consensus_weight = 0.20
 
         # News: keyword matching
+        net_signals = 0
         news_score = 50
         if news_items:
             positive_signals = 0
@@ -1193,7 +1454,7 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
                 news_score = 50 + min(25, 10 * (net_signals ** 0.7))
             elif net_signals < 0:
                 news_score = 50 - min(25, 10 * (abs(net_signals) ** 0.7))
-            components.append((news_score, news_weight))
+            components.append(("news", news_score, news_weight))
 
         # Earnings: EPS beat/miss math
         earnings_score = 50
@@ -1215,7 +1476,7 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
                 weighted_surprise = sum(s * w for s, w in earnings_signals) / total_weight
                 adjustment = max(-25, min(25, weighted_surprise * 150))
                 earnings_score = 50 + adjustment
-                components.append((earnings_score, earnings_weight))
+                components.append(("earnings", earnings_score, earnings_weight))
 
         # Ratings: count upgrades vs downgrades
         ratings_score = 50
@@ -1228,7 +1489,7 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
                     ratings_score = 50 + min(20, 8 * net)
                 elif net < 0:
                     ratings_score = 50 - min(20, 8 * abs(net))
-                components.append((ratings_score, ratings_weight))
+                components.append(("ratings", ratings_score, ratings_weight))
 
         # Consensus: overall analyst label
         consensus_score = 50
@@ -1245,16 +1506,53 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
                 consensus_score = 35
             elif "strong sell" in rating:
                 consensus_score = 28
-            components.append((consensus_score, consensus_weight))
+            components.append(("consensus", consensus_score, consensus_weight))
 
-        # Weighted average of all components
+        # Weighted average of all components with nuanced shrinkage
+        shrinkage_info = {"mode": "keywords", "final_shrinkage": 0.0}
         if components:
-            total_weight = sum(w for _, w in components)
-            sentiment_score = sum(s * w for s, w in components) / total_weight
-            # Low confidence: fewer than 2 data categories → blend toward neutral
-            if len(components) < 2:
-                confidence_factor = 0.5  # Only 1 category — halve deviation from 50
-                sentiment_score = 50 + (sentiment_score - 50) * confidence_factor
+            total_weight = sum(w for _, _, w in components)
+            sentiment_score = sum(s * w for _, s, w in components) / total_weight
+            pre_shrinkage = round(sentiment_score, 2)
+
+            # Compute per-category quality and blended shrinkage
+            categories_used = [cat for cat, _, _ in components]
+            quality_map = {}
+            shrinkage_per_cat = {}
+            for cat, _, w in components:
+                q = _compute_category_quality(
+                    cat,
+                    news_items=news_items,
+                    earnings_items=earnings_items,
+                    ratings_items=ratings_items,
+                    net_signals=net_signals,
+                )
+                quality_map[cat] = round(q, 3)
+                cfg = SHRINKAGE_CONFIG[cat]
+                shrinkage_per_cat[cat] = cfg["max_shrinkage"] - q * (cfg["max_shrinkage"] - cfg["min_shrinkage"])
+
+            # Weighted average of per-category shrinkages
+            blended_shrinkage = sum(
+                shrinkage_per_cat[cat] * w for cat, _, w in components
+            ) / total_weight
+
+            # Multi-source factor: more sources → less shrinkage
+            n_sources = min(len(components), 4)
+            multi_factor = MULTI_SOURCE_SHRINKAGE.get(n_sources, 0.0)
+            final_shrinkage = blended_shrinkage * multi_factor
+
+            sentiment_score = 50 + (sentiment_score - 50) * (1 - final_shrinkage)
+
+            shrinkage_info = {
+                "mode": "keywords",
+                "categories_used": categories_used,
+                "quality": quality_map,
+                "blended_shrinkage": round(blended_shrinkage, 4),
+                "multi_source_factor": multi_factor,
+                "final_shrinkage": round(final_shrinkage, 4),
+                "pre_shrinkage_score": pre_shrinkage,
+                "post_shrinkage_score": round(sentiment_score, 2),
+            }
         else:
             sentiment_score = 50
 
@@ -1292,17 +1590,35 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
         "score": sentiment_score,
         "llm_enhanced": llm_used,
         "components": component_scores,
+        "shrinkage": shrinkage_info,
         "sources": {
             "news_analyzed": len(news_items),
             "earnings_analyzed": len(earnings_items),
             "ratings_analyzed": len(ratings_items),
             "has_consensus": bool(isinstance(consensus, dict) and consensus.get("results"))
         },
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.utcnow().isoformat() + "Z"
     }
 
     # Cache the result
     _sentiment_cache[cache_key] = (result, datetime.utcnow())
+
+    # Record scoring snapshot for backtesting (non-blocking, market hours only)
+    from zoneinfo import ZoneInfo as _ZI_snap
+    _snap_now = datetime.now(_ZI_snap("America/New_York"))
+    if _snap_now.weekday() < 5 and 9 <= _snap_now.hour < 16:
+        asyncio.ensure_future(asyncio.to_thread(
+            _record_scoring_snapshot_sync,
+            ticker=ticker,
+            mode="llm" if llm_used else "keywords",
+            news_items=news_items,
+            earnings_items=earnings_items,
+            ratings_items=ratings_items,
+            consensus_data=consensus if isinstance(consensus, dict) else {},
+            score=sentiment_score,
+            shrinkage_info=shrinkage_info,
+            components_data=component_scores,
+        ))
 
     return result
 
@@ -1363,6 +1679,7 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
         # This ensures UI scores match what the auto-trader actually uses
         keyword_score = combined_score
         llm_used = False
+        llm_reasoning = ""
         if combined_score >= llm_rescore_threshold or combined_score <= 25:
             try:
                 llm_sentiment = await get_sentiment(ticker, use_llm=True)
@@ -1371,6 +1688,8 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
                 if llm_used:
                     combined_score = llm_score
                     combined_score = max(0, min(100, combined_score))
+                    # Capture LLM reasoning for display
+                    llm_reasoning = llm_sentiment.get("summary", "") or llm_sentiment.get("trading_implication", "")
             except Exception as e:
                 logger.warning(f"LLM re-score failed for {ticker}, using keyword score: {e}")
 
@@ -1386,6 +1705,7 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
         # Get quote for all tickers (not just high-scoring ones)
         quote = await get_quote(ticker)
         current_price = quote.get("price", 100)
+        price_change_pct = float(quote.get("change_percent", 0) or 0)
 
         # Always return a signal - let the frontend/execute logic decide thresholds
         # Calculate confidence for position sizing (normalize combined score to 0-1)
@@ -1403,6 +1723,7 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
             "momentum_boost": round(momentum_boost, 1),
             "momentum_warning": momentum_warning,
             "entry_price": current_price,
+            "price_change_pct": round(price_change_pct, 2),
             "stop_loss": stop_loss_price,  # -0.5%
             "take_profit": round(current_price * 1.015, 2),  # +1.5%
             "quantity": calculate_position_size(
@@ -1411,13 +1732,15 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
                 confidence=signal_confidence,
                 signal_score=round(combined_score)
             ),
+            "shrinkage": sentiment.get("shrinkage", {}),
             "signals": momentum.get("signals", [])[:2],
             "strategy": "SENTIMENT" if momentum_boost >= 0 else "SENTIMENT_CAUTION",
             "urgency": (
                 "NOW" if combined_score >= buy_threshold
                 else ("SOON" if combined_score >= max(0.0, buy_threshold - 5) else "WAIT")
             ),
-            "timestamp": datetime.utcnow().isoformat()
+            "reasoning": llm_reasoning,
+            "timestamp": datetime.utcnow().isoformat() + "Z"
         }
     except Exception as e:
         logger.error(f"Error analyzing {ticker}: {e}")
@@ -1508,8 +1831,10 @@ async def get_all_trade_decisions():
             continue
 
         action = result.get("action", "HOLD")
+        ticker = result.get("ticker")
+        trade_dec = _recent_trade_decisions.get(ticker, {})
         decision = {
-            "ticker": result.get("ticker"),
+            "ticker": ticker,
             "action": action,
             "confidence": result.get("combined_score", 50) / 100,
             "combinedScore": result.get("combined_score", 50),
@@ -1522,6 +1847,12 @@ async def get_all_trade_decisions():
             "entryPrice": result.get("entry_price", 0),
             "stopLoss": result.get("stop_loss", 0),
             "takeProfit": result.get("take_profit", 0),
+            "shrinkage": result.get("shrinkage", {}),
+            "scoredAt": result.get("timestamp"),
+            "signals": result.get("signals", []),
+            "reasoning": result.get("reasoning", ""),
+            "tradeStatus": trade_dec.get("status"),
+            "tradeReason": trade_dec.get("reason"),
         }
 
         if action == "BUY":
@@ -1612,7 +1943,7 @@ async def execute_trade(auto: bool = False, ticker: Optional[str] = None):
         }
 
     # Execute on Alpaca
-    if auto or signal.get("combined_score", 0) >= 75:
+    if auto or signal.get("combined_score", 0) >= 70:
         # Update rate limit tracker BEFORE execution
         _last_trade_execution = {"time": now, "ticker": ticker}
 
@@ -2498,6 +2829,194 @@ async def get_activity_log(limit: int = Query(50, description="Max entries to re
     }
 
 
+@app.get("/api/debug/scoring-snapshots")
+async def get_scoring_snapshots(
+    ticker: str = Query(None, description="Filter by ticker"),
+    date: str = Query(None, description="Filter by date (YYYY-MM-DD)"),
+    limit: int = Query(50, description="Max rows"),
+):
+    """Browse stored scoring snapshots for backtesting analysis."""
+    try:
+        conn = sqlite3.connect(_scoring_db_path)
+        conn.row_factory = sqlite3.Row
+        query = "SELECT * FROM scoring_snapshots WHERE 1=1"
+        params = []
+        if ticker:
+            query += " AND ticker = ?"
+            params.append(ticker.upper())
+        if date:
+            query += " AND timestamp LIKE ?"
+            params.append(f"{date}%")
+        query += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(limit)
+        rows = conn.execute(query, params).fetchall()
+        conn.close()
+        results = []
+        for row in rows:
+            results.append({
+                "id": row["id"],
+                "ticker": row["ticker"],
+                "timestamp": row["timestamp"],
+                "mode": row["mode"],
+                "score": row["score"],
+                "shrinkage": json.loads(row["shrinkage"]) if row["shrinkage"] else None,
+                "components": json.loads(row["components"]) if row["components"] else None,
+                "news_count": len(json.loads(row["news_items"])) if row["news_items"] else 0,
+                "earnings_count": len(json.loads(row["earnings_items"])) if row["earnings_items"] else 0,
+                "ratings_count": len(json.loads(row["ratings_items"])) if row["ratings_items"] else 0,
+            })
+        return {"snapshots": results, "total": len(results)}
+    except Exception as e:
+        return {"error": str(e), "snapshots": []}
+
+
+@app.get("/api/debug/replay-scoring")
+async def replay_scoring(
+    ticker: str = Query(..., description="Ticker to replay"),
+    snapshot_id: int = Query(None, description="Specific snapshot ID"),
+    date: str = Query(None, description="Date to replay (YYYY-MM-DD, uses latest snapshot)"),
+):
+    """Replay keyword scoring on a stored snapshot with current config. Compare old vs new score."""
+    try:
+        conn = sqlite3.connect(_scoring_db_path)
+        conn.row_factory = sqlite3.Row
+        if snapshot_id:
+            row = conn.execute("SELECT * FROM scoring_snapshots WHERE id = ?", (snapshot_id,)).fetchone()
+        elif date:
+            row = conn.execute(
+                "SELECT * FROM scoring_snapshots WHERE ticker = ? AND timestamp LIKE ? ORDER BY timestamp DESC LIMIT 1",
+                (ticker.upper(), f"{date}%"),
+            ).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT * FROM scoring_snapshots WHERE ticker = ? ORDER BY timestamp DESC LIMIT 1",
+                (ticker.upper(),),
+            ).fetchone()
+        conn.close()
+
+        if not row:
+            raise HTTPException(status_code=404, detail="No snapshot found")
+
+        # Parse stored data
+        news_items = json.loads(row["news_items"]) if row["news_items"] else []
+        earnings_items = json.loads(row["earnings_items"]) if row["earnings_items"] else []
+        ratings_items = json.loads(row["ratings_items"]) if row["ratings_items"] else []
+        original_score = row["score"]
+        original_shrinkage = json.loads(row["shrinkage"]) if row["shrinkage"] else {}
+
+        # Re-run keyword scoring with current config
+        components = []
+        net_signals = 0
+        news_score = 50
+        if news_items:
+            positive_signals = 0
+            negative_signals = 0
+            seen_themes = set()
+            for item in news_items:
+                title = item.get("title", "").lower()
+                theme_words = [w for w in ["upgrade", "downgrade", "beat", "miss", "earnings", "rating"] if w in title]
+                theme_key = "_".join(sorted(theme_words)) if theme_words else title[:30]
+                if theme_key in seen_themes:
+                    continue
+                seen_themes.add(theme_key)
+                if any(word in title for word in ["upgrade", "beat", "beats", "surge", "rally", "soar",
+                                                  "jump", "bullish", "outperform", "record", "breakthrough"]):
+                    positive_signals += 1
+                elif any(word in title for word in ["downgrade", "miss", "misses", "plunge", "crash",
+                                                    "bearish", "underperform", "bankruptcy", "investigation"]):
+                    negative_signals += 1
+                elif any(word in title for word in ["gain", "rise", "strong", "growth"]):
+                    positive_signals += 0.5
+                elif any(word in title for word in ["fall", "drop", "loss", "weak", "concern", "decline"]):
+                    negative_signals += 0.5
+            net_signals = positive_signals - negative_signals
+            if net_signals > 0:
+                news_score = 50 + min(25, 10 * (net_signals ** 0.7))
+            elif net_signals < 0:
+                news_score = 50 - min(25, 10 * (abs(net_signals) ** 0.7))
+            components.append(("news", news_score, 0.25))
+
+        earnings_score = 50
+        if earnings_items:
+            earnings_signals = []
+            for i, earning in enumerate(earnings_items):
+                if earning.get("estimated_eps") and earning.get("actual_eps"):
+                    try:
+                        estimated = float(earning["estimated_eps"])
+                        actual = float(earning["actual_eps"])
+                        if estimated != 0:
+                            surprise_pct = (actual - estimated) / abs(estimated)
+                            recency_weight = 1.0 / (2 ** i)
+                            earnings_signals.append((surprise_pct, recency_weight))
+                    except (ValueError, TypeError):
+                        pass
+            if earnings_signals:
+                total_weight = sum(w for _, w in earnings_signals)
+                weighted_surprise = sum(s * w for s, w in earnings_signals) / total_weight
+                adjustment = max(-25, min(25, weighted_surprise * 150))
+                earnings_score = 50 + adjustment
+                components.append(("earnings", earnings_score, 0.30))
+
+        ratings_score = 50
+        if ratings_items:
+            upgrades = sum(1 for r in ratings_items if "upgrade" in r.get("rating_action", "").lower())
+            downgrades = sum(1 for r in ratings_items if "downgrade" in r.get("rating_action", "").lower())
+            if upgrades or downgrades:
+                net = upgrades - downgrades
+                if net > 0:
+                    ratings_score = 50 + min(20, 8 * net)
+                elif net < 0:
+                    ratings_score = 50 - min(20, 8 * abs(net))
+                components.append(("ratings", ratings_score, 0.25))
+
+        # Shrinkage with current config
+        replay_score = 50
+        replay_shrinkage = {"mode": "keywords", "final_shrinkage": 0.0}
+        if components:
+            total_weight = sum(w for _, _, w in components)
+            replay_score = sum(s * w for _, s, w in components) / total_weight
+            categories_used = [cat for cat, _, _ in components]
+            quality_map = {}
+            shrinkage_per_cat = {}
+            for cat, _, w in components:
+                q = _compute_category_quality(cat, news_items=news_items, earnings_items=earnings_items,
+                                              ratings_items=ratings_items, net_signals=net_signals)
+                quality_map[cat] = round(q, 3)
+                cfg = SHRINKAGE_CONFIG[cat]
+                shrinkage_per_cat[cat] = cfg["max_shrinkage"] - q * (cfg["max_shrinkage"] - cfg["min_shrinkage"])
+            blended_shrinkage = sum(shrinkage_per_cat[cat] * w for cat, _, w in components) / total_weight
+            n_sources = min(len(components), 4)
+            multi_factor = MULTI_SOURCE_SHRINKAGE.get(n_sources, 0.0)
+            final_shrinkage = blended_shrinkage * multi_factor
+            replay_score = 50 + (replay_score - 50) * (1 - final_shrinkage)
+            replay_shrinkage = {
+                "mode": "keywords", "categories_used": categories_used,
+                "quality": quality_map, "final_shrinkage": round(final_shrinkage, 4),
+            }
+
+        replay_score = round(max(5, min(95, replay_score)), 1)
+
+        return {
+            "ticker": row["ticker"],
+            "snapshot_timestamp": row["timestamp"],
+            "original_mode": row["mode"],
+            "original_score": original_score,
+            "original_shrinkage": original_shrinkage,
+            "replay_score": replay_score,
+            "replay_shrinkage": replay_shrinkage,
+            "delta": round(replay_score - original_score, 1),
+            "data_summary": {
+                "news_count": len(news_items),
+                "earnings_count": len(earnings_items),
+                "ratings_count": len(ratings_items),
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============= POSITION MANAGEMENT WITH AUTO-EXIT =============
 
 # Global position tracking for momentum monitoring
@@ -2901,6 +3420,13 @@ async def auto_trade_loop():
                             continue
                         signal["combined_score"] = trade_score
                         signal["action"] = "BUY"
+                        signal["llm_enhanced"] = True
+
+                        gate_ok, gate_reason = _passes_live_auto_trade_gate(signal, owned)
+                        if not gate_ok:
+                            _log_trade_gate(ticker, trade_score, False, gate_reason, source="bell_rush")
+                            _recent_trade_decisions[ticker] = {"status": "blocked", "reason": gate_reason, "timestamp": datetime.utcnow().isoformat()}
+                            continue
 
                         # For 90+ scores, free capital
                         if trade_score >= 90:
@@ -2916,7 +3442,7 @@ async def auto_trade_loop():
                         if pm and result and result.get("status") == "executed":
                             pm.register_entry(
                                 symbol=ticker,
-                                entry_price=signal.get("price", result.get("entry_price", 0)),
+                                entry_price=signal.get("entry_price", result.get("entry_price", 0)),
                                 quantity=result.get("quantity", 1),
                                 thesis=signal.get("reasoning", "")[:500],
                                 stop_loss=result.get("stop_loss"),
@@ -2940,6 +3466,7 @@ async def auto_trade_loop():
                             }
                         )
                         _ticker_cooldowns[ticker] = datetime.utcnow() + timedelta(minutes=TICKER_COOLDOWN_MINUTES)
+                        _recent_trade_decisions[ticker] = {"status": "executed", "reason": f"Bell rush, score {trade_score:.0f}", "timestamp": datetime.utcnow().isoformat()}
                         logger.info(f"[BELL-RUSH] Trade executed: {ticker} -> {result}")
 
                         _bell_rush_results.append({
@@ -2972,77 +3499,73 @@ async def auto_trade_loop():
 
                 # === RISK CHECKS: Daily loss limit and market trend ===
                 if _check_daily_loss_limit():
-                    logger.info("🤖 [AUTO-TRADE] Skipping - daily loss limit hit")
+                    _log_trade_gate("*", 0, False, "daily loss limit hit")
                     await asyncio.sleep(_auto_trade_interval)
                     continue
 
                 spy_skip, spy_change = _check_spy_trend()
                 if spy_skip:
-                    logger.info(f"🤖 [AUTO-TRADE] Skipping - SPY down {spy_change*100:.2f}%")
+                    _log_trade_gate("*", 0, False, f"SPY down {spy_change*100:.2f}%")
                     await asyncio.sleep(_auto_trade_interval)
                     continue
 
-                # Get best signal - check BOTH watchlist scan AND best-signal endpoint
+                # Analyze all watchlist tickers with momentum + LLM (same pipeline as UI)
                 try:
                     settings = get_settings()
-                    min_score = float(settings.TRADING_MIN_SIGNAL_SCORE)  # STRICT: best-only threshold
-
-                    # FIRST: Check watchlist scan for BUY recommendations (matches UI)
-                    scan_result = await scan_watchlist()
-                    buy_opportunities = scan_result.get("top_opportunities", [])
-
-                    signal = None
-                    score = 0
-                    action = "WAIT"
+                    min_score = float(settings.TRADING_MIN_SIGNAL_SCORE)
+                    tickers = settings.watchlist[:20]
 
                     # Get current positions to skip tickers we already own
                     positions = alpaca_trader.get_positions() if alpaca_trader else []
                     owned_symbols = {p["symbol"] for p in positions}
 
-                    if buy_opportunities:
-                        # Iterate through BUY opportunities to find one we don't already own
-                        for opp in buy_opportunities:
-                            ticker = opp["ticker"]
-                            score = opp["score"]
-                            action = opp["recommendation"]
+                    # Analyze with concurrency limit
+                    analyze_sem = asyncio.Semaphore(10)
+                    async def analyze_limited(t):
+                        async with analyze_sem:
+                            return await _analyze_ticker_for_signal(t)
 
-                            if ticker in owned_symbols:
-                                logger.info(f"🤖 [AUTO-TRADE] Skipping {ticker} (score: {score}) - already have position")
-                                continue
-
-                            # Check per-ticker cooldown (don't re-buy right after selling)
-                            cooldown_until = _ticker_cooldowns.get(ticker)
-                            if cooldown_until and datetime.utcnow() < cooldown_until:
-                                remaining = (cooldown_until - datetime.utcnow()).total_seconds() / 60
-                                logger.info(f"🤖 [AUTO-TRADE] Skipping {ticker} (score: {score}) - cooldown ({remaining:.0f}min remaining)")
-                                continue
-
-                            logger.info(f"🤖 [AUTO-TRADE] Found scan BUY signal: {ticker} (score: {score})")
-
-                            # Get full signal data for this ticker
-                            signal = await _analyze_ticker_for_signal(ticker)
-                            if signal:
-                                signal["combined_score"] = score  # Use scan score
-                                signal["action"] = action
-                            break
-                        else:
-                            # All buy opportunities already owned
-                            logger.info(f"🤖 [AUTO-TRADE] All {len(buy_opportunities)} BUY signals already owned, checking fallback")
-                            signal = await get_best_trading_signal()
-                            score = signal.get("combined_score", 0) if signal else 0
-                            action = signal.get("action", "WAIT") if signal else "WAIT"
-                    else:
-                        # FALLBACK: Use best-signal endpoint
-                        signal = await get_best_trading_signal()
-                        score = signal.get("combined_score", 0) if signal else 0
-                        action = signal.get("action", "WAIT") if signal else "WAIT"
-
-                    # Execute on BUY signals ONLY — HOLD (31-69) must never trigger a buy
-                    should_trade = (
-                        signal and
-                        score >= min_score and
-                        action == "BUY"
+                    results = await asyncio.gather(
+                        *[analyze_limited(t) for t in tickers],
+                        return_exceptions=True
                     )
+
+                    # Find tradeable signals after applying the stricter live gate.
+                    buy_signals = []
+                    for r in results:
+                        if r is None or isinstance(r, Exception):
+                            continue
+                        r_ticker = r.get("ticker")
+                        r_score = r.get("combined_score", 0)
+                        r_action = r.get("action", "WAIT")
+
+                        if r_ticker in owned_symbols:
+                            _log_trade_gate(r_ticker, r_score, False, "already have position")
+                            _recent_trade_decisions[r_ticker] = {"status": "blocked", "reason": "Already own position", "timestamp": datetime.utcnow().isoformat()}
+                            continue
+
+                        cooldown_until = _ticker_cooldowns.get(r_ticker)
+                        if cooldown_until and datetime.utcnow() < cooldown_until:
+                            remaining = (cooldown_until - datetime.utcnow()).total_seconds() / 60
+                            _log_trade_gate(r_ticker, r_score, False, f"cooldown {remaining:.0f}min remaining")
+                            _recent_trade_decisions[r_ticker] = {"status": "blocked", "reason": f"Cooldown ({remaining:.0f}m left)", "timestamp": datetime.utcnow().isoformat()}
+                            continue
+
+                        gate_ok, gate_reason = _passes_live_auto_trade_gate(r, owned_symbols)
+                        if gate_ok:
+                            buy_signals.append(r)
+                        elif r_action == "BUY":
+                            _log_trade_gate(r_ticker, r_score, False, gate_reason)
+                            _recent_trade_decisions[r_ticker] = {"status": "blocked", "reason": gate_reason, "timestamp": datetime.utcnow().isoformat()}
+
+                    buy_signals.sort(key=lambda x: x["combined_score"], reverse=True)
+
+                    # Pick the best signal
+                    signal = buy_signals[0] if buy_signals else None
+                    score = signal.get("combined_score", 0) if signal else 0
+                    action = signal.get("action", "WAIT") if signal else "WAIT"
+
+                    should_trade = signal is not None
 
                     if should_trade:
                         ticker = signal.get("ticker")
@@ -3052,7 +3575,7 @@ async def auto_trade_loop():
 
                         # Double-check we don't already own this ticker
                         if ticker in owned_symbols:
-                            logger.info(f"🤖 [AUTO-TRADE] Skipping {ticker} - already have position")
+                            _log_trade_gate(ticker, trade_score, False, "position dedup (double-check)")
 
                         # LLM score is already in combined_score from _analyze_ticker_for_signal
                         # Log the keyword vs LLM score for transparency
@@ -3071,6 +3594,7 @@ async def auto_trade_loop():
                                         logger.warning(f"🤖 [AUTO-TRADE] Could not free enough capital for 90+ signal on {ticker}, proceeding with available buying power")
 
                             # Execute the trade
+                            _log_trade_gate(ticker, trade_score, True, f"executing buy (LLM={llm_enhanced})")
                             logger.info(f"🤖 [AUTO-TRADE] Executing BUY on {ticker} (LLM score: {trade_score:.1f})")
                             result = alpaca_trader.execute_trade(signal)
 
@@ -3079,7 +3603,7 @@ async def auto_trade_loop():
                             if pm and result and result.get("status") == "executed":
                                 pm.register_entry(
                                     symbol=ticker,
-                                    entry_price=signal.get("price", result.get("entry_price", 0)),
+                                    entry_price=signal.get("entry_price", result.get("entry_price", 0)),
                                     quantity=result.get("quantity", 1),
                                     thesis=signal.get("reasoning", "")[:500],
                                     stop_loss=result.get("stop_loss"),
@@ -3104,11 +3628,16 @@ async def auto_trade_loop():
                             )
                             # Set cooldown so we don't re-buy this ticker immediately
                             _ticker_cooldowns[ticker] = datetime.utcnow() + timedelta(minutes=TICKER_COOLDOWN_MINUTES)
+                            owned_symbols.add(ticker)
+                            _recent_trade_decisions[ticker] = {"status": "executed", "reason": f"Score {trade_score:.0f}, LLM confirmed", "timestamp": datetime.utcnow().isoformat()}
                             logger.info(f"🤖 [AUTO-TRADE] ✅ Trade executed: {result} (cooldown {TICKER_COOLDOWN_MINUTES}min)")
                     else:
                         # Log why we didn't trade
-                        reason = "no signal" if not signal else f"action={action}, score={float(score):.1f} (need {min_score}+)"
-                        logger.info(f"🤖 [AUTO-TRADE] No trade - {reason}")
+                        reason = "no signal passed live auto-trade gate"
+                        if signal and signal.get("ticker"):
+                            _log_trade_gate(signal["ticker"], float(score), False, reason)
+                        else:
+                            logger.info(f"🤖 [AUTO-TRADE] No trade - {reason}")
 
                     # === TRENDING PASS: Discover non-watchlist tickers from global news ===
                     try:
@@ -3127,12 +3656,14 @@ async def auto_trade_loop():
                                 if tr_action != "BUY" or tr_score < min_score:
                                     continue
                                 if tr_ticker in owned_symbols:
-                                    logger.info(f"🤖 [TRENDING] Skipping {tr_ticker} - already own")
+                                    _log_trade_gate(tr_ticker, tr_score, False, "already have position", source="trending")
+                                    _recent_trade_decisions[tr_ticker] = {"status": "blocked", "reason": "Already own position", "timestamp": datetime.utcnow().isoformat()}
                                     continue
                                 cooldown_until = _ticker_cooldowns.get(tr_ticker)
                                 if cooldown_until and datetime.utcnow() < cooldown_until:
                                     remaining = (cooldown_until - datetime.utcnow()).total_seconds() / 60
-                                    logger.info(f"🤖 [TRENDING] Skipping {tr_ticker} - cooldown ({remaining:.0f}min)")
+                                    _log_trade_gate(tr_ticker, tr_score, False, f"cooldown {remaining:.0f}min remaining", source="trending")
+                                    _recent_trade_decisions[tr_ticker] = {"status": "blocked", "reason": f"Cooldown ({remaining:.0f}m left)", "timestamp": datetime.utcnow().isoformat()}
                                     continue
 
                                 # Get full signal data
@@ -3149,13 +3680,23 @@ async def auto_trade_loop():
                                         llm_data = await get_sentiment(tr_ticker, use_llm=True)
                                         tr_signal["combined_score"] = llm_data["score"]
                                         tr_score = llm_data["score"]
+                                        tr_signal["llm_enhanced"] = True
                                         if tr_score < min_score:
-                                            logger.info(f"🤖 [TRENDING] {tr_ticker} LLM score {tr_score:.1f} below threshold")
+                                            _log_trade_gate(tr_ticker, tr_score, False, f"LLM rescore {tr_score:.1f} below {min_score}", source="trending")
                                             continue
                                     except Exception:
-                                        logger.info(f"🤖 [TRENDING] Skipping {tr_ticker} - LLM unavailable")
+                                        _log_trade_gate(tr_ticker, tr_score, False, "LLM unavailable", source="trending")
                                         continue
+                                else:
+                                    tr_signal["llm_enhanced"] = True
 
+                                gate_ok, gate_reason = _passes_live_auto_trade_gate(tr_signal, owned_symbols)
+                                if not gate_ok:
+                                    _log_trade_gate(tr_ticker, tr_score, False, gate_reason, source="trending")
+                                    _recent_trade_decisions[tr_ticker] = {"status": "blocked", "reason": gate_reason, "timestamp": datetime.utcnow().isoformat()}
+                                    continue
+
+                                _log_trade_gate(tr_ticker, tr_score, True, f"executing buy (mentions={tr.get('mention_count', 1)})", source="trending")
                                 logger.info(f"🤖 [TRENDING] Executing BUY on {tr_ticker} (score: {tr_score:.1f}, mentions: {tr.get('mention_count', 1)})")
                                 result = alpaca_trader.execute_trade(tr_signal)
 
@@ -3164,7 +3705,7 @@ async def auto_trade_loop():
                                 if pm and result and result.get("status") == "executed":
                                     pm.register_entry(
                                         symbol=tr_ticker,
-                                        entry_price=tr_signal.get("price", result.get("entry_price", 0)),
+                                        entry_price=tr_signal.get("entry_price", result.get("entry_price", 0)),
                                         quantity=result.get("quantity", 1),
                                         thesis=tr_signal.get("reasoning", "")[:500],
                                         stop_loss=result.get("stop_loss"),
@@ -3188,6 +3729,8 @@ async def auto_trade_loop():
                                     }
                                 )
                                 _ticker_cooldowns[tr_ticker] = datetime.utcnow() + timedelta(minutes=TICKER_COOLDOWN_MINUTES)
+                                owned_symbols.add(tr_ticker)
+                                _recent_trade_decisions[tr_ticker] = {"status": "executed", "reason": f"Trending, score {tr_score:.0f}", "timestamp": datetime.utcnow().isoformat()}
                                 logger.info(f"🤖 [TRENDING] ✅ Trade executed: {result}")
                                 trending_traded = True
                     except Exception as e:
@@ -3526,7 +4069,7 @@ async def get_momentum_analysis(ticker: str):
     momentum_score = max(5, min(95, momentum_score))  # Wider range for differentiation
 
     # Generate instant trade decision
-    if momentum_score >= 75:
+    if momentum_score >= 70:
         action = "🟢 BUY NOW"
         urgency = "IMMEDIATE"
         strategy = "MOMENTUM SCALP"
@@ -4177,6 +4720,7 @@ async def scan_watchlist():
                 "ticker": ticker,
                 "sentiment": sentiment_data["sentiment"],
                 "score": sentiment_data["score"],
+                "shrinkage": sentiment_data.get("shrinkage", {}),
                 "recommendation": "BUY" if sentiment_data["score"] >= scan_buy_threshold else
                                  "STRONG SELL" if sentiment_data["score"] <= 10 else
                                  "SELL" if sentiment_data["score"] <= 30 else "HOLD"
@@ -4512,7 +5056,7 @@ async def websocket_production(websocket: WebSocket):
                     is_paper_mode = True  # Alpaca is always in paper mode for safety
                     should_execute = (
                         best_signal.get("action") == "BUY" and
-                        best_signal.get("combined_score", 0) >= 75 and
+                        best_signal.get("combined_score", 0) >= 70 and
                         (is_market_open() or is_paper_mode)  # Paper mode allows 24/7 trading
                     )
 
@@ -4551,8 +5095,8 @@ async def websocket_production(websocket: WebSocket):
                             "timestamp": datetime.utcnow().isoformat()
                         })
                         logger.info(f"✅ Execution result: {result}")
-                    elif best_signal.get("combined_score", 0) >= 75 and best_signal.get("action") != "BUY":
-                        logger.info(f"⏸️ Signal {best_signal['ticker']} score {best_signal['combined_score']:.1f} >= 75 but action is {best_signal.get('action')}")
+                    elif best_signal.get("combined_score", 0) >= 70 and best_signal.get("action") != "BUY":
+                        logger.info(f"⏸️ Signal {best_signal['ticker']} score {best_signal['combined_score']:.1f} >= 70 but action is {best_signal.get('action')}")
 
                 # Check for exit conditions on positions
                 if scan_counter % 3 == 0:  # Every 30 seconds

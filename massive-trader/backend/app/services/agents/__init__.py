@@ -14,6 +14,7 @@ from app.services.agents.contrarian_agent import ContrarianAgent, ContrarianSign
 from app.services.agents.risk_management_agent import RiskManagementAgent, RiskAssessment
 from app.services.agents.exit_strategy_agent import ExitStrategyAgent, ExitPlan
 from app.services.agents.trade_timing_agent import TradeTimingAgent, TimingRecommendation
+from app.services.agents.loss_review_agent import LossReviewAgent, LossReview
 
 __all__ = [
     "MacroAgent",
@@ -26,4 +27,6 @@ __all__ = [
     "ExitPlan",
     "TradeTimingAgent",
     "TimingRecommendation",
+    "LossReviewAgent",
+    "LossReview",
 ]

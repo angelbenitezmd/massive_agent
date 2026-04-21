@@ -78,6 +78,43 @@ class TradeMemory:
         }
 
 
+@dataclass
+class LossPostmortem:
+    """Structured review of a losing trade."""
+    trade_id: int
+    ticker: str
+    created_at: datetime
+    pnl_pct: float
+    primary_cause: str
+    mistake_patterns: List[str]
+    score_penalty: float
+    size_multiplier: float
+    veto_future_similar: bool
+    reasoning: str
+    regime_at_entry: Optional[str] = None
+    source: Optional[str] = None
+    exit_reason: Optional[str] = None
+    hold_time_minutes: Optional[float] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "trade_id": self.trade_id,
+            "ticker": self.ticker,
+            "created_at": self.created_at.isoformat() if isinstance(self.created_at, datetime) else self.created_at,
+            "pnl_pct": self.pnl_pct,
+            "primary_cause": self.primary_cause,
+            "mistake_patterns": self.mistake_patterns,
+            "score_penalty": self.score_penalty,
+            "size_multiplier": self.size_multiplier,
+            "veto_future_similar": self.veto_future_similar,
+            "reasoning": self.reasoning,
+            "regime_at_entry": self.regime_at_entry,
+            "source": self.source,
+            "exit_reason": self.exit_reason,
+            "hold_time_minutes": self.hold_time_minutes,
+        }
+
+
 class MemoryStore:
     """
     Persistent memory for agent learning.
@@ -193,6 +230,28 @@ class MemoryStore:
             )
         """)
 
+        # Loss postmortems table (structured learnings from losing trades)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS loss_postmortems (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                trade_id INTEGER NOT NULL,
+                ticker TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                pnl_pct REAL NOT NULL,
+                primary_cause TEXT NOT NULL,
+                mistake_patterns TEXT NOT NULL,
+                score_penalty REAL NOT NULL,
+                size_multiplier REAL NOT NULL,
+                veto_future_similar INTEGER NOT NULL DEFAULT 0,
+                reasoning TEXT,
+                regime_at_entry TEXT,
+                source TEXT,
+                exit_reason TEXT,
+                hold_time_minutes REAL,
+                FOREIGN KEY (trade_id) REFERENCES completed_trades(id)
+            )
+        """)
+
         # Create indices
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_memories_ticker
@@ -213,6 +272,14 @@ class MemoryStore:
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_completed_exit_time
             ON completed_trades(exit_time)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_postmortems_ticker
+            ON loss_postmortems(ticker)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_postmortems_created_at
+            ON loss_postmortems(created_at)
         """)
 
         conn.commit()
@@ -610,11 +677,12 @@ class MemoryStore:
         regime_at_entry: Optional[str] = None,
         source: Optional[str] = None,
         exit_reason: Optional[str] = None,
-    ):
+    ) -> Optional[int]:
         """Record a completed trade for performance tracking."""
         conn = self._get_connection()
         try:
-            conn.execute("""
+            cursor = conn.cursor()
+            cursor.execute("""
                 INSERT INTO completed_trades (
                     ticker, side, entry_price, exit_price, entry_time, exit_time,
                     quantity, pnl, pnl_pct, hold_time_minutes,
@@ -629,8 +697,78 @@ class MemoryStore:
             ))
             conn.commit()
             logger.info(f"Recorded completed trade: {ticker} {side} pnl={pnl:+.2f} ({pnl_pct:+.2f}%)")
+            return int(cursor.lastrowid)
         except Exception as e:
             logger.error(f"Error recording completed trade: {e}")
+            return None
+        finally:
+            conn.close()
+
+    def store_loss_postmortem(self, postmortem: LossPostmortem) -> Optional[int]:
+        """Persist structured learnings from a losing trade."""
+        conn = self._get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO loss_postmortems (
+                    trade_id, ticker, created_at, pnl_pct, primary_cause,
+                    mistake_patterns, score_penalty, size_multiplier,
+                    veto_future_similar, reasoning, regime_at_entry,
+                    source, exit_reason, hold_time_minutes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                postmortem.trade_id,
+                postmortem.ticker,
+                postmortem.created_at.isoformat() if isinstance(postmortem.created_at, datetime) else postmortem.created_at,
+                postmortem.pnl_pct,
+                postmortem.primary_cause,
+                json.dumps(postmortem.mistake_patterns),
+                postmortem.score_penalty,
+                postmortem.size_multiplier,
+                int(postmortem.veto_future_similar),
+                postmortem.reasoning,
+                postmortem.regime_at_entry,
+                postmortem.source,
+                postmortem.exit_reason,
+                postmortem.hold_time_minutes,
+            ))
+            conn.commit()
+            return int(cursor.lastrowid)
+        except Exception as e:
+            logger.error(f"Error storing loss postmortem: {e}")
+            return None
+        finally:
+            conn.close()
+
+    def get_similar_loss_postmortems(
+        self,
+        ticker: str,
+        regime_at_entry: Optional[str] = None,
+        source: Optional[str] = None,
+        limit: int = 10,
+    ) -> List[LossPostmortem]:
+        """Retrieve recent loss reviews for similar setups."""
+        conn = self._get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT *
+                FROM loss_postmortems
+                WHERE ticker = ?
+                   OR (? IS NOT NULL AND regime_at_entry = ?)
+                   OR (? IS NOT NULL AND source = ?)
+                ORDER BY
+                    CASE WHEN ticker = ? THEN 0 ELSE 1 END,
+                    created_at DESC
+                LIMIT ?
+            """, (
+                ticker,
+                regime_at_entry, regime_at_entry,
+                source, source,
+                ticker,
+                limit,
+            ))
+            return [self._row_to_postmortem(row) for row in cursor.fetchall()]
         finally:
             conn.close()
 
@@ -716,3 +854,22 @@ class MemoryStore:
             }
         finally:
             conn.close()
+
+    def _row_to_postmortem(self, row: sqlite3.Row) -> LossPostmortem:
+        """Convert database row to LossPostmortem."""
+        return LossPostmortem(
+            trade_id=row["trade_id"],
+            ticker=row["ticker"],
+            created_at=datetime.fromisoformat(row["created_at"]),
+            pnl_pct=row["pnl_pct"],
+            primary_cause=row["primary_cause"],
+            mistake_patterns=json.loads(row["mistake_patterns"]) if row["mistake_patterns"] else [],
+            score_penalty=row["score_penalty"],
+            size_multiplier=row["size_multiplier"],
+            veto_future_similar=bool(row["veto_future_similar"]),
+            reasoning=row["reasoning"] or "",
+            regime_at_entry=row["regime_at_entry"],
+            source=row["source"],
+            exit_reason=row["exit_reason"],
+            hold_time_minutes=row["hold_time_minutes"],
+        )

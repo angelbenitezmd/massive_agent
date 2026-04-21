@@ -7,13 +7,14 @@ This module provides persistence and learning for the trading agents:
 - ContextRetriever: Retrieves similar past situations
 """
 
-from app.services.memory.memory_store import MemoryStore, TradeMemory
+from app.services.memory.memory_store import MemoryStore, TradeMemory, LossPostmortem
 from app.services.memory.weight_adjuster import WeightAdjuster
 from app.services.memory.context_retriever import ContextRetriever, DecisionContext
 
 __all__ = [
     "MemoryStore",
     "TradeMemory",
+    "LossPostmortem",
     "WeightAdjuster",
     "ContextRetriever",
     "DecisionContext",

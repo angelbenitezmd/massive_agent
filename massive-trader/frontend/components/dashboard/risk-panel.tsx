@@ -319,7 +319,7 @@ export function RiskPanel({
                       {position.entryTime && (
                         <div className="flex items-center gap-1 text-[11px] text-muted-foreground mb-1">
                           <Clock className="h-3 w-3" />
-                          {new Date(position.entryTime).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true })}
+                          {new Date(position.entryTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" })}
                           {" · "}
                           {formatDuration(position.entryTime)} held
                         </div>

@@ -32,6 +32,16 @@ interface ScanResult {
   sentiment: string;
   score: number;
   recommendation: string;
+  shrinkage?: {
+    categories_used?: string[];
+    quality?: Record<string, number>;
+    blended_shrinkage?: number;
+    multi_source_factor?: number;
+    final_shrinkage?: number;
+    pre_shrinkage_score?: number;
+    post_shrinkage_score?: number;
+    mode?: string;
+  };
 }
 
 interface TrendingResult {
@@ -202,8 +212,16 @@ export function ScannerPanel({
                           {result.score}
                         </span>
                       </TooltipTrigger>
-                      <TooltipContent side="left" className="text-xs">
-                        AI Score (0-100)
+                      <TooltipContent side="left" className="text-xs max-w-[220px]">
+                        <div className="space-y-1">
+                          <p>AI Score (0-100)</p>
+                          {result.shrinkage && (result.shrinkage.final_shrinkage ?? 0) > 0 && (
+                            <>
+                              <p>Pre-shrink: {result.shrinkage.pre_shrinkage_score} → {result.shrinkage.post_shrinkage_score}</p>
+                              <p>Shrinkage: {Math.round((result.shrinkage.final_shrinkage ?? 0) * 100)}% ({result.shrinkage.categories_used?.join(", ")})</p>
+                            </>
+                          )}
+                        </div>
                       </TooltipContent>
                     </Tooltip>
                     <ChevronRight className="h-4 w-4 text-muted-foreground" />

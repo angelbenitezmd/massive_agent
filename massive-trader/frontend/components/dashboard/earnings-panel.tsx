@@ -192,7 +192,7 @@ export function EarningsPanel({ earnings, isLoading }: EarningsPanelProps) {
                 <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border/50">
                   <span>Report Date</span>
                   <span>
-                    {new Date(earning.reportDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} (
+                    {new Date(earning.reportDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "America/New_York" })} (
                     {earning.reportTime})
                   </span>
                 </div>

@@ -112,7 +112,7 @@ export function PortfolioChart() {
   // Format date for display
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
   };
 
   // Daily P&L bars data

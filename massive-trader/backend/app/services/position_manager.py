@@ -543,7 +543,7 @@ class PositionManager:
                         mins_held = (datetime.utcnow() - pos_state.entry_time).total_seconds() / 60
                         entry_val = pos_state.entry_price * qty
                         pnl_pct = (pnl / entry_val * 100) if entry_val > 0 else 0
-                        store.record_completed_trade(
+                        trade_id = store.record_completed_trade(
                             ticker=symbol,
                             side="short" if is_short else "long",
                             entry_price=pos_state.entry_price,
@@ -561,6 +561,49 @@ class PositionManager:
                             source=pos_state.source,
                             exit_reason=reason,
                         )
+                        if trade_id and pnl_pct < 0:
+                            from app.services.agents.loss_review_agent import LossReviewAgent
+                            from app.services.memory.memory_store import LossPostmortem
+
+                            similar_losses = store.get_similar_loss_postmortems(
+                                ticker=symbol,
+                                regime_at_entry=pos_state.regime_at_entry,
+                                source=pos_state.source,
+                                limit=5,
+                            )
+                            review = await LossReviewAgent.analyze(
+                                ticker=symbol,
+                                side="short" if is_short else "long",
+                                entry_price=pos_state.entry_price,
+                                exit_price=current_price,
+                                pnl_pct=pnl_pct,
+                                hold_time_minutes=mins_held,
+                                score_at_entry=pos_state.score_at_entry,
+                                atr_at_entry=pos_state.atr,
+                                regime_at_entry=pos_state.regime_at_entry,
+                                source=pos_state.source,
+                                exit_reason=reason,
+                                entry_thesis=pos_state.entry_thesis,
+                                recent_similar_losses=[item.to_dict() for item in similar_losses],
+                            )
+                            store.store_loss_postmortem(
+                                LossPostmortem(
+                                    trade_id=trade_id,
+                                    ticker=symbol,
+                                    created_at=datetime.utcnow(),
+                                    pnl_pct=pnl_pct,
+                                    primary_cause=review.primary_cause,
+                                    mistake_patterns=review.mistake_patterns,
+                                    score_penalty=review.score_penalty,
+                                    size_multiplier=review.size_multiplier,
+                                    veto_future_similar=review.veto_future_similar,
+                                    reasoning=review.reasoning,
+                                    regime_at_entry=pos_state.regime_at_entry,
+                                    source=pos_state.source,
+                                    exit_reason=reason,
+                                    hold_time_minutes=mins_held,
+                                )
+                            )
                     except Exception as e:
                         logger.warning(f"{symbol}: Failed to record completed trade: {e}")
 

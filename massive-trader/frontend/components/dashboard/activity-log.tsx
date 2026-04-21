@@ -198,7 +198,7 @@ export const ActivityLog = memo(function ActivityLog({ logs, isLoading }: Activi
                     </p>
                     <div className="flex items-center gap-1 text-[10px] text-muted-foreground/70">
                       <Clock className="h-2.5 w-2.5" />
-                      {log.timestamp ? new Date(log.timestamp).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true }) + " " + new Date(log.timestamp).toLocaleDateString([], { month: "short", day: "numeric" }) : "Unknown"}
+                      {log.timestamp ? new Date(log.timestamp).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "America/New_York" }) + " " + new Date(log.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" }) : "Unknown"}
                     </div>
                   </div>
                 </div>
