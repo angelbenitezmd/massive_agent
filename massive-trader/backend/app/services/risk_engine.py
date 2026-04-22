@@ -173,12 +173,12 @@ class RiskEngine:
         }
         horizon_multiplier = horizon_multipliers.get(signal.time_horizon, 1.0)
 
-        # Adjust for portfolio concentration
+        # Adjust for portfolio concentration (tighter sizing as book grows)
         num_positions = len(positions)
-        if num_positions > 5:
-            concentration_multiplier = 0.8
-        elif num_positions > 10:
+        if num_positions > 10:
             concentration_multiplier = 0.6
+        elif num_positions > 5:
+            concentration_multiplier = 0.8
         else:
             concentration_multiplier = 1.0
 

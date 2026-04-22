@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Simplified FastAPI application with real Benzinga integration."""
 import logging
 import asyncio
@@ -21,6 +23,7 @@ from app.services.alpaca_trader import alpaca_trader
 from app.services.dashboard_service import DashboardService
 from app.services.position_manager import PositionManager, init_position_manager, get_position_manager
 from app.services.ai_agents import NewsIntelligenceAgent
+from app.services.trade_policy import assess_entry_timing, build_trade_levels, build_trade_plan, calculate_atr, calculate_relative_volume
 from app.services.token_tracker import token_tracker
 
 logging.basicConfig(level=logging.INFO)
@@ -33,7 +36,8 @@ benzinga_client = None
 _sentiment_cache = {}
 _momentum_cache = {}
 _scan_cache = {}
-SENTIMENT_CACHE_TTL = 30   # Cache sentiment for 30 seconds
+SENTIMENT_CACHE_TTL = 30   # Default cache; RTH uses shorter TTL below for faster reaction to headlines
+SENTIMENT_CACHE_TTL_RTH_SECONDS = 14  # Regular session: refresh keyword sentiment often so age/freshness stays honest
 MOMENTUM_CACHE_TTL = 15    # Cache momentum for 15 seconds (price-sensitive)
 SCAN_CACHE_TTL = 20        # Cache scan results for 20 seconds
 TRENDING_CACHE_TTL = 300   # Cache trending results for 5 minutes
@@ -66,12 +70,12 @@ DYNAMIC_WATCHLIST_EXPIRY_HOURS = 24
 # base_trust: conceptual reliability when this is the only source
 # min/max_shrinkage: range of pull-toward-50 (0=no shrinkage, 1=full collapse to 50)
 SHRINKAGE_CONFIG = {
-    "news":      {"base_trust": 0.75, "min_shrinkage": 0.15, "max_shrinkage": 0.60},
-    "earnings":  {"base_trust": 0.60, "min_shrinkage": 0.20, "max_shrinkage": 0.60},
-    "ratings":   {"base_trust": 0.50, "min_shrinkage": 0.25, "max_shrinkage": 0.65},
-    "consensus": {"base_trust": 0.35, "min_shrinkage": 0.40, "max_shrinkage": 0.70},
+    "news":      {"base_trust": 0.85, "min_shrinkage": 0.05, "max_shrinkage": 0.30},
+    "earnings":  {"base_trust": 0.70, "min_shrinkage": 0.10, "max_shrinkage": 0.35},
+    "ratings":   {"base_trust": 0.60, "min_shrinkage": 0.10, "max_shrinkage": 0.40},
+    "consensus": {"base_trust": 0.45, "min_shrinkage": 0.20, "max_shrinkage": 0.45},
 }
-MULTI_SOURCE_SHRINKAGE = {1: 1.0, 2: 0.5, 3: 0.15, 4: 0.0}
+MULTI_SOURCE_SHRINKAGE = {1: 0.7, 2: 0.3, 3: 0.10, 4: 0.0}
 
 
 def _add_to_dynamic_watchlist(ticker: str, score: float):
@@ -294,25 +298,31 @@ SPY_TREND_THRESHOLD = -0.005  # Skip buys if SPY is down more than -0.5% on the 
 _daily_loss_limit_hit = False  # Flag to stop trading for the day
 
 # Position sizing defaults
-DEFAULT_RISK_PER_TRADE = 0.01  # 1% of portfolio per trade
-# Dynamic max position based on signal score (higher score = more conviction = larger position allowed)
-MAX_POSITION_PCT_BASE = 0.12      # 12% max for standard signals (score 70-79)
-MAX_POSITION_PCT_GOOD = 0.18      # 18% max for good signals (score 80-84)
-MAX_POSITION_PCT_STRONG = 0.25    # 25% max for strong signals (score 85-89)
-MAX_POSITION_PCT_EXCELLENT = 0.35  # 35% max for excellent signals (score 90+)
+DEFAULT_RISK_PER_TRADE = 0.0035  # 0.35% of portfolio at risk per trade
+# Dynamic max position based on signal score — keep concentration low while edge is still proving itself.
+MAX_POSITION_PCT_BASE = 0.05       # 5% max for standard signals (score 70-79)
+MAX_POSITION_PCT_GOOD = 0.06       # 6% max for good signals (score 80-84)
+MAX_POSITION_PCT_STRONG = 0.08     # 8% max for strong signals (score 85-89)
+MAX_POSITION_PCT_EXCELLENT = 0.10  # 10% max for excellent signals (score 90+)
 MIN_SHARES = 1
 MAX_SHARES = 500  # Safety cap
-MIN_POSITION_VALUE = 300  # Minimum $300 position to make trades meaningful
-TARGET_POSITION_PCT_HIGH_CONF = 0.10  # Target 10% position for high confidence (>0.8)
-TARGET_POSITION_PCT_MED_CONF = 0.06   # Target 6% position for medium confidence (0.6-0.8)
-TARGET_POSITION_PCT_LOW_CONF = 0.03   # Target 3% position for low confidence (<0.6)
+MIN_POSITION_VALUE = 150  # Small starter positions are preferable to oversized losers
+TARGET_POSITION_PCT_HIGH_CONF = 0.05  # Target 5% for high confidence (>0.8)
+TARGET_POSITION_PCT_MED_CONF = 0.035  # Target 3.5% for medium confidence (0.6-0.8)
+TARGET_POSITION_PCT_LOW_CONF = 0.02   # Target 2% for low confidence (<0.6)
 
-# Live auto-trade gate: keep good catalyst trades like MRVL, reject weaker names.
-AUTO_TRADE_MIN_COMBINED_SCORE = 72.0
-AUTO_TRADE_MIN_AI_SCORE = 65.0
-AUTO_TRADE_MIN_MOMENTUM_SCORE = 58.0
-AUTO_TRADE_MAX_ABS_MOVE_PCT = 3.5
+# Live auto-trade gate: aligned with recalibrated LLM scoring (full 0-100 range).
+AUTO_TRADE_MIN_COMBINED_SCORE = 70.0
+AUTO_TRADE_MIN_COMBINED_SCORE_EARLY = 64.0  # true early window should not need full follow-through yet
+AUTO_TRADE_MIN_AI_SCORE = 62.0
+AUTO_TRADE_MIN_MOMENTUM_SCORE = 52.0
+AUTO_TRADE_MAX_ABS_MOVE_PCT = 5.0
+AUTO_TRADE_MIN_PRICE = 25.0  # No penny stocks
 AUTO_TRADE_MAX_FINANCIAL_POSITIONS = 1
+AUTO_TRADE_MAX_OPEN_POSITIONS = 4
+AUTO_TRADE_MAX_NEW_TRADES_PER_DAY = 3
+AUTO_TRADE_TRENDING_MIN_COMBINED_SCORE = 75.0
+AUTO_TRADE_MAX_CONSECUTIVE_LOSSES = 3
 _FINANCIAL_TICKERS = {
     "JPM", "BAC", "WFC", "C", "GS", "MS", "SCHW", "PNC", "USB", "BK", "BLK",
 }
@@ -325,29 +335,215 @@ def _auto_trade_sector_bucket(ticker: str) -> Optional[str]:
     return None
 
 
+def _count_today_auto_trade_buys() -> int:
+    """Count how many BUY auto-trades have already executed today."""
+    today = datetime.utcnow().date().isoformat()
+    return sum(
+        1
+        for entry in _activity_log
+        if entry.get("type") == "AUTO_TRADE"
+        and entry.get("action") == "BUY"
+        and str(entry.get("timestamp", "")).startswith(today)
+    )
+
+
+def _get_trade_feedback(signal: dict) -> dict:
+    """Penalize repeat bad setups using recent outcomes and postmortems."""
+    ticker = str(signal.get("ticker", "")).upper()
+    source = str(signal.get("source") or "watchlist")
+    regime = signal.get("regime_at_entry")
+    feedback = {
+        "score_penalty": 0.0,
+        "size_multiplier": 1.0,
+        "veto": False,
+        "reasons": [],
+    }
+
+    if not ticker:
+        return feedback
+
+    try:
+        from app.services.memory.memory_store import MemoryStore
+
+        store = MemoryStore()
+        try:
+            postmortems = store.get_similar_loss_postmortems(
+                ticker=ticker,
+                regime_at_entry=regime,
+                source=source,
+                limit=5,
+            )
+        except Exception as exc:
+            logger.debug(f"Loss postmortem lookup unavailable for {ticker}: {exc}")
+            postmortems = []
+
+        try:
+            recent_trades = store.get_recent_completed_trades(
+                ticker=ticker,
+                regime_at_entry=regime,
+                source=source,
+                limit=6,
+            )
+        except Exception as exc:
+            logger.debug(f"Completed trade lookup unavailable for {ticker}: {exc}")
+            recent_trades = []
+    except Exception as exc:
+        logger.debug(f"Trade feedback unavailable for {ticker}: {exc}")
+        return feedback
+
+    if postmortems:
+        feedback["score_penalty"] = max(
+            float(getattr(item, "score_penalty", 0) or 0)
+            for item in postmortems[:3]
+        )
+        feedback["size_multiplier"] = min(
+            float(getattr(item, "size_multiplier", 1.0) or 1.0)
+            for item in postmortems[:3]
+        )
+        if any(bool(getattr(item, "veto_future_similar", False)) for item in postmortems[:2]):
+            feedback["veto"] = True
+            feedback["reasons"].append("loss_review_veto")
+        feedback["reasons"].append(f"recent_loss_reviews={min(len(postmortems), 3)}")
+
+    if recent_trades:
+        pnl_values = [float(item.get("pnl_pct", 0) or 0) for item in recent_trades]
+        avg_pnl = sum(pnl_values) / len(pnl_values)
+        win_rate = sum(1 for pnl in pnl_values if pnl > 0) / len(pnl_values)
+        consecutive_losses = 0
+
+        for pnl in pnl_values:
+            if pnl <= 0:
+                consecutive_losses += 1
+            else:
+                break
+
+        if len(pnl_values) >= 3 and win_rate < 0.4:
+            feedback["score_penalty"] = max(feedback["score_penalty"], 6.0)
+            feedback["size_multiplier"] = min(feedback["size_multiplier"], 0.6)
+            feedback["reasons"].append("weak_recent_win_rate")
+
+        if len(pnl_values) >= 3 and avg_pnl < -0.5:
+            feedback["score_penalty"] = max(feedback["score_penalty"], 8.0)
+            feedback["size_multiplier"] = min(feedback["size_multiplier"], 0.5)
+            feedback["reasons"].append("negative_recent_expectancy")
+
+        if consecutive_losses >= AUTO_TRADE_MAX_CONSECUTIVE_LOSSES:
+            feedback["veto"] = True
+            feedback["reasons"].append("recent_consecutive_losses")
+
+    feedback["score_penalty"] = round(float(feedback["score_penalty"]), 1)
+    feedback["size_multiplier"] = round(
+        max(0.25, min(1.0, float(feedback["size_multiplier"] or 1.0))),
+        2,
+    )
+    feedback["reasons"] = feedback["reasons"][:4]
+    return feedback
+
+
+def _apply_trade_feedback_to_signal(signal: dict) -> None:
+    """Recalculate quantity after historical penalties are applied."""
+    feedback = signal.get("trade_feedback") or {}
+    base_multiplier = float(signal.get("position_size_multiplier", 1.0) or 1.0)
+    feedback_multiplier = float(feedback.get("size_multiplier", 1.0) or 1.0)
+    size_multiplier = max(0.25, min(1.0, base_multiplier * feedback_multiplier))
+    combined_score = float(signal.get("combined_score", 0) or 0)
+    effective_score = float(signal.get("effective_score", combined_score) or combined_score)
+    entry_price = float(signal.get("entry_price") or signal.get("price", 0) or 0)
+    stop_loss = float(signal.get("stop_loss", 0) or 0)
+
+    if entry_price <= 0:
+        signal["position_size_multiplier"] = round(size_multiplier, 2)
+        return
+
+    stop_loss_price = stop_loss if stop_loss > 0 else round(entry_price * 0.985, 2)
+    signal["quantity"] = calculate_position_size(
+        price=entry_price,
+        stop_loss_price=stop_loss_price,
+        confidence=min(max(effective_score / 100.0, 0.35), 0.9),
+        signal_score=round(effective_score),
+        performance_multiplier=size_multiplier,
+    )
+    signal["position_size_multiplier"] = round(size_multiplier, 2)
+    signal["effective_score"] = round(effective_score, 1)
+
+
+def _auto_trade_signal_rank(signal: dict) -> tuple:
+    """Sort key (higher is better): prefer early timing, fresher news, lower late risk, then score."""
+    age = signal.get("newest_article_age_hours")
+    try:
+        age_f = float(age) if age is not None else 24.0
+    except (TypeError, ValueError):
+        age_f = 24.0
+    early = signal.get("entry_timing_state") == "early"
+    ultra_fresh = age_f <= 0.33  # ~20 min
+    timing_score = float(signal.get("entry_timing_score") or 0)
+    late_risk = float(signal.get("late_entry_risk") or 50)
+    combined = float(signal.get("combined_score") or 0)
+    return (1 if early else 0, 1 if ultra_fresh else 0, timing_score, -late_risk, combined)
+
+
 def _passes_live_auto_trade_gate(signal: dict, owned_symbols: set[str]) -> tuple[bool, str]:
     """Require stronger agreement before live auto-trading."""
     ticker = str(signal.get("ticker", "")).upper()
+    source = str(signal.get("source") or "watchlist")
     action = str(signal.get("action", "WAIT"))
     combined_score = float(signal.get("combined_score", 0) or 0)
     ai_score = float(signal.get("ai_score", 0) or 0)
     momentum_score = float(signal.get("momentum_score", 0) or 0)
     price_change_pct = abs(float(signal.get("price_change_pct", 0) or 0))
 
+    entry_price = float(signal.get("entry_price", 0) or signal.get("price", 0) or 0)
+
     if action != "BUY":
         return False, f"action={action}"
+    if entry_price > 0 and entry_price < AUTO_TRADE_MIN_PRICE:
+        return False, f"price=${entry_price:.2f}<min=${AUTO_TRADE_MIN_PRICE:.0f}"
     if not signal.get("llm_enhanced", False):
         return False, "llm_confirmation_required"
-    if combined_score < AUTO_TRADE_MIN_COMBINED_SCORE:
-        return False, f"score={combined_score:.1f}<min={AUTO_TRADE_MIN_COMBINED_SCORE:.1f}"
+    if len(owned_symbols) >= AUTO_TRADE_MAX_OPEN_POSITIONS:
+        return False, f"max_open_positions={AUTO_TRADE_MAX_OPEN_POSITIONS}"
+    if _count_today_auto_trade_buys() >= AUTO_TRADE_MAX_NEW_TRADES_PER_DAY:
+        return False, f"daily_trade_cap={AUTO_TRADE_MAX_NEW_TRADES_PER_DAY}"
     if ai_score < AUTO_TRADE_MIN_AI_SCORE:
         return False, f"ai_score={ai_score:.1f}<min={AUTO_TRADE_MIN_AI_SCORE:.1f}"
-    if momentum_score < AUTO_TRADE_MIN_MOMENTUM_SCORE:
-        return False, f"momentum_score={momentum_score:.1f}<min={AUTO_TRADE_MIN_MOMENTUM_SCORE:.1f}"
+    price_raw = float(signal.get("price_change_pct", 0) or 0)
+    early_tape = -1.2 <= price_raw <= 1.5 and ai_score >= AUTO_TRADE_MIN_AI_SCORE
+    early_entry = bool(
+        signal.get("entry_timing_state") == "early"
+        and signal.get("fresh_catalyst")
+        and early_tape
+    )
+    mom_floor = 44.0 if early_entry else (46.0 if early_tape else float(AUTO_TRADE_MIN_MOMENTUM_SCORE))
+    if momentum_score < mom_floor:
+        return False, f"momentum_score={momentum_score:.1f}<min={mom_floor:.1f}"
+    buy_gate = signal.get("buy_gate") or {}
+    if buy_gate and not buy_gate.get("passed", False):
+        gate_reasons = ",".join((buy_gate.get("reasons") or [])[:3]) or "buy_gate_failed"
+        return False, gate_reasons
     if signal.get("momentum_warning"):
         return False, "momentum_warning"
+    if signal.get("technical_veto"):
+        return False, signal.get("technical_veto_reason") or "technical_veto"
     if price_change_pct > AUTO_TRADE_MAX_ABS_MOVE_PCT:
         return False, f"price_move={price_change_pct:.1f}%>max={AUTO_TRADE_MAX_ABS_MOVE_PCT:.1f}%"
+    risk_reward_ratio = float(signal.get("risk_reward_ratio", 0) or 0)
+    if risk_reward_ratio and risk_reward_ratio < 1.5:
+        return False, f"risk_reward={risk_reward_ratio:.2f}<min=1.5"
+
+    feedback = _get_trade_feedback(signal)
+    signal["trade_feedback"] = feedback
+    effective_score = combined_score - float(feedback.get("score_penalty", 0) or 0)
+    signal["effective_score"] = round(effective_score, 1)
+
+    if feedback.get("veto"):
+        return False, ",".join(feedback.get("reasons", [])[:2]) or "loss_memory_veto"
+    min_eff = float(AUTO_TRADE_MIN_COMBINED_SCORE)
+    if early_entry:
+        min_eff = min(min_eff, float(AUTO_TRADE_MIN_COMBINED_SCORE_EARLY))
+    if effective_score < min_eff:
+        return False, f"effective_score={effective_score:.1f}<min={min_eff:.1f}"
+    if source == "trending" and effective_score < AUTO_TRADE_TRENDING_MIN_COMBINED_SCORE:
+        return False, f"trending_score={effective_score:.1f}<min={AUTO_TRADE_TRENDING_MIN_COMBINED_SCORE:.1f}"
 
     bucket = _auto_trade_sector_bucket(ticker)
     if bucket == "financials":
@@ -355,7 +551,150 @@ def _passes_live_auto_trade_gate(signal: dict, owned_symbols: set[str]) -> tuple
         if owned_in_bucket >= AUTO_TRADE_MAX_FINANCIAL_POSITIONS:
             return False, "financial_sector_limit"
 
+    _apply_trade_feedback_to_signal(signal)
     return True, "passed"
+
+
+def check_trade_allowed(
+    ticker: str,
+    score: float,
+    llm_enhanced: bool,
+    source: str = "watchlist",
+    owned_symbols: Optional[set[str]] = None,
+    signal: Optional[dict] = None,
+) -> dict:
+    """Compatibility helper used by tests and manual trade checks."""
+    candidate = dict(signal or {})
+    candidate.setdefault("ticker", ticker.upper())
+    candidate.setdefault("action", "BUY")
+    candidate.setdefault("combined_score", float(score))
+    candidate.setdefault("ai_score", float(score))
+    candidate.setdefault("momentum_score", max(60.0, float(score) - 10.0))
+    candidate.setdefault("price_change_pct", 0.5)
+    candidate.setdefault("llm_enhanced", llm_enhanced)
+    candidate.setdefault("source", source)
+    candidate.setdefault("entry_price", 100.0)
+    candidate.setdefault("stop_loss", 98.0)
+    allowed, reason = _passes_live_auto_trade_gate(candidate, owned_symbols or set())
+    return {"allowed": allowed, "reason": reason, "signal": candidate}
+
+
+def _entry_risk_levels(
+    price: float,
+    quote: dict,
+    technical_ctx: Optional[dict] = None,
+    bars: Optional[list] = None,
+) -> tuple[float, float]:
+    """Build risk levels from volatility plus nearby structure instead of fixed tiny stops."""
+    support = None
+    resistance = None
+    technical_score = None
+
+    if technical_ctx:
+        support = technical_ctx.get("support")
+        resistance = technical_ctx.get("resistance")
+        technical_score = technical_ctx.get("technical_score")
+
+    high = float(quote.get("high") or 0)
+    low = float(quote.get("low") or 0)
+    if support is None and 0 < low < price:
+        support = low
+    if resistance is None and high > price:
+        resistance = high
+
+    levels = build_trade_levels(
+        price=price,
+        bars=bars or [],
+        support=support,
+        resistance=resistance,
+        technical_score=technical_score,
+        relative_volume=(technical_ctx or {}).get("relative_volume"),
+    )
+    return levels["stop_loss"], levels["take_profit"]
+
+
+def _technical_context_from_bars(ticker: str, price: float, bars: list) -> dict:
+    """Local TA overlay with volatility, volume, and structure metrics."""
+    from app.services.technical_indicators import analyze_technical, TechnicalRegime
+
+    if not bars or len(bars) < 15 or price <= 0:
+        return {
+            "technical_veto": False,
+            "technical_veto_reason": None,
+            "technical_score": None,
+            "technical_regime": None,
+            "technical_rsi": None,
+            "technical_bias_points": 0.0,
+            "support": None,
+            "resistance": None,
+            "atr": 0.0,
+            "relative_volume": None,
+            "resistance_room_pct": None,
+            "support_room_pct": None,
+            "ma_alignment": None,
+            "macd_crossover": None,
+            "momentum_state": None,
+        }
+    try:
+        tech = analyze_technical(ticker, price, bars)
+    except Exception as e:
+        logger.debug(f"analyze_technical failed for {ticker}: {e}")
+        return {
+            "technical_veto": False,
+            "technical_veto_reason": None,
+            "technical_score": None,
+            "technical_regime": None,
+            "technical_rsi": None,
+            "technical_bias_points": 0.0,
+            "support": None,
+            "resistance": None,
+            "atr": 0.0,
+            "relative_volume": None,
+            "resistance_room_pct": None,
+            "support_room_pct": None,
+            "ma_alignment": None,
+            "macd_crossover": None,
+            "momentum_state": None,
+        }
+
+    atr = calculate_atr(bars)
+    relative_volume = calculate_relative_volume(bars)
+    support_room_pct = ((price - tech.support) / price * 100) if tech.support and tech.support < price else None
+    resistance_room_pct = ((tech.resistance - price) / price * 100) if tech.resistance and tech.resistance > price else None
+
+    veto = False
+    veto_reason = None
+    if tech.regime in (TechnicalRegime.STRONG_BEARISH, TechnicalRegime.BEARISH):
+        veto = True
+        veto_reason = f"bearish_tape_{tech.regime.value}"
+    elif tech.rsi is not None and tech.rsi >= 78 and (resistance_room_pct or 0) < 3.0:
+        veto = True
+        veto_reason = f"rsi_extreme_overbought_{tech.rsi:.0f}"
+
+    bias = 0.0
+    if not veto:
+        if tech.regime in (TechnicalRegime.STRONG_BULLISH, TechnicalRegime.BULLISH):
+            bias = min(5.0, max(0.0, (tech.score - 58) * 0.12))
+        elif tech.regime == TechnicalRegime.NEUTRAL and tech.score < 44:
+            bias = -5.0
+
+    return {
+        "technical_veto": veto,
+        "technical_veto_reason": veto_reason,
+        "technical_score": tech.score,
+        "technical_regime": tech.regime.value,
+        "technical_rsi": tech.rsi,
+        "technical_bias_points": round(bias, 1),
+        "support": tech.support,
+        "resistance": tech.resistance,
+        "atr": round(atr, 4) if atr else 0.0,
+        "relative_volume": relative_volume,
+        "resistance_room_pct": round(resistance_room_pct, 2) if resistance_room_pct is not None else None,
+        "support_room_pct": round(support_room_pct, 2) if support_room_pct is not None else None,
+        "ma_alignment": tech.ma_alignment,
+        "macd_crossover": tech.macd_crossover,
+        "momentum_state": tech.momentum,
+    }
 
 
 def calculate_position_size(
@@ -363,13 +702,14 @@ def calculate_position_size(
     stop_loss_price: float,
     confidence: float = 0.7,
     risk_pct: float = DEFAULT_RISK_PER_TRADE,
-    signal_score: int = 70
+    signal_score: int = 70,
+    performance_multiplier: float = 1.0,
 ) -> int:
     """
-    Calculate position size using a hybrid approach:
+    Calculate position size using a conservative hybrid approach:
     1. Risk-based sizing (how much we can lose)
     2. Target position sizing (based on confidence/signal strength)
-    3. Take the larger of the two (within constraints) to maximize opportunity
+    3. Take the smaller of the two so weak setups cannot size up aggressively
 
     Formula considers:
         - Account equity and buying power
@@ -384,6 +724,7 @@ def calculate_position_size(
         confidence: Signal confidence (0-1), scales position size
         risk_pct: Percentage of portfolio to risk per trade
         signal_score: Combined signal score (0-100)
+        performance_multiplier: Historical penalty multiplier from loss reviews
 
     Returns:
         Number of shares to buy (integer)
@@ -407,26 +748,26 @@ def calculate_position_size(
         if risk_per_share < 0.01:
             risk_per_share = price * 0.02  # Default 2% stop
 
-        # Aggressive confidence scaling: 0.4 to 1.3 range
-        # High confidence (0.85+) gets a bonus multiplier
+        # Confidence scaling — capped so sizing does not explode on borderline scores
         if confidence >= 0.85:
-            confidence_multiplier = 1.0 + (confidence - 0.85) * 2  # 1.0 to 1.3
+            confidence_multiplier = 0.90 + (confidence - 0.85) * 0.35
         elif confidence >= 0.6:
-            confidence_multiplier = 0.6 + (confidence - 0.6) * 1.6  # 0.6 to 1.0
+            confidence_multiplier = 0.60 + (confidence - 0.6) * 0.8
         else:
-            confidence_multiplier = 0.4 + (confidence * 0.33)  # 0.4 to 0.6
+            confidence_multiplier = 0.40 + confidence * 0.30
 
-        # Aggressive bonus for high signal scores
+        # Keep score bonuses modest; good scores earn slightly more size, not massively more.
         if signal_score >= 90:
-            score_bonus = 2.5 + (signal_score - 90) * 0.05    # 2.5x at 90, up to 3.0x at 100
+            score_bonus = 1.15 + (signal_score - 90) * 0.01
         elif signal_score >= 85:
-            score_bonus = 1.8 + (signal_score - 85) * 0.14    # 1.8x at 85, up to 2.5x at 90
+            score_bonus = 1.08 + (signal_score - 85) * 0.014
         elif signal_score >= 80:
-            score_bonus = 1.4 + (signal_score - 80) * 0.08    # 1.4x at 80, up to 1.8x at 85
+            score_bonus = 1.03 + (signal_score - 80) * 0.01
         else:
-            score_bonus = 1.0 + max(0, (signal_score - 70) * 0.02)  # 1.0-1.2x (unchanged)
+            score_bonus = 1.0 + max(0, (signal_score - 70) * 0.004)
 
-        risk_amount = equity * risk_pct * confidence_multiplier * score_bonus
+        feedback_multiplier = max(0.25, min(1.0, performance_multiplier))
+        risk_amount = equity * risk_pct * confidence_multiplier * score_bonus * feedback_multiplier
         shares_from_risk = int(risk_amount / risk_per_share)
 
         # === METHOD 2: Target position sizing ===
@@ -439,16 +780,19 @@ def calculate_position_size(
             target_pct = TARGET_POSITION_PCT_LOW_CONF
 
         # Apply score bonus to target
-        target_position_value = equity * target_pct * score_bonus
+        target_position_value = equity * target_pct * score_bonus * feedback_multiplier
         shares_from_target = int(target_position_value / price)
 
         # === METHOD 3: Minimum position value ===
-        # Ensure we don't make tiny trades that aren't worth the commission/spread
+        # A small floor keeps position tracking/logging useful without forcing huge trades.
         min_shares_for_value = int(MIN_POSITION_VALUE / price)
 
-        # === COMBINE: Take the LARGER of risk-based and target-based ===
-        # This maximizes opportunity while respecting constraints
-        shares_base = max(shares_from_risk, shares_from_target, min_shares_for_value)
+        # === COMBINE: Take the SMALLER of risk-based and target-based ===
+        # If either method wants smaller size, obey the smaller number.
+        positive_candidates = [v for v in (shares_from_risk, shares_from_target) if v > 0]
+        shares_base = min(positive_candidates) if positive_candidates else 0
+        if shares_base < min_shares_for_value and min_shares_for_value > 0:
+            shares_base = min_shares_for_value
 
         # === Apply constraints ===
         # Dynamic max position size based on signal score (higher score = more conviction)
@@ -464,8 +808,8 @@ def calculate_position_size(
         max_position_value = equity * max_position_pct
         shares_from_max_position = int(max_position_value / price)
 
-        # Buying power constraint (use up to 60% of buying power per trade)
-        shares_from_buying_power = int(buying_power * 0.80 / price)
+        # Buying power constraint — never let one trade dominate deployable capital.
+        shares_from_buying_power = int(buying_power * 0.25 / price)
 
         # Final calculation: minimum of (base, constraints), but at least MIN_SHARES
         shares = min(shares_base, shares_from_max_position, shares_from_buying_power, MAX_SHARES)
@@ -490,18 +834,16 @@ def calculate_position_size(
         return 15
 
 async def _free_capital_for_excellent_signal(ticker: str, price: float, equity: float) -> bool:
-    """Close existing positions to free capital for a 90+ score signal.
+    """Check whether we already have enough buying power for a high-score trade.
 
-    When a score >= 90 signal arrives but buying power is insufficient for the
-    desired 70% position, liquidate other positions (weakest P&L first) until
-    enough buying power is available.
-
-    Returns True if enough capital was freed (or was already available).
+    We intentionally do not liquidate other names anymore. Rotating out of the
+    existing book to chase a fresh signal increased churn and often locked in
+    avoidable losses.
     """
     if not alpaca_trader or not alpaca_trader.client:
         return False
 
-    target_value = equity * MAX_POSITION_PCT_EXCELLENT  # 70% of equity
+    target_value = equity * MAX_POSITION_PCT_EXCELLENT
     account = alpaca_trader.get_account_status()
     if not account:
         return False
@@ -517,68 +859,9 @@ async def _free_capital_for_excellent_signal(ticker: str, price: float, equity: 
     shortfall = needed_value - buying_power
     logger.info(
         f"[EXCELLENT] Need ${needed_value:,.0f} for {ticker}, have ${buying_power:,.0f}, "
-        f"shortfall=${shortfall:,.0f} — closing positions to free capital"
+        f"shortfall=${shortfall:,.0f}; not rotating out of open positions to fund it"
     )
-
-    # Get all positions, sort by unrealized P&L ascending (close worst performers first)
-    positions = alpaca_trader.get_positions()
-    # Don't close the position we're about to buy into
-    other_positions = [p for p in positions if p["symbol"] != ticker]
-
-    if not other_positions:
-        logger.warning(f"[EXCELLENT] No other positions to close — cannot free capital")
-        return False
-
-    # Sort: worst P&L first (close losers before winners)
-    other_positions.sort(key=lambda p: float(p.get("unrealized_pl", 0)))
-
-    freed = 0.0
-    closed_symbols = []
-    for pos in other_positions:
-        if freed >= shortfall:
-            break
-
-        symbol = pos["symbol"]
-        market_value = abs(float(pos.get("market_value", 0)))
-
-        logger.info(
-            f"[EXCELLENT] Closing {symbol} (P&L: ${float(pos.get('unrealized_pl', 0)):,.2f}, "
-            f"value: ${market_value:,.0f}) to make room for {ticker}"
-        )
-
-        result = alpaca_trader.close_position(symbol)
-        if result.get("status") not in ("error",):
-            freed += market_value
-            closed_symbols.append(symbol)
-            # Set cooldown on closed ticker so we don't re-buy it right away
-            _ticker_cooldowns[symbol] = datetime.utcnow() + timedelta(minutes=TICKER_COOLDOWN_MINUTES)
-
-            # Log the liquidation
-            log_activity(
-                log_type="AUTO_TRADE",
-                ticker=symbol,
-                action="SELL",
-                details={
-                    "reason": f"Liquidated for 90+ signal on {ticker}",
-                    "market_value": market_value,
-                    "unrealized_pl": float(pos.get("unrealized_pl", 0)),
-                    "status": "executed",
-                    "auto": True
-                }
-            )
-        else:
-            logger.warning(f"[EXCELLENT] Failed to close {symbol}: {result}")
-
-    if closed_symbols:
-        # Brief pause for broker to process closes and update buying power
-        import asyncio as _aio
-        await _aio.sleep(3)
-        logger.info(
-            f"[EXCELLENT] Closed {len(closed_symbols)} positions ({', '.join(closed_symbols)}), "
-            f"freed ~${freed:,.0f} for {ticker}"
-        )
-
-    return freed >= shortfall
+    return False
 
 
 # Auto-trade state (persisted to file for restarts)
@@ -900,7 +1183,7 @@ async def get_fast_signal(ticker: str):
         current_price = quote_data.get("price", 100)
 
         # Get bars for technical analysis (fast - Alpaca is quick)
-        bars = await get_bars(ticker, timeframe="1H", limit=30)
+        bars = await get_bars(ticker, timeframe="15Min", limit=80)
 
         # Pure Python technical analysis (instant)
         from app.services.technical_indicators import analyze_technical
@@ -918,19 +1201,27 @@ async def get_fast_signal(ticker: str):
                 sentiment_score = cached_data.get("score", 50)
                 sentiment_label = cached_data.get("sentiment", "neutral")
 
-        # Combine scores: Technical weighted 60%, Sentiment 40%
-        combined_score = (technical.score * 0.6) + (sentiment_score * 0.4)
+        fast_plan = build_trade_plan(
+            price=current_price,
+            catalyst_score=sentiment_score,
+            ai_score=sentiment_score,
+            momentum_score=technical.score,
+            price_change_pct=float(quote_data.get("change_percent", 0) or 0),
+            llm_enhanced=bool(cached_sentiment and cached_sentiment[0].get("llm_enhanced")),
+            technical_score=technical.score,
+            technical_regime=technical.regime.value,
+            technical_rsi=technical.rsi,
+            support=technical.support,
+            resistance=technical.resistance,
+            relative_volume=calculate_relative_volume(bars),
+            bars=bars,
+            buy_threshold=70,
+            news_age_hours=None,
+        )
 
-        # Determine action
-        if combined_score >= 70:
-            action = "BUY"
-            confidence = min(0.9, combined_score / 100)
-        elif combined_score <= 30:
-            action = "SELL"
-            confidence = min(0.9, (100 - combined_score) / 100)
-        else:
-            action = "HOLD"
-            confidence = 0.5
+        combined_score = fast_plan["setup_score"]
+        action = fast_plan["action"]
+        confidence = min(max(combined_score / 100, 0.35), 0.9)
 
         # Build agent signals for the UI
         news_agent = {
@@ -972,19 +1263,29 @@ async def get_fast_signal(ticker: str):
                 "confidence": confidence,
                 "score": round(combined_score),
                 "entry_price": current_price,
-                "stop_loss": round(current_price * 0.98, 2),
-                "take_profit": round(current_price * 1.03, 2),
+                "entry_timing_state": fast_plan.get("timing_state"),
+                "entry_timing_score": fast_plan.get("timing_score"),
+                "entry_window": fast_plan.get("entry_window", fast_plan.get("timing_state")),
+                "fresh_catalyst": fast_plan.get("fresh_catalyst"),
+                "late_entry_risk": fast_plan.get("late_entry_risk"),
+                "stop_loss": fast_plan["stop_loss"],
+                "take_profit": fast_plan["take_profit"],
                 "quantity": calculate_position_size(
                     price=current_price,
-                    stop_loss_price=current_price * 0.98,
+                    stop_loss_price=fast_plan["stop_loss"],
                     confidence=confidence,
-                    signal_score=round(combined_score)
+                    signal_score=round(combined_score),
+                    performance_multiplier=fast_plan["size_multiplier"],
                 ),
-                "rationale": f"Technical: {technical.score}, Sentiment: {sentiment_score}"
+                "rationale": ", ".join(fast_plan.get("supporting_reasons", [])[:3]) or f"Technical: {technical.score}, Sentiment: {sentiment_score}",
             },
             "technicals": {
                 "rsi": technical.rsi,
-                "macd": technical.macd,
+                "macd": {
+                    "value": technical.macd_value,
+                    "signal": technical.macd_signal,
+                    "histogram": technical.macd_histogram,
+                },
                 "trend": technical.trend,
                 "regime": technical.regime.value,
                 "support": technical.support,
@@ -1333,9 +1634,17 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
     # Check cache first (separate cache for LLM vs keyword mode)
     cache_key = f"{ticker}_llm" if use_llm else ticker
     now = datetime.utcnow()
+    try:
+        from zoneinfo import ZoneInfo as _ZI_sent
+        _et_sent = datetime.now(_ZI_sent("America/New_York"))
+        _in_rth_sent = _et_sent.weekday() < 5 and 9 <= _et_sent.hour < 16
+    except Exception:
+        _in_rth_sent = False
+    _sent_ttl = float(SENTIMENT_CACHE_TTL_RTH_SECONDS) if _in_rth_sent and not use_llm else float(SENTIMENT_CACHE_TTL)
+
     if cache_key in _sentiment_cache:
         cached_data, cache_time = _sentiment_cache[cache_key]
-        if (now - cache_time).total_seconds() < SENTIMENT_CACHE_TTL:
+        if (now - cache_time).total_seconds() < _sent_ttl:
             logger.debug(f"Sentiment cache HIT for {ticker}")
             return cached_data
 
@@ -1428,15 +1737,16 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
         if news_items:
             positive_signals = 0
             negative_signals = 0
-            seen_themes = set()
+            theme_counts = {}
 
             for item in news_items:
                 title = item.get("title", "").lower()
                 theme_words = [w for w in ["upgrade", "downgrade", "beat", "miss", "earnings", "rating"] if w in title]
-                theme_key = "_".join(sorted(theme_words)) if theme_words else title[:30]
-                if theme_key in seen_themes:
+                theme_key = "_".join(sorted(theme_words)) if theme_words else title[:48]
+                n_seen = theme_counts.get(theme_key, 0)
+                if n_seen >= 3:
                     continue
-                seen_themes.add(theme_key)
+                theme_counts[theme_key] = n_seen + 1
 
                 if any(word in title for word in ["upgrade", "beat", "beats", "surge", "rally", "soar",
                                                   "jump", "bullish", "outperform", "record", "breakthrough"]):
@@ -1451,9 +1761,9 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
 
             net_signals = positive_signals - negative_signals
             if net_signals > 0:
-                news_score = 50 + min(25, 10 * (net_signals ** 0.7))
+                news_score = 50 + min(35, 12 * (net_signals ** 0.7))
             elif net_signals < 0:
-                news_score = 50 - min(25, 10 * (abs(net_signals) ** 0.7))
+                news_score = 50 - min(35, 12 * (abs(net_signals) ** 0.7))
             components.append(("news", news_score, news_weight))
 
         # Earnings: EPS beat/miss math
@@ -1486,9 +1796,9 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
             if upgrades or downgrades:
                 net = upgrades - downgrades
                 if net > 0:
-                    ratings_score = 50 + min(20, 8 * net)
+                    ratings_score = 50 + min(30, 10 * net)
                 elif net < 0:
-                    ratings_score = 50 - min(20, 8 * abs(net))
+                    ratings_score = 50 - min(30, 10 * abs(net))
                 components.append(("ratings", ratings_score, ratings_weight))
 
         # Consensus: overall analyst label
@@ -1497,15 +1807,15 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
             cons = consensus["results"][0] if isinstance(consensus["results"], list) else consensus["results"]
             rating = cons.get("consensus_rating", "").lower()
             if "strong buy" in rating:
-                consensus_score = 72
+                consensus_score = 80
             elif "buy" in rating:
-                consensus_score = 65
+                consensus_score = 68
             elif "hold" in rating or "neutral" in rating:
                 consensus_score = 50
             elif "sell" in rating:
-                consensus_score = 35
+                consensus_score = 32
             elif "strong sell" in rating:
-                consensus_score = 28
+                consensus_score = 20
             components.append(("consensus", consensus_score, consensus_weight))
 
         # Weighted average of all components with nuanced shrinkage
@@ -1553,6 +1863,19 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
                 "pre_shrinkage_score": pre_shrinkage,
                 "post_shrinkage_score": round(sentiment_score, 2),
             }
+
+            # Fresh bullish headlines with limited tape move should score before the crowd piles in.
+            _age_kw = _newest_article_age_hours(news_items, datetime.utcnow())
+            if (
+                _age_kw is not None
+                and _age_kw <= 1.5
+                and net_signals >= 1
+                and sentiment_score > 52
+            ):
+                freshness_lift = min(8.0, 2.5 + 1.4 * min(float(net_signals), 4.0))
+                if _age_kw <= 0.33:
+                    freshness_lift += 3.0
+                sentiment_score = min(95.0, sentiment_score + freshness_lift)
         else:
             sentiment_score = 50
 
@@ -1584,6 +1907,7 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
         if isinstance(consensus, dict) and consensus.get("results"):
             component_scores["consensus"] = round(consensus_score, 1)
 
+    _art_age = _newest_article_age_hours(news_items, datetime.utcnow()) if news_items else None
     result = {
         "ticker": ticker,
         "sentiment": sentiment,
@@ -1591,6 +1915,7 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
         "llm_enhanced": llm_used,
         "components": component_scores,
         "shrinkage": shrinkage_info,
+        "newest_article_age_hours": round(_art_age, 4) if _art_age is not None else None,
         "sources": {
             "news_analyzed": len(news_items),
             "earnings_analyzed": len(earnings_items),
@@ -1632,12 +1957,13 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
         buy_threshold = float(local_settings.TRADING_MIN_SIGNAL_SCORE)
         llm_rescore_threshold = float(local_settings.TRADING_LLM_RESCORE_MIN_SCORE)
 
-        # Get momentum and sentiment in parallel
+        # Momentum, sentiment, and quote in parallel (quote shared for TA + execution)
         momentum_task = get_momentum_analysis(ticker)
         sentiment_task = get_sentiment(ticker)
+        quote_task = get_quote(ticker)
 
-        momentum, sentiment = await asyncio.gather(
-            momentum_task, sentiment_task,
+        momentum, sentiment, quote = await asyncio.gather(
+            momentum_task, sentiment_task, quote_task,
             return_exceptions=True
         )
 
@@ -1648,39 +1974,62 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
         if isinstance(sentiment, Exception):
             logger.error(f"Sentiment analysis failed for {ticker}: {sentiment}")
             return None
+        if isinstance(quote, Exception):
+            logger.error(f"Quote failed for {ticker}: {quote}")
+            quote = {"price": 100, "change_percent": 0}
 
         momentum_score = momentum["momentum_score"]
         ai_score = sentiment["score"]  # Benzinga sentiment (news, earnings, ratings)
 
-        # OPTION B: Sentiment Primary + Momentum Boost
-        # Base score = Sentiment (what drives catalysts)
-        # Momentum confirms or warns, doesn't override
+        current_price = float(quote.get("price", 100) or 100)
+        price_change_pct = float(quote.get("change_percent", 0) or 0)
+        news_age_h = sentiment.get("newest_article_age_hours")
 
-        base_score = ai_score  # Sentiment is primary
-        momentum_boost = 0
+        # Catalyst-first: reward strong AI + calm/under-reacted tape; penalize obvious chases.
+        base_score = ai_score
+        momentum_boost = 0.0
         momentum_warning = False
 
-        # Momentum confirms sentiment (both bullish or both bearish)
-        if ai_score >= 60 and momentum_score >= 55:
-            # Positive sentiment + price rising = boost
-            momentum_boost = min((momentum_score - 50) / 8, 8)  # Up to +8 points, wider spread
-        elif ai_score >= 60 and momentum_score < 45:
-            # Positive sentiment + price falling = warning (but still tradeable)
-            momentum_boost = -5  # Small penalty
-            momentum_warning = True
+        if ai_score >= 62:
+            if -1.0 <= price_change_pct <= 1.2:
+                momentum_boost = 5.0 + min(6.0, max(0.0, ai_score - 62.0) * 0.14)
+                if news_age_h is not None and news_age_h <= 1.0 and float(momentum_score) >= 45.0:
+                    momentum_boost += 2.5
+                if news_age_h is not None and news_age_h <= 0.25:
+                    momentum_boost += 3.5
+            elif 1.2 < price_change_pct <= 2.0:
+                momentum_boost = 1.5 if news_age_h is not None and news_age_h <= 0.75 else 0.5
+            elif 2.0 < price_change_pct <= 2.6:
+                momentum_boost = -2.0
+            elif price_change_pct > 2.6:
+                momentum_boost = -12.0 - min(8.0, (price_change_pct - 2.6) * 3.5)
+                momentum_warning = True
+            elif price_change_pct < -2.0:
+                momentum_boost = -6.0
+                momentum_warning = True
+            elif -2.0 <= price_change_pct < -1.2:
+                momentum_boost = -1.0
         elif ai_score < 40 and momentum_score < 45:
-            # Negative sentiment + price falling = confirms bearish
-            momentum_boost = 5
+            momentum_boost = 5.0
 
         combined_score = base_score + momentum_boost
-        combined_score = max(0, min(100, combined_score))  # Clamp to 0-100
+        combined_score = max(0, min(100, combined_score))
 
-        # LLM re-score for tickers that pass keyword threshold
-        # This ensures UI scores match what the auto-trader actually uses
         keyword_score = combined_score
         llm_used = False
         llm_reasoning = ""
-        if combined_score >= llm_rescore_threshold or combined_score <= 25:
+        early_llm = bool(
+            news_age_h is not None
+            and news_age_h <= 5.0
+            and ai_score >= 53
+            and -1.6 <= price_change_pct <= 1.8
+            and (
+                float(momentum_score) >= 40.0
+                or (-1.0 <= price_change_pct <= 1.2 and ai_score >= 57)
+                or (news_age_h <= 1.0 and ai_score >= 60)
+            )
+        )
+        if combined_score >= llm_rescore_threshold or combined_score <= 25 or early_llm:
             try:
                 llm_sentiment = await get_sentiment(ticker, use_llm=True)
                 llm_score = llm_sentiment.get("score", combined_score)
@@ -1688,35 +2037,91 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
                 if llm_used:
                     combined_score = llm_score
                     combined_score = max(0, min(100, combined_score))
-                    # Capture LLM reasoning for display
                     llm_reasoning = llm_sentiment.get("summary", "") or llm_sentiment.get("trading_implication", "")
             except Exception as e:
                 logger.warning(f"LLM re-score failed for {ticker}, using keyword score: {e}")
 
-        # Determine action based on combined score
-        # BUY threshold is configurable and shared with scanner defaults.
-        if combined_score >= buy_threshold:
-            action = "BUY"
-        elif combined_score >= max(0.0, buy_threshold - 15):
-            action = "HOLD"  # Watch closely
-        else:
-            action = "WAIT"
+        # Intraday technical context: trend, structure, ATR, and RVOL.
+        tech_ctx = {
+            "technical_veto": False,
+            "technical_veto_reason": None,
+            "technical_score": None,
+            "technical_regime": None,
+            "technical_rsi": None,
+            "technical_bias_points": 0.0,
+            "support": None,
+            "resistance": None,
+            "atr": 0.0,
+            "relative_volume": None,
+        }
+        bars = []
+        try:
+            bars = await get_bars(ticker, timeframe="15Min", limit=80)
+            tech_ctx = _technical_context_from_bars(ticker, current_price, bars or [])
+        except Exception as e:
+            logger.warning(f"Technical context failed for {ticker}: {e}")
 
-        # Get quote for all tickers (not just high-scoring ones)
-        quote = await get_quote(ticker)
-        current_price = quote.get("price", 100)
-        price_change_pct = float(quote.get("change_percent", 0) or 0)
+        plan = build_trade_plan(
+            price=current_price,
+            catalyst_score=combined_score + float(tech_ctx.get("technical_bias_points") or 0),
+            ai_score=ai_score,
+            momentum_score=momentum_score,
+            price_change_pct=price_change_pct,
+            llm_enhanced=llm_used,
+            momentum_warning=momentum_warning,
+            technical_score=tech_ctx.get("technical_score"),
+            technical_regime=tech_ctx.get("technical_regime"),
+            technical_rsi=tech_ctx.get("technical_rsi"),
+            support=tech_ctx.get("support"),
+            resistance=tech_ctx.get("resistance"),
+            relative_volume=tech_ctx.get("relative_volume"),
+            bars=bars or [],
+            buy_threshold=buy_threshold,
+            news_age_hours=news_age_h,
+        )
+        timing_ctx = assess_entry_timing(
+            price=current_price,
+            bars=bars or [],
+            price_change_pct=price_change_pct,
+            ai_score=ai_score,
+            momentum_score=momentum_score,
+            news_age_hours=news_age_h,
+        )
 
-        # Always return a signal - let the frontend/execute logic decide thresholds
-        # Calculate confidence for position sizing (normalize combined score to 0-1)
-        signal_confidence = min(combined_score / 100, 0.95)
-        stop_loss_price = round(current_price * 0.995, 2)
+        combined_score = float(plan.get("setup_score", combined_score) or combined_score)
+        action = plan.get("action", "WAIT")
+        stop_loss_price = float(plan.get("stop_loss") or 0) or _entry_risk_levels(current_price, quote, tech_ctx, bars)[0]
+        take_profit_price = float(plan.get("take_profit") or 0) or _entry_risk_levels(current_price, quote, tech_ctx, bars)[1]
+
+        signal_confidence = min(
+            max((combined_score / 100.0) + min(float(plan.get("risk_reward_ratio", 0) or 0), 3.0) * 0.03, 0.35),
+            0.95,
+        )
+
+        reasoning_parts = []
+        if llm_reasoning:
+            reasoning_parts.append(llm_reasoning.strip())
+        if plan.get("supporting_reasons"):
+            reasoning_parts.append("Setup: " + ", ".join(plan["supporting_reasons"][:3]))
+        if plan.get("timing_state"):
+            reasoning_parts.append(
+                f"Timing {plan.get('timing_state')} ({float(plan.get('timing_score', 50) or 50):.0f})"
+            )
+        gate_reasons = (plan.get("buy_gate") or {}).get("reasons", [])
+        if gate_reasons:
+            reasoning_parts.append("Blocked by " + ", ".join(gate_reasons[:3]))
+        reasoning = " | ".join(part for part in reasoning_parts if part)[:500]
+
+        momentum_signals = momentum.get("signals", [])[:2]
+        if plan.get("supporting_reasons"):
+            momentum_signals.extend(plan["supporting_reasons"][:2])
 
         return {
             "ticker": ticker,
             "action": action,
             "combined_score": round(combined_score, 1),
             "keyword_score": round(keyword_score, 1),
+            "catalyst_score": round(base_score + momentum_boost, 1),
             "llm_enhanced": llm_used,
             "momentum_score": momentum_score,
             "ai_score": ai_score,
@@ -1724,22 +2129,48 @@ async def _analyze_ticker_for_signal(ticker: str) -> dict:
             "momentum_warning": momentum_warning,
             "entry_price": current_price,
             "price_change_pct": round(price_change_pct, 2),
-            "stop_loss": stop_loss_price,  # -0.5%
-            "take_profit": round(current_price * 1.015, 2),  # +1.5%
+            "newest_article_age_hours": news_age_h,
+            "stop_loss": stop_loss_price,
+            "take_profit": take_profit_price,
+            "buy_gate": plan.get("buy_gate", {}),
+            "risk_reward_ratio": plan.get("risk_reward_ratio"),
+            "entry_timing_score": plan.get("timing_score", timing_ctx.get("timing_score")),
+            "entry_timing_state": plan.get("timing_state", timing_ctx.get("timing_state")),
+            "entry_window": plan.get("entry_window", plan.get("timing_state", timing_ctx.get("timing_state"))),
+            "late_entry_risk": plan.get("late_entry_risk", timing_ctx.get("late_entry_risk")),
+            "price_vs_vwap_pct": plan.get("price_vs_vwap_pct", timing_ctx.get("price_vs_vwap_pct")),
+            "session_range_position": plan.get("session_range_position", timing_ctx.get("session_range_position")),
+            "fresh_catalyst": plan.get("fresh_catalyst", timing_ctx.get("fresh_catalyst")),
+            "relative_volume": plan.get("relative_volume"),
+            "atr": plan.get("atr") or tech_ctx.get("atr"),
+            "support": tech_ctx.get("support"),
+            "resistance": tech_ctx.get("resistance"),
+            "technical_veto": tech_ctx.get("technical_veto", False),
+            "technical_veto_reason": tech_ctx.get("technical_veto_reason"),
+            "technical_regime": tech_ctx.get("technical_regime"),
+            "regime_at_entry": tech_ctx.get("technical_regime"),
+            "technical_rsi": tech_ctx.get("technical_rsi"),
+            "technical_score": tech_ctx.get("technical_score"),
+            "technical_bias_points": tech_ctx.get("technical_bias_points"),
             "quantity": calculate_position_size(
                 price=current_price,
                 stop_loss_price=stop_loss_price,
                 confidence=signal_confidence,
-                signal_score=round(combined_score)
+                signal_score=round(combined_score),
+                performance_multiplier=float(plan.get("size_multiplier", 1.0) or 1.0),
             ),
+            "position_size_multiplier": float(plan.get("size_multiplier", 1.0) or 1.0),
             "shrinkage": sentiment.get("shrinkage", {}),
-            "signals": momentum.get("signals", [])[:2],
-            "strategy": "SENTIMENT" if momentum_boost >= 0 else "SENTIMENT_CAUTION",
+            "signals": momentum_signals[:4],
+            "strategy": plan.get("strategy_label", "catalyst_trend_follow"),
             "urgency": (
-                "NOW" if combined_score >= buy_threshold
-                else ("SOON" if combined_score >= max(0.0, buy_threshold - 5) else "WAIT")
+                "NOW" if action == "BUY" and (
+                    plan.get("timing_state") == "early" or combined_score >= buy_threshold + 2
+                )
+                else ("SOON" if action in {"BUY", "HOLD"} else "WAIT")
             ),
-            "reasoning": llm_reasoning,
+            "reasoning": reasoning,
+            "source": "watchlist",
             "timestamp": datetime.utcnow().isoformat() + "Z"
         }
     except Exception as e:
@@ -2931,9 +3362,9 @@ async def replay_scoring(
                     negative_signals += 0.5
             net_signals = positive_signals - negative_signals
             if net_signals > 0:
-                news_score = 50 + min(25, 10 * (net_signals ** 0.7))
+                news_score = 50 + min(35, 12 * (net_signals ** 0.7))
             elif net_signals < 0:
-                news_score = 50 - min(25, 10 * (abs(net_signals) ** 0.7))
+                news_score = 50 - min(35, 12 * (abs(net_signals) ** 0.7))
             components.append(("news", news_score, 0.25))
 
         earnings_score = 50
@@ -2964,9 +3395,9 @@ async def replay_scoring(
             if upgrades or downgrades:
                 net = upgrades - downgrades
                 if net > 0:
-                    ratings_score = 50 + min(20, 8 * net)
+                    ratings_score = 50 + min(30, 10 * net)
                 elif net < 0:
-                    ratings_score = 50 - min(20, 8 * abs(net))
+                    ratings_score = 50 - min(30, 10 * abs(net))
                 components.append(("ratings", ratings_score, 0.25))
 
         # Shrinkage with current config
@@ -3414,13 +3845,20 @@ async def auto_trade_loop():
                         trade_score = buy["score"]
                         logger.info(f"[BELL-RUSH] BUY signal: {ticker} score={trade_score:.1f} gap={buy.get('gap_pct', 'N/A')}%")
 
-                        # Get full signal data for execution
+                        # Get full signal data — respect the trade plan's action decision
                         signal = await _analyze_ticker_for_signal(ticker)
                         if not signal:
                             continue
-                        signal["combined_score"] = trade_score
+                        # Use the higher of LLM score vs trade plan score (bell rush already LLM-scored)
+                        if trade_score > float(signal.get("combined_score", 0)):
+                            signal["combined_score"] = trade_score
+                        # Only override action if trade plan also agrees or LLM score is high enough
+                        if signal.get("action") != "BUY" and trade_score < 75:
+                            logger.info(f"[BELL-RUSH] {ticker} trade plan says {signal.get('action')}, LLM={trade_score:.1f} — skipping")
+                            continue
                         signal["action"] = "BUY"
                         signal["llm_enhanced"] = True
+                        signal["source"] = f"bell_rush:{buy.get('source', 'news')}"
 
                         gate_ok, gate_reason = _passes_live_auto_trade_gate(signal, owned)
                         if not gate_ok:
@@ -3447,6 +3885,11 @@ async def auto_trade_loop():
                                 thesis=signal.get("reasoning", "")[:500],
                                 stop_loss=result.get("stop_loss"),
                                 take_profit=result.get("take_profit"),
+                                atr=signal.get("atr"),
+                                score_at_entry=signal.get("effective_score", signal.get("combined_score")),
+                                rvol_at_entry=signal.get("relative_volume"),
+                                regime_at_entry=signal.get("regime_at_entry") or signal.get("technical_regime"),
+                                source=signal.get("source"),
                             )
 
                         log_activity(
@@ -3457,11 +3900,13 @@ async def auto_trade_loop():
                                 "price": signal.get("entry_price"),
                                 "quantity": result.get("quantity") if result else None,
                                 "score": trade_score,
+                                "effective_score": signal.get("effective_score", trade_score),
                                 "reasoning": (signal.get("reasoning") or "")[:200],
                                 "order_id": result.get("order_id") if result else None,
                                 "status": result.get("status") if result else None,
                                 "source": f"bell_rush ({buy.get('source', 'news')})",
                                 "gap_pct": buy.get("gap_pct"),
+                                "size_multiplier": signal.get("position_size_multiplier", 1.0),
                                 "auto": True,
                             }
                         )
@@ -3490,9 +3935,17 @@ async def auto_trade_loop():
             _last_market_state = current_state
 
             if _auto_trade_enabled and is_market_open():
+                _scan_sleep = min(
+                    _auto_trade_interval,
+                    26,
+                ) if (
+                    (now_et.hour == 9 and now_et.minute >= 30)
+                    or (now_et.hour == 10 and now_et.minute <= 25)
+                ) else _auto_trade_interval
+
                 if now_et.hour == 15 and now_et.minute >= 30:
                     logger.info("🤖 [AUTO-TRADE] Skipping scan - too close to market close (3:30 PM+ ET)")
-                    await asyncio.sleep(_auto_trade_interval)
+                    await asyncio.sleep(_scan_sleep)
                     continue
 
                 logger.info("🤖 [AUTO-TRADE] Running automatic trade scan...")
@@ -3500,13 +3953,13 @@ async def auto_trade_loop():
                 # === RISK CHECKS: Daily loss limit and market trend ===
                 if _check_daily_loss_limit():
                     _log_trade_gate("*", 0, False, "daily loss limit hit")
-                    await asyncio.sleep(_auto_trade_interval)
+                    await asyncio.sleep(_scan_sleep)
                     continue
 
                 spy_skip, spy_change = _check_spy_trend()
                 if spy_skip:
                     _log_trade_gate("*", 0, False, f"SPY down {spy_change*100:.2f}%")
-                    await asyncio.sleep(_auto_trade_interval)
+                    await asyncio.sleep(_scan_sleep)
                     continue
 
                 # Analyze all watchlist tickers with momentum + LLM (same pipeline as UI)
@@ -3558,7 +4011,7 @@ async def auto_trade_loop():
                             _log_trade_gate(r_ticker, r_score, False, gate_reason)
                             _recent_trade_decisions[r_ticker] = {"status": "blocked", "reason": gate_reason, "timestamp": datetime.utcnow().isoformat()}
 
-                    buy_signals.sort(key=lambda x: x["combined_score"], reverse=True)
+                    buy_signals.sort(key=_auto_trade_signal_rank, reverse=True)
 
                     # Pick the best signal
                     signal = buy_signals[0] if buy_signals else None
@@ -3569,6 +4022,7 @@ async def auto_trade_loop():
 
                     if should_trade:
                         ticker = signal.get("ticker")
+                        signal["source"] = signal.get("source") or "watchlist_auto"
                         trade_score = float(signal.get("combined_score", 0))
                         keyword_score = float(signal.get("keyword_score", trade_score))
                         llm_enhanced = signal.get("llm_enhanced", False)
@@ -3608,6 +4062,11 @@ async def auto_trade_loop():
                                     thesis=signal.get("reasoning", "")[:500],
                                     stop_loss=result.get("stop_loss"),
                                     take_profit=result.get("take_profit"),
+                                    atr=signal.get("atr"),
+                                    score_at_entry=signal.get("effective_score", signal.get("combined_score")),
+                                    rvol_at_entry=signal.get("relative_volume"),
+                                    regime_at_entry=signal.get("regime_at_entry") or signal.get("technical_regime"),
+                                    source=signal.get("source"),
                                 )
                                 logger.info(f"🤖 [AUTO-TRADE] Registered {ticker} with Position Manager for exit tracking")
 
@@ -3620,9 +4079,12 @@ async def auto_trade_loop():
                                     "price": signal.get("entry_price"),
                                     "quantity": result.get("quantity") if result else None,
                                     "score": trade_score,
+                                    "effective_score": signal.get("effective_score", trade_score),
                                     "reasoning": (signal.get("reasoning") or "")[:200],
                                     "order_id": result.get("order_id") if result else None,
                                     "status": result.get("status") if result else None,
+                                    "source": signal.get("source"),
+                                    "size_multiplier": signal.get("position_size_multiplier", 1.0),
                                     "auto": True
                                 }
                             )
@@ -3666,12 +4128,19 @@ async def auto_trade_loop():
                                     _recent_trade_decisions[tr_ticker] = {"status": "blocked", "reason": f"Cooldown ({remaining:.0f}m left)", "timestamp": datetime.utcnow().isoformat()}
                                     continue
 
-                                # Get full signal data
+                                # Get full signal data — respect trade plan decisions
                                 tr_signal = await _analyze_ticker_for_signal(tr_ticker)
                                 if not tr_signal:
                                     continue
-                                tr_signal["combined_score"] = tr_score
-                                tr_signal["action"] = tr_action
+                                # Use higher of trending score vs trade plan score
+                                if tr_score > float(tr_signal.get("combined_score", 0)):
+                                    tr_signal["combined_score"] = tr_score
+                                # Only override action if trade plan agrees or score is strong
+                                if tr_signal.get("action") != "BUY" and tr_score < 75:
+                                    logger.info(f"[TRENDING] {tr_ticker} trade plan says {tr_signal.get('action')}, score={tr_score:.1f} — skipping")
+                                    continue
+                                tr_signal["action"] = "BUY"
+                                tr_signal["source"] = "trending"
 
                                 # Must be LLM-confirmed for trading
                                 if not tr.get("llm_enhanced"):
@@ -3710,6 +4179,11 @@ async def auto_trade_loop():
                                         thesis=tr_signal.get("reasoning", "")[:500],
                                         stop_loss=result.get("stop_loss"),
                                         take_profit=result.get("take_profit"),
+                                        atr=tr_signal.get("atr"),
+                                        score_at_entry=tr_signal.get("effective_score", tr_signal.get("combined_score")),
+                                        rvol_at_entry=tr_signal.get("relative_volume"),
+                                        regime_at_entry=tr_signal.get("regime_at_entry") or tr_signal.get("technical_regime"),
+                                        source=tr_signal.get("source"),
                                     )
 
                                 log_activity(
@@ -3720,11 +4194,13 @@ async def auto_trade_loop():
                                         "price": tr_signal.get("entry_price"),
                                         "quantity": result.get("quantity") if result else None,
                                         "score": tr_score,
+                                        "effective_score": tr_signal.get("effective_score", tr_score),
                                         "reasoning": (tr_signal.get("reasoning") or "")[:200],
                                         "order_id": result.get("order_id") if result else None,
                                         "status": result.get("status") if result else None,
                                         "source": "trending",
                                         "mention_count": tr.get("mention_count", 1),
+                                        "size_multiplier": tr_signal.get("position_size_multiplier", 1.0),
                                         "auto": True,
                                     }
                                 )
@@ -3750,7 +4226,14 @@ async def auto_trade_loop():
             from zoneinfo import ZoneInfo as _ZI
             _now_et = datetime.now(_ZI("America/New_York"))
             _in_hours = _now_et.weekday() < 5 and 7 <= _now_et.hour < 20
-            await asyncio.sleep(_auto_trade_interval if _in_hours else 300)
+            _opening_drive = is_market_open() and (
+                (_now_et.hour == 9 and _now_et.minute >= 30)
+                or (_now_et.hour == 10 and _now_et.minute <= 25)
+            )
+            _round_sleep = _auto_trade_interval if _in_hours else 300
+            if _opening_drive and _in_hours:
+                _round_sleep = min(_round_sleep, 26)
+            await asyncio.sleep(_round_sleep)
 
         except Exception as e:
             logger.error(f"🤖 [AUTO-TRADE] Loop error: {e}")
@@ -4010,10 +4493,19 @@ async def get_momentum_analysis(ticker: str):
     # Price momentum - continuous scaling based on daily change
     price_change = quote_data.get("change_percent", 0)
 
-    # Scale price change to momentum points (each 1% = ~8 points, capped)
-    price_momentum = price_change * 8
+    # Softer intraday beta so "already up 2%" does not dominate the score (sentiment carries early edge).
+    price_momentum = price_change * 5
     price_momentum = max(-30, min(30, price_momentum))  # Cap at +/- 30 points
     momentum_score += price_momentum
+
+    # Anti-chase: already-up names get penalized (reduces buying blow-off tops on headline hype)
+    if price_change > 1.85:
+        chase_penalty = min(22.0, (price_change - 1.85) * 5.5)
+        momentum_score -= chase_penalty
+        signals.append(f"⚠️ Extended +{price_change:.1f}% day — chase penalty")
+    elif -0.4 <= price_change <= 0.9:
+        momentum_score += 3
+        signals.append("⚖️ Calm tape — room for catalyst to reprice")
 
     # Add descriptive signals based on magnitude
     if price_change > 3:
@@ -4035,8 +4527,8 @@ async def get_momentum_analysis(ticker: str):
         # Count recent news (any news in last hour counts)
         recent_count = len(news_items)
         if recent_count > 0:
-            # More news = more momentum (capped)
-            news_boost = min(10, recent_count * 3)
+            # More news = more momentum (capped lower — sentiment path already consumes headlines)
+            news_boost = min(6, recent_count * 2)
             momentum_score += news_boost
             signals.append(f"📰 {recent_count} recent news items")
 
@@ -4106,7 +4598,7 @@ async def get_momentum_analysis(ticker: str):
             "quick_target": round(current_price * 1.01, 2),  # 1% quick profit
             "scalp_target": round(current_price * 1.02, 2),  # 2% scalp target
             "momentum_target": round(current_price * 1.03, 2),  # 3% momentum target
-            "stop_loss": round(current_price * 0.995, 2),  # 0.5% tight stop
+            "stop_loss": _entry_risk_levels(current_price, quote_data)[0],
             "time_limit": "5-15 minutes",
             "exit_on": "Momentum loss or target hit"
         },

@@ -772,6 +772,38 @@ class MemoryStore:
         finally:
             conn.close()
 
+    def get_recent_completed_trades(
+        self,
+        ticker: str,
+        regime_at_entry: Optional[str] = None,
+        source: Optional[str] = None,
+        limit: int = 10,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve recent completed trades for a similar ticker/setup."""
+        conn = self._get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT
+                    ticker, side, entry_price, exit_price, entry_time, exit_time,
+                    quantity, pnl, pnl_pct, hold_time_minutes, score_at_entry,
+                    atr_at_entry, rvol_at_entry, regime_at_entry, source, exit_reason
+                FROM completed_trades
+                WHERE ticker = ?
+                   OR (? IS NOT NULL AND regime_at_entry = ?)
+                   OR (? IS NOT NULL AND source = ?)
+                ORDER BY exit_time DESC
+                LIMIT ?
+            """, (
+                ticker,
+                regime_at_entry, regime_at_entry,
+                source, source,
+                limit,
+            ))
+            return [dict(row) for row in cursor.fetchall()]
+        finally:
+            conn.close()
+
     def get_performance_stats(self) -> Dict[str, Any]:
         """Get performance statistics from completed trades."""
         conn = self._get_connection()

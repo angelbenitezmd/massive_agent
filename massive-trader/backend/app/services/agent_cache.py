@@ -87,8 +87,8 @@ class AgentCache:
         # noise does not justify re-running LLMs every 5 minutes.
         self.config = {
             AgentType.NEWS: {
-                "max_age_minutes": 15,       # Re-check news every 15 min
-                "min_interval_seconds": 300,  # At most once per 5 min
+                "max_age_minutes": 10,       # Re-check news every 10 min
+                "min_interval_seconds": 120,  # At most once per 2 min — speed matters for fresh catalysts
             },
             AgentType.EARNINGS: {
                 "max_age_minutes": 120,      # Earnings don't change often
@@ -278,9 +278,27 @@ class AgentCache:
             return True
 
         cached = cache[AgentType.NEWS]
-
-        # Check minimum interval
         age_seconds = cached.age_seconds()
+
+        # NEW NEWS BEATS MIN INTERVAL — this is critical for early entry.
+        # If breaking news arrived since the last LLM run, re-score immediately
+        # (only enforce a short floor of 30s to avoid hammering the API).
+        if latest_news_ts:
+            last_run_news_ts = upstream.news_timestamp
+            if last_run_news_ts is None or latest_news_ts > last_run_news_ts:
+                if age_seconds >= 30:
+                    logger.info(
+                        f"News agent for {ticker}: New news detected, re-scoring now"
+                    )
+                    upstream.news_timestamp = latest_news_ts
+                    return True
+                else:
+                    logger.debug(
+                        f"News agent for {ticker}: New news but too soon ({age_seconds:.0f}s < 30s)"
+                    )
+                    return False
+
+        # Check minimum interval (only applies when no new news)
         if age_seconds < config["min_interval_seconds"]:
             logger.debug(
                 f"News agent for {ticker}: Too soon "
@@ -292,16 +310,6 @@ class AgentCache:
         if cached.is_expired(config["max_age_minutes"]):
             logger.info(f"News agent for {ticker}: Cache expired, will run")
             return True
-
-        # Check if new news arrived
-        if latest_news_ts:
-            last_run_news_ts = upstream.news_timestamp
-            if last_run_news_ts is None or latest_news_ts > last_run_news_ts:
-                logger.info(
-                    f"News agent for {ticker}: New news detected, will run"
-                )
-                upstream.news_timestamp = latest_news_ts
-                return True
 
         logger.debug(f"News agent for {ticker}: No change, using cache")
         return False

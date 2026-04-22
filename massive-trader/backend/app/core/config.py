@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     TRADING_HYBRID_INTERVAL_SECONDS: int = Field(default=60)
     TRADING_DEFAULT_MAX_POSITION_RISK: float = Field(default=0.01)
     TRADING_DAILY_MAX_DRAWDOWN: float = Field(default=0.05)
-    TRADING_MIN_SIGNAL_SCORE: float = Field(default=75.0)
+    TRADING_MIN_SIGNAL_SCORE: float = Field(default=70.0)
     TRADING_FAST_MODE_URGENCY_THRESHOLD: float = Field(default=0.8)
 
     # WebSocket
