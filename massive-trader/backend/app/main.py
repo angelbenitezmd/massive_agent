@@ -931,10 +931,13 @@ async def lifespan(app: FastAPI):
     logger.info("✅ Smart Position Manager started (LLM-powered exits)")
     logger.info("✅ Legacy simple auto-exit loop disabled in favor of Position Manager")
 
-    # Load auto-trade state and start background loop
+    # Load auto-trade state and start background loops
     load_auto_trade_state()
     asyncio.create_task(auto_trade_loop())
     logger.info(f"✅ Auto-trade loop started (enabled={_auto_trade_enabled})")
+
+    asyncio.create_task(news_push_loop())
+    logger.info("✅ News-push watcher started (15s poll, immediate trade on breaking news)")
 
     logger.info("="*60)
 
@@ -3730,6 +3733,228 @@ def _get_premarket_gaps_sync(watchlist: list, min_gap_pct: float = 3.0) -> list:
             continue
     gappers.sort(key=lambda x: abs(x["gap_pct"]), reverse=True)
     return gappers[:20]
+
+
+# ============= NEWS-PUSH: IMMEDIATE REACTION TO BREAKING NEWS =============
+
+# Seen article IDs — prevents re-processing the same headline
+_news_push_seen: set[str] = set()
+_NEWS_PUSH_POLL_SECONDS = 15        # How often to check for new articles
+_NEWS_PUSH_SEEN_MAX = 500           # Prune after this many stored IDs
+_NEWS_PUSH_MAX_TRADES_PER_CYCLE = 1 # Don't fire-hose; best signal only
+
+
+def _extract_tickers_from_article(article: dict) -> set[str]:
+    """Pull ticker symbols out of a single Benzinga article."""
+    tickers = set()
+    for stock in (article.get("stocks") or []):
+        sym = stock.get("symbol") or stock.get("ticker") or stock.get("name")
+        if sym:
+            tickers.add(sym.upper())
+    for sym in (article.get("tickers") or []):
+        if isinstance(sym, str):
+            tickers.add(sym.upper())
+    for sec in (article.get("securities") or []):
+        sym = sec.get("symbol") or sec.get("ticker")
+        if sym:
+            tickers.add(sym.upper())
+    return tickers
+
+
+async def news_push_loop():
+    """Fast-polling news monitor.  When a *new* article mentions a watchlist
+    ticker, immediately run the full analysis → trade pipeline instead of
+    waiting for the next scan cycle.
+
+    This is the bridge between "polling every 26-60 s" and "react in seconds."
+    """
+    global _news_push_seen
+
+    # Let the main loop start first so startup isn't contended
+    await asyncio.sleep(8)
+    logger.info("[NEWS-PUSH] News watcher started")
+
+    while True:
+        try:
+            from zoneinfo import ZoneInfo
+            now_et = datetime.now(ZoneInfo("America/New_York"))
+
+            # Only run during market hours when auto-trade is on
+            if not _auto_trade_enabled or not is_market_open():
+                await asyncio.sleep(60)
+                continue
+
+            # Skip near close — same rule as the main loop
+            if now_et.hour == 15 and now_et.minute >= 30:
+                await asyncio.sleep(60)
+                continue
+
+            if not benzinga_client:
+                await asyncio.sleep(60)
+                continue
+
+            # ---- Fetch latest articles (all tickers) ----
+            raw = await benzinga_client.get_news(limit=15)
+            articles = raw.get("results", []) if isinstance(raw, dict) else []
+
+            # Detect new articles we haven't processed
+            new_articles: list[dict] = []
+            for art in articles:
+                art_id = str(
+                    art.get("id")
+                    or art.get("url")
+                    or (art.get("title") or "")[:60]
+                )
+                if art_id and art_id not in _news_push_seen:
+                    _news_push_seen.add(art_id)
+                    new_articles.append(art)
+
+            # Prune memory
+            if len(_news_push_seen) > _NEWS_PUSH_SEEN_MAX:
+                _news_push_seen = set(list(_news_push_seen)[-250:])
+
+            if not new_articles:
+                await asyncio.sleep(_NEWS_PUSH_POLL_SECONDS)
+                continue
+
+            # ---- Match against watchlist ----
+            settings = get_settings()
+            watchlist = set(t.upper() for t in settings.watchlist)
+            hot_tickers: dict[str, dict] = {}  # ticker -> article (keep first match)
+            for art in new_articles:
+                for sym in _extract_tickers_from_article(art):
+                    if sym in watchlist and sym not in _EXCLUDED_TICKERS and sym not in hot_tickers:
+                        hot_tickers[sym] = art
+
+            if not hot_tickers:
+                await asyncio.sleep(_NEWS_PUSH_POLL_SECONDS)
+                continue
+
+            logger.info(
+                f"[NEWS-PUSH] New articles mention watchlist tickers: "
+                f"{', '.join(hot_tickers.keys())}"
+            )
+
+            # ---- Risk checks (same as main loop) ----
+            if _check_daily_loss_limit():
+                await asyncio.sleep(_NEWS_PUSH_POLL_SECONDS)
+                continue
+            spy_skip, _ = _check_spy_trend()
+            if spy_skip:
+                await asyncio.sleep(_NEWS_PUSH_POLL_SECONDS)
+                continue
+
+            positions = alpaca_trader.get_positions() if alpaca_trader else []
+            owned = {p["symbol"] for p in positions}
+
+            # ---- Analyze hot tickers concurrently ----
+            sem = asyncio.Semaphore(4)
+
+            async def _analyze_one(ticker: str) -> Optional[dict]:
+                if ticker in owned:
+                    return None
+                cd = _ticker_cooldowns.get(ticker)
+                if cd and datetime.utcnow() < cd:
+                    return None
+                async with sem:
+                    sig = await _analyze_ticker_for_signal(ticker)
+                if not sig:
+                    return None
+                sig["source"] = "news_push"
+                return sig
+
+            results = await asyncio.gather(
+                *[_analyze_one(t) for t in hot_tickers],
+                return_exceptions=True,
+            )
+
+            # Filter to passing signals
+            candidates = []
+            for r in results:
+                if r is None or isinstance(r, Exception):
+                    continue
+                gate_ok, gate_reason = _passes_live_auto_trade_gate(r, owned)
+                if gate_ok:
+                    candidates.append(r)
+                else:
+                    _log_trade_gate(
+                        r["ticker"],
+                        float(r.get("combined_score", 0)),
+                        False,
+                        gate_reason,
+                        source="news_push",
+                    )
+
+            if not candidates:
+                await asyncio.sleep(_NEWS_PUSH_POLL_SECONDS)
+                continue
+
+            # Sort by timing-first ranking (same as main loop)
+            candidates.sort(key=_auto_trade_signal_rank, reverse=True)
+
+            # ---- Execute best signal ----
+            for signal in candidates[:_NEWS_PUSH_MAX_TRADES_PER_CYCLE]:
+                ticker = signal["ticker"]
+                trade_score = float(signal.get("combined_score", 0))
+
+                _log_trade_gate(ticker, trade_score, True, "news_push executing", source="news_push")
+                logger.info(
+                    f"[NEWS-PUSH] Executing BUY {ticker} "
+                    f"score={trade_score:.1f} timing={signal.get('entry_timing_state', '?')}"
+                )
+
+                result = alpaca_trader.execute_trade(signal)
+
+                # Register with position manager
+                pm = get_position_manager()
+                if pm and result and result.get("status") == "executed":
+                    pm.register_entry(
+                        symbol=ticker,
+                        entry_price=signal.get("entry_price", result.get("entry_price", 0)),
+                        quantity=result.get("quantity", 1),
+                        thesis=signal.get("reasoning", "")[:500],
+                        stop_loss=result.get("stop_loss"),
+                        take_profit=result.get("take_profit"),
+                        atr=signal.get("atr"),
+                        score_at_entry=signal.get("effective_score", signal.get("combined_score")),
+                        rvol_at_entry=signal.get("relative_volume"),
+                        regime_at_entry=signal.get("regime_at_entry") or signal.get("technical_regime"),
+                        source="news_push",
+                    )
+
+                log_activity(
+                    log_type="AUTO_TRADE",
+                    ticker=ticker,
+                    action="BUY",
+                    details={
+                        "price": signal.get("entry_price"),
+                        "quantity": result.get("quantity") if result else None,
+                        "score": trade_score,
+                        "effective_score": signal.get("effective_score", trade_score),
+                        "reasoning": (signal.get("reasoning") or "")[:200],
+                        "order_id": result.get("order_id") if result else None,
+                        "status": result.get("status") if result else None,
+                        "source": "news_push",
+                        "timing_state": signal.get("entry_timing_state"),
+                        "size_multiplier": signal.get("position_size_multiplier", 1.0),
+                        "auto": True,
+                    },
+                )
+
+                _ticker_cooldowns[ticker] = datetime.utcnow() + timedelta(minutes=TICKER_COOLDOWN_MINUTES)
+                owned.add(ticker)
+                _recent_trade_decisions[ticker] = {
+                    "status": "executed",
+                    "reason": f"News push, score {trade_score:.0f}",
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+                logger.info(f"[NEWS-PUSH] Trade executed: {ticker} -> {result}")
+
+            await asyncio.sleep(_NEWS_PUSH_POLL_SECONDS)
+
+        except Exception as e:
+            logger.error(f"[NEWS-PUSH] Error: {e}", exc_info=True)
+            await asyncio.sleep(30)
 
 
 # ============= AUTO-TRADE BACKGROUND LOOP =============
