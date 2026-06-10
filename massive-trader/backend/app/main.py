@@ -5,6 +5,7 @@ import logging
 import asyncio
 import random
 import json
+from collections import defaultdict, deque
 from pathlib import Path
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -41,6 +42,7 @@ SENTIMENT_CACHE_TTL_RTH_SECONDS = 14  # Regular session: refresh keyword sentime
 MOMENTUM_CACHE_TTL = 15    # Cache momentum for 15 seconds (price-sensitive)
 SCAN_CACHE_TTL = 20        # Cache scan results for 20 seconds
 TRENDING_CACHE_TTL = 300   # Cache trending results for 5 minutes
+EARNINGS_CACHE_TTL = 600   # Cache earnings calendar for 10 minutes
 
 # Excluded ETFs/indices from trending discovery (not individual stocks)
 _EXCLUDED_TICKERS = {
@@ -312,10 +314,11 @@ TARGET_POSITION_PCT_MED_CONF = 0.035  # Target 3.5% for medium confidence (0.6-0
 TARGET_POSITION_PCT_LOW_CONF = 0.02   # Target 2% for low confidence (<0.6)
 
 # Live auto-trade gate: aligned with recalibrated LLM scoring (full 0-100 range).
-AUTO_TRADE_MIN_COMBINED_SCORE = 70.0
-AUTO_TRADE_MIN_COMBINED_SCORE_EARLY = 64.0  # true early window should not need full follow-through yet
-AUTO_TRADE_MIN_AI_SCORE = 62.0
-AUTO_TRADE_MIN_MOMENTUM_SCORE = 52.0
+# SACRED: KW 70 = LLM access, but execution requires 75+ on the LLM-final score.
+AUTO_TRADE_MIN_COMBINED_SCORE = 75.0
+AUTO_TRADE_MIN_COMBINED_SCORE_EARLY = 72.0  # early window still requires LLM confidence floor
+AUTO_TRADE_MIN_AI_SCORE = 70.0
+AUTO_TRADE_MIN_MOMENTUM_SCORE = 55.0
 AUTO_TRADE_MAX_ABS_MOVE_PCT = 5.0
 AUTO_TRADE_MIN_PRICE = 25.0  # No penny stocks
 AUTO_TRADE_MAX_FINANCIAL_POSITIONS = 1
@@ -495,11 +498,18 @@ def _passes_live_auto_trade_gate(signal: dict, owned_symbols: set[str]) -> tuple
     entry_price = float(signal.get("entry_price", 0) or signal.get("price", 0) or 0)
 
     if action != "BUY":
+        gate_reasons = (signal.get("buy_gate") or {}).get("reasons") or []
+        if gate_reasons:
+            return False, f"action={action} (buy_gate: {', '.join(gate_reasons[:4])})"
         return False, f"action={action}"
     if entry_price > 0 and entry_price < AUTO_TRADE_MIN_PRICE:
         return False, f"price=${entry_price:.2f}<min=${AUTO_TRADE_MIN_PRICE:.0f}"
     if not signal.get("llm_enhanced", False):
         return False, "llm_confirmation_required"
+    # Stale catalyst guard: reject if newest article is older than 6h unless score is elite (>=85)
+    news_age_h = signal.get("newest_article_age_hours")
+    if news_age_h is not None and news_age_h > 6.0 and combined_score < 85.0:
+        return False, f"stale_catalyst={news_age_h:.1f}h>6h"
     if len(owned_symbols) >= AUTO_TRADE_MAX_OPEN_POSITIONS:
         return False, f"max_open_positions={AUTO_TRADE_MAX_OPEN_POSITIONS}"
     if _count_today_auto_trade_buys() >= AUTO_TRADE_MAX_NEW_TRADES_PER_DAY:
@@ -1007,6 +1017,22 @@ async def system_status():
             "alpaca": bool(settings.ALPACA_API_KEY_ID and settings.ALPACA_API_SECRET_KEY),
             "anthropic": bool(settings.ANTHROPIC_API_KEY)
         }
+    }
+
+
+# ============= BUDGET / LLM USAGE =============
+
+@app.get("/api/llm-budget")
+async def llm_budget_status():
+    """Show today's LLM call usage vs daily cap (for cost monitoring)."""
+    from app.services.agent_cache import agent_cache as _ac
+    used = _ac.llm_calls_today()
+    cap = _ac.llm_cap()
+    return {
+        "calls_today": used,
+        "cap": cap,
+        "remaining": max(0, cap - used),
+        "exhausted": used >= cap,
     }
 
 
@@ -1719,10 +1745,15 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
                 ratings_data=ratings_items if ratings_items else None,
                 consensus_data=consensus if isinstance(consensus, dict) else None,
             )
-            sentiment_score = float(llm_result.get("score", 50))
-            llm_used = True
-            shrinkage_info = {"mode": "llm", "final_shrinkage": 0.0}
-            logger.info(f"LLM score for {ticker}: {sentiment_score} (confidence: {llm_result.get('confidence', 'N/A')})")
+            # Daily-cap stub: keep keyword scoring authoritative, do NOT mark llm_enhanced.
+            if llm_result.get("_skipped_reason") == "llm_daily_cap":
+                logger.info(f"LLM daily cap stub for {ticker} — keyword fallback")
+                use_llm = False
+            else:
+                sentiment_score = float(llm_result.get("score", 50))
+                llm_used = True
+                shrinkage_info = {"mode": "llm", "final_shrinkage": 0.0}
+                logger.info(f"LLM score for {ticker}: {sentiment_score} (confidence: {llm_result.get('confidence', 'N/A')})")
         except Exception as e:
             logger.warning(f"LLM analysis failed for {ticker}, falling back to keywords: {e}")
             use_llm = False  # Fall through to keyword mode
@@ -1879,6 +1910,14 @@ async def get_sentiment(ticker: str, use_llm: bool = False):
                 if _age_kw <= 0.33:
                     freshness_lift += 3.0
                 sentiment_score = min(95.0, sentiment_score + freshness_lift)
+
+            # No-catalyst cap: if there's no positive news signal, keyword score can't
+            # exceed 70 — analyst ratings/consensus alone are stale data, not a catalyst.
+            # This prevents the trending/watchlist scans from promoting tickers that
+            # only look strong because of analyst boilerplate.
+            if net_signals < 1 and sentiment_score > 70:
+                sentiment_score = 70.0
+                shrinkage_info["no_catalyst_cap_applied"] = True
         else:
             sentiment_score = 50
 
@@ -3050,6 +3089,148 @@ async def get_portfolio_history(
         }
 
 
+def _pair_closed_trades_from_orders(orders: list) -> list[dict]:
+    """Build FIFO round trips from filled orders, preserving partial fills."""
+    symbol_orders: dict[str, list[dict]] = defaultdict(list)
+
+    for order in orders:
+        status = getattr(getattr(order, "status", None), "value", getattr(order, "status", None))
+        if status != "filled":
+            continue
+
+        filled_qty = float(getattr(order, "filled_qty", 0) or 0)
+        filled_avg_price = float(getattr(order, "filled_avg_price", 0) or 0)
+        if filled_qty <= 0 or filled_avg_price <= 0:
+            continue
+
+        side = getattr(getattr(order, "side", None), "value", getattr(order, "side", None))
+        if side not in {"buy", "sell"}:
+            continue
+
+        filled_at = getattr(order, "filled_at", None)
+        symbol_orders[getattr(order, "symbol")].append({
+            "id": str(getattr(order, "id")),
+            "symbol": getattr(order, "symbol"),
+            "side": side,
+            "filled_at": filled_at.isoformat() if filled_at else None,
+            "filled_qty": filled_qty,
+            "filled_avg_price": filled_avg_price,
+        })
+
+    closed_trades: list[dict] = []
+
+    for symbol, fills in symbol_orders.items():
+        fills.sort(key=lambda item: (item["filled_at"] or "", item["id"]))
+        open_lots: deque[dict] = deque()
+
+        for fill in fills:
+            remaining_qty = fill["filled_qty"]
+
+            while remaining_qty > 0 and open_lots and open_lots[0]["side"] != fill["side"]:
+                open_lot = open_lots[0]
+                matched_qty = min(remaining_qty, open_lot["remaining_qty"])
+
+                if open_lot["side"] == "buy" and fill["side"] == "sell":
+                    entry_price = open_lot["filled_avg_price"]
+                    exit_price = fill["filled_avg_price"]
+                    pnl_dollars = (exit_price - entry_price) * matched_qty
+                    pnl_pct = ((exit_price - entry_price) / entry_price) * 100 if entry_price else 0
+                else:
+                    entry_price = open_lot["filled_avg_price"]
+                    exit_price = fill["filled_avg_price"]
+                    pnl_dollars = (entry_price - exit_price) * matched_qty
+                    pnl_pct = ((entry_price - exit_price) / entry_price) * 100 if entry_price else 0
+
+                closed_trades.append({
+                    "id": f"{open_lot['id']}:{fill['id']}:{len(closed_trades)}",
+                    "symbol": symbol,
+                    "side": fill["side"],
+                    "timestamp": fill["filled_at"],
+                    "entry_timestamp": open_lot["filled_at"],
+                    "exit_timestamp": fill["filled_at"],
+                    "entry_price": round(entry_price, 2),
+                    "exit_price": round(exit_price, 2),
+                    "quantity": round(matched_qty, 6),
+                    "pnl_pct": round(pnl_pct, 2),
+                    "pnl_dollars": round(pnl_dollars, 2),
+                    "entry_notional": round(entry_price * matched_qty, 2),
+                    "reason": "Round trip",
+                    "status": "closed",
+                })
+
+                open_lot["remaining_qty"] -= matched_qty
+                remaining_qty -= matched_qty
+
+                if open_lot["remaining_qty"] <= 1e-9:
+                    open_lots.popleft()
+
+            if remaining_qty > 1e-9:
+                open_lots.append({
+                    **fill,
+                    "remaining_qty": remaining_qty,
+                })
+
+    closed_trades.sort(key=lambda item: (item.get("timestamp") or "", item["id"]), reverse=True)
+    return closed_trades
+
+
+def _summarize_closed_trades(closed_trades: list[dict]) -> dict:
+    total_trades = len(closed_trades)
+    wins = len([trade for trade in closed_trades if (trade.get("pnl_dollars") or 0) > 0])
+    losses = len([trade for trade in closed_trades if (trade.get("pnl_dollars") or 0) < 0])
+    breakeven = total_trades - wins - losses
+
+    gross_profit_dollars = sum(max(trade.get("pnl_dollars", 0), 0) for trade in closed_trades)
+    gross_loss_dollars = abs(sum(min(trade.get("pnl_dollars", 0), 0) for trade in closed_trades))
+    net_pnl_dollars = sum(trade.get("pnl_dollars", 0) for trade in closed_trades)
+    capital_deployed = sum(trade.get("entry_notional", 0) for trade in closed_trades)
+
+    winning_trades = [trade for trade in closed_trades if (trade.get("pnl_dollars") or 0) > 0]
+    losing_trades = [trade for trade in closed_trades if (trade.get("pnl_dollars") or 0) < 0]
+
+    avg_win_dollars = gross_profit_dollars / wins if wins else 0
+    avg_loss_dollars = gross_loss_dollars / losses if losses else 0
+    avg_win_pct = (
+        sum(trade.get("pnl_pct", 0) for trade in winning_trades) / wins
+        if wins else 0
+    )
+    avg_loss_pct = (
+        sum(trade.get("pnl_pct", 0) for trade in losing_trades) / losses
+        if losses else 0
+    )
+
+    profit_factor = None
+    if gross_loss_dollars > 0:
+        profit_factor = gross_profit_dollars / gross_loss_dollars
+
+    payoff_ratio = None
+    if avg_loss_dollars > 0:
+        payoff_ratio = avg_win_dollars / avg_loss_dollars
+
+    total_pnl_pct = (net_pnl_dollars / capital_deployed * 100) if capital_deployed else 0
+    win_rate = (wins / total_trades * 100) if total_trades else 0
+    expectancy_dollars = (net_pnl_dollars / total_trades) if total_trades else 0
+
+    return {
+        "total_trades": total_trades,
+        "wins": wins,
+        "losses": losses,
+        "breakeven": breakeven,
+        "win_rate": round(win_rate, 1),
+        "total_pnl_pct": round(total_pnl_pct, 2),
+        "total_pnl_dollars": round(net_pnl_dollars, 2),
+        "gross_profit_dollars": round(gross_profit_dollars, 2),
+        "gross_loss_dollars": round(gross_loss_dollars, 2),
+        "avg_win_dollars": round(avg_win_dollars, 2),
+        "avg_loss_dollars": round(avg_loss_dollars, 2),
+        "avg_win_pct": round(avg_win_pct, 2),
+        "avg_loss_pct": round(avg_loss_pct, 2),
+        "profit_factor": round(profit_factor, 2) if profit_factor is not None else None,
+        "payoff_ratio": round(payoff_ratio, 2) if payoff_ratio is not None else None,
+        "expectancy_dollars": round(expectancy_dollars, 2),
+    }
+
+
 @app.get("/api/trading/closed-trades")
 async def get_closed_trades(
     limit: int = Query(50, description="Maximum trades to return"),
@@ -3061,97 +3242,32 @@ async def get_closed_trades(
         from alpaca.trading.enums import QueryOrderStatus
 
         if not alpaca_trader.client:
-            return {"trades": [], "count": 0, "summary": {"total_trades": 0, "wins": 0, "losses": 0, "win_rate": 0, "total_pnl_pct": 0}, "timestamp": datetime.utcnow().isoformat()}
-
-        # Calculate date range
-        if days_back:
-            after_date = datetime.utcnow() - timedelta(days=days_back)
-        else:
-            after_date = datetime.utcnow() - timedelta(days=30)  # Default to 30 days
-
-        # Fetch filled orders from Alpaca
-        request = GetOrdersRequest(
-            status=QueryOrderStatus.CLOSED,
-            after=after_date,
-            limit=500  # Fetch more to find matching pairs
-        )
-        orders = alpaca_trader.client.get_orders(filter=request)
-
-        # Group orders by symbol to match BUY/SELL pairs (round trips)
-        symbol_orders = {}
-        for order in orders:
-            if order.status.value != "filled":
-                continue
-            symbol = order.symbol
-            if symbol not in symbol_orders:
-                symbol_orders[symbol] = {"buys": [], "sells": []}
-
-            order_data = {
-                "id": str(order.id),
-                "filled_at": order.filled_at.isoformat() if order.filled_at else None,
-                "filled_qty": float(order.filled_qty) if order.filled_qty else 0,
-                "filled_avg_price": float(order.filled_avg_price) if order.filled_avg_price else 0,
+            return {
+                "trades": [],
+                "count": 0,
+                "summary": _summarize_closed_trades([]),
+                "timestamp": datetime.utcnow().isoformat()
             }
 
-            if order.side.value == "buy":
-                symbol_orders[symbol]["buys"].append(order_data)
-            else:
-                symbol_orders[symbol]["sells"].append(order_data)
+        # Fetch filled orders from Alpaca
+        request_kwargs = {
+            "status": QueryOrderStatus.CLOSED,
+            "limit": 500,  # Fetch more to find matching pairs
+        }
+        if days_back:
+            request_kwargs["after"] = datetime.utcnow() - timedelta(days=days_back)
 
-        # Match BUY/SELL pairs to create closed trades (round trips)
-        closed_trades = []
-        for symbol, orders_dict in symbol_orders.items():
-            buys = sorted(orders_dict["buys"], key=lambda x: x["filled_at"] or "")
-            sells = sorted(orders_dict["sells"], key=lambda x: x["filled_at"] or "")
-
-            # Simple matching: pair oldest buy with oldest sell
-            while buys and sells:
-                buy = buys.pop(0)
-                sell = sells.pop(0)
-
-                entry_price = buy["filled_avg_price"]
-                exit_price = sell["filled_avg_price"]
-                qty = min(buy["filled_qty"], sell["filled_qty"])
-
-                if entry_price > 0 and exit_price > 0:
-                    pnl_pct = ((exit_price - entry_price) / entry_price) * 100
-                    pnl_dollars = (exit_price - entry_price) * qty
-
-                    closed_trades.append({
-                        "id": sell["id"],
-                        "symbol": symbol,
-                        "side": "sell",
-                        "timestamp": sell["filled_at"],
-                        "entry_price": round(entry_price, 2),
-                        "exit_price": round(exit_price, 2),
-                        "quantity": qty,
-                        "pnl_pct": round(pnl_pct, 2),
-                        "pnl_dollars": round(pnl_dollars, 2),
-                        "reason": "Round trip",
-                        "status": "closed"
-                    })
-
-        # Sort by timestamp descending (most recent first)
-        closed_trades.sort(key=lambda x: x.get("timestamp") or "", reverse=True)
-
-        # Calculate summary stats
-        total_pnl_pct = sum(t.get("pnl_pct", 0) for t in closed_trades)
-        total_pnl_dollars = sum(t.get("pnl_dollars", 0) for t in closed_trades)
-        wins = len([t for t in closed_trades if (t.get("pnl_pct") or 0) > 0])
-        losses = len([t for t in closed_trades if (t.get("pnl_pct") or 0) < 0])
-        win_rate = (wins / len(closed_trades) * 100) if closed_trades else 0
+        request = GetOrdersRequest(
+            **request_kwargs
+        )
+        orders = alpaca_trader.client.get_orders(filter=request)
+        closed_trades = _pair_closed_trades_from_orders(orders)
+        summary = _summarize_closed_trades(closed_trades)
 
         return {
             "trades": closed_trades[:limit],
             "count": len(closed_trades),
-            "summary": {
-                "total_trades": len(closed_trades),
-                "wins": wins,
-                "losses": losses,
-                "win_rate": round(win_rate, 1),
-                "total_pnl_pct": round(total_pnl_pct, 2),
-                "total_pnl_dollars": round(total_pnl_dollars, 2)
-            },
+            "summary": summary,
             "timestamp": datetime.utcnow().isoformat()
         }
 
@@ -3159,7 +3275,13 @@ async def get_closed_trades(
         logger.error(f"Error fetching closed trades: {e}")
         import traceback
         traceback.print_exc()
-        return {"trades": [], "count": 0, "summary": {"total_trades": 0, "wins": 0, "losses": 0, "win_rate": 0, "total_pnl_pct": 0}, "error": str(e), "timestamp": datetime.utcnow().isoformat()}
+        return {
+            "trades": [],
+            "count": 0,
+            "summary": _summarize_closed_trades([]),
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
 
 
 @app.delete("/api/trading/orders")
@@ -4372,6 +4494,9 @@ async def auto_trade_loop():
                                     # Try LLM scoring now
                                     try:
                                         llm_data = await get_sentiment(tr_ticker, use_llm=True)
+                                        if not llm_data.get("llm_enhanced"):
+                                            _log_trade_gate(tr_ticker, tr_score, False, "LLM unavailable (cap/stub)", source="trending")
+                                            continue
                                         tr_signal["combined_score"] = llm_data["score"]
                                         tr_score = llm_data["score"]
                                         tr_signal["llm_enhanced"] = True
@@ -4436,6 +4561,116 @@ async def auto_trade_loop():
                                 trending_traded = True
                     except Exception as e:
                         logger.error(f"🤖 [TRENDING] Error in trending scan: {e}")
+
+                    # === EARNINGS PASS: Tickers reporting in next 24h or just-reported ===
+                    try:
+                        earnings_result = await scan_earnings()
+                        earnings_hits = earnings_result.get("results", [])
+                        if earnings_hits:
+                            logger.info(f"🤖 [EARNINGS] {len(earnings_hits)} earnings tickers discovered")
+                            earnings_traded = False
+                            for er in earnings_hits:
+                                if earnings_traded:
+                                    break
+                                er_ticker = er["ticker"]
+                                er_score = er["score"]
+                                er_action = er.get("recommendation", "HOLD")
+
+                                if er_action != "BUY" or er_score < min_score:
+                                    continue
+                                if er_ticker in owned_symbols:
+                                    _log_trade_gate(er_ticker, er_score, False, "already have position", source="earnings")
+                                    _recent_trade_decisions[er_ticker] = {"status": "blocked", "reason": "Already own position", "timestamp": datetime.utcnow().isoformat()}
+                                    continue
+                                cooldown_until = _ticker_cooldowns.get(er_ticker)
+                                if cooldown_until and datetime.utcnow() < cooldown_until:
+                                    remaining = (cooldown_until - datetime.utcnow()).total_seconds() / 60
+                                    _log_trade_gate(er_ticker, er_score, False, f"cooldown {remaining:.0f}min remaining", source="earnings")
+                                    _recent_trade_decisions[er_ticker] = {"status": "blocked", "reason": f"Cooldown ({remaining:.0f}m left)", "timestamp": datetime.utcnow().isoformat()}
+                                    continue
+
+                                er_signal = await _analyze_ticker_for_signal(er_ticker)
+                                if not er_signal:
+                                    continue
+                                if er_score > float(er_signal.get("combined_score", 0)):
+                                    er_signal["combined_score"] = er_score
+                                if er_signal.get("action") != "BUY" and er_score < 75:
+                                    logger.info(f"[EARNINGS] {er_ticker} trade plan says {er_signal.get('action')}, score={er_score:.1f} — skipping")
+                                    continue
+                                er_signal["action"] = "BUY"
+                                er_signal["source"] = "earnings"
+
+                                if not er.get("llm_enhanced"):
+                                    try:
+                                        llm_data = await get_sentiment(er_ticker, use_llm=True)
+                                        if not llm_data.get("llm_enhanced"):
+                                            _log_trade_gate(er_ticker, er_score, False, "LLM unavailable (cap/stub)", source="earnings")
+                                            continue
+                                        er_signal["combined_score"] = llm_data["score"]
+                                        er_score = llm_data["score"]
+                                        er_signal["llm_enhanced"] = True
+                                        if er_score < min_score:
+                                            _log_trade_gate(er_ticker, er_score, False, f"LLM rescore {er_score:.1f} below {min_score}", source="earnings")
+                                            continue
+                                    except Exception:
+                                        _log_trade_gate(er_ticker, er_score, False, "LLM unavailable", source="earnings")
+                                        continue
+                                else:
+                                    er_signal["llm_enhanced"] = True
+
+                                gate_ok, gate_reason = _passes_live_auto_trade_gate(er_signal, owned_symbols)
+                                if not gate_ok:
+                                    _log_trade_gate(er_ticker, er_score, False, gate_reason, source="earnings")
+                                    _recent_trade_decisions[er_ticker] = {"status": "blocked", "reason": gate_reason, "timestamp": datetime.utcnow().isoformat()}
+                                    continue
+
+                                surprise = er.get("surprise_pct")
+                                surprise_str = f" surprise={surprise:+.1f}%" if surprise is not None else ""
+                                _log_trade_gate(er_ticker, er_score, True, f"executing buy{surprise_str}", source="earnings")
+                                logger.info(f"🤖 [EARNINGS] Executing BUY on {er_ticker} (score: {er_score:.1f}{surprise_str})")
+                                result = alpaca_trader.execute_trade(er_signal)
+
+                                pm = get_position_manager()
+                                if pm and result and result.get("status") == "executed":
+                                    pm.register_entry(
+                                        symbol=er_ticker,
+                                        entry_price=er_signal.get("entry_price", result.get("entry_price", 0)),
+                                        quantity=result.get("quantity", 1),
+                                        thesis=er_signal.get("reasoning", "")[:500],
+                                        stop_loss=result.get("stop_loss"),
+                                        take_profit=result.get("take_profit"),
+                                        atr=er_signal.get("atr"),
+                                        score_at_entry=er_signal.get("effective_score", er_signal.get("combined_score")),
+                                        rvol_at_entry=er_signal.get("relative_volume"),
+                                        regime_at_entry=er_signal.get("regime_at_entry") or er_signal.get("technical_regime"),
+                                        source=er_signal.get("source"),
+                                    )
+
+                                log_activity(
+                                    log_type="AUTO_TRADE",
+                                    ticker=er_ticker,
+                                    action="BUY",
+                                    details={
+                                        "price": er_signal.get("entry_price"),
+                                        "quantity": result.get("quantity") if result else None,
+                                        "score": er_score,
+                                        "effective_score": er_signal.get("effective_score", er_score),
+                                        "reasoning": (er_signal.get("reasoning") or "")[:200],
+                                        "order_id": result.get("order_id") if result else None,
+                                        "status": result.get("status") if result else None,
+                                        "source": "earnings",
+                                        "surprise_pct": surprise,
+                                        "size_multiplier": er_signal.get("position_size_multiplier", 1.0),
+                                        "auto": True,
+                                    }
+                                )
+                                _ticker_cooldowns[er_ticker] = datetime.utcnow() + timedelta(minutes=TICKER_COOLDOWN_MINUTES)
+                                owned_symbols.add(er_ticker)
+                                _recent_trade_decisions[er_ticker] = {"status": "executed", "reason": f"Earnings, score {er_score:.0f}", "timestamp": datetime.utcnow().isoformat()}
+                                logger.info(f"🤖 [EARNINGS] ✅ Trade executed: {result}")
+                                earnings_traded = True
+                    except Exception as e:
+                        logger.error(f"🤖 [EARNINGS] Error in earnings scan: {e}")
 
                 except Exception as e:
                     logger.error(f"🤖 [AUTO-TRADE] Error getting signal: {e}")
@@ -5656,6 +5891,11 @@ async def scan_trending():
             async with llm_semaphore:
                 try:
                     llm_data = await get_sentiment(entry["ticker"], use_llm=True)
+                    if not llm_data.get("llm_enhanced"):
+                        entry["llm_enhanced"] = False
+                        entry["keyword_score"] = entry["score"]
+                        logger.info(f"[TRENDING] LLM unavailable for {entry['ticker']} (cap/stub) — keeping keyword score {entry['score']:.1f}")
+                        return
                     old_score = entry["score"]
                     entry["score"] = llm_data["score"]
                     entry["sentiment"] = llm_data["sentiment"]
@@ -5682,6 +5922,153 @@ async def scan_trending():
         "scan_time": now.isoformat(),
         "discovered": len(results),
         "total_tickers_seen": len(ticker_mentions),
+        "results": results,
+    }
+    _scan_cache[cache_key] = (response, now)
+    return response
+
+
+@app.get("/api/scan/earnings")
+async def scan_earnings():
+    """Discover tickers reporting earnings in the next 24h or just-reported (post-market/pre-market window)."""
+    from zoneinfo import ZoneInfo as _ZI_earn
+    _now_et = datetime.now(_ZI_earn("America/New_York"))
+    # Allow during pre-market (8 AM+ ET) and regular hours weekdays only
+    _earn_allowed = is_market_open() or (_now_et.weekday() < 5 and _now_et.hour >= 8)
+    if not _earn_allowed:
+        return {"results": [], "message": "Market closed", "scan_time": datetime.utcnow().isoformat()}
+
+    cache_key = "earnings_calendar"
+    now = datetime.utcnow()
+    if cache_key in _scan_cache:
+        cached_data, cache_time = _scan_cache[cache_key]
+        if (now - cache_time).total_seconds() < EARNINGS_CACHE_TTL:
+            logger.debug("[EARNINGS] Cache HIT")
+            return cached_data
+
+    if not benzinga_client:
+        return {"results": [], "message": "Benzinga API not configured"}
+
+    settings = get_settings()
+    watchlist_set = set(settings.watchlist)
+    scan_buy_threshold = float(settings.TRADING_SCAN_BUY_SCORE)
+
+    # Pull yesterday + today + tomorrow earnings (covers AMC, BMO, intraday)
+    date_gte = (_now_et - timedelta(days=1)).strftime("%Y-%m-%d")
+    date_lte = (_now_et + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    try:
+        raw = await benzinga_client.get_earnings(
+            date_gte=date_gte, date_lte=date_lte, importance_gte=3, limit=100
+        )
+        items = raw.get("results", []) if isinstance(raw, dict) else []
+    except Exception as e:
+        logger.error(f"[EARNINGS] Failed to fetch calendar: {e}")
+        return {"results": [], "error": str(e)}
+
+    # Build candidate map: {ticker: {surprise_pct, when, importance, eps_actual, eps_est}}
+    candidates = {}
+    for item in items:
+        sym = (item.get("ticker") or item.get("symbol") or "").upper()
+        if not sym or not sym.isalpha() or len(sym) > 5:
+            continue
+        if sym in _EXCLUDED_TICKERS or sym in watchlist_set:
+            continue
+        eps_actual = item.get("eps") or item.get("eps_surprise")
+        eps_est = item.get("eps_est") or item.get("eps_estimate")
+        try:
+            actual = float(eps_actual) if eps_actual is not None else None
+            est = float(eps_est) if eps_est is not None else None
+        except (TypeError, ValueError):
+            actual, est = None, None
+        surprise_pct = None
+        if actual is not None and est is not None and abs(est) > 0.001:
+            surprise_pct = ((actual - est) / abs(est)) * 100
+        candidates[sym] = {
+            "ticker": sym,
+            "surprise_pct": surprise_pct,
+            "eps_actual": actual,
+            "eps_est": est,
+            "when": item.get("time") or item.get("date"),
+            "importance": item.get("importance", 0),
+        }
+
+    if not candidates:
+        response = {"results": [], "scan_time": now.isoformat(), "discovered": 0}
+        _scan_cache[cache_key] = (response, now)
+        return response
+
+    # Prioritize: reported with strong surprise > upcoming high-importance > others
+    def _priority(c):
+        s = c.get("surprise_pct")
+        imp = c.get("importance", 0) or 0
+        return (1 if s is not None else 0, abs(s) if s is not None else 0, imp)
+
+    ordered = sorted(candidates.values(), key=_priority, reverse=True)[:15]
+
+    # Score each via standard sentiment pipeline (keyword first)
+    scan_semaphore = asyncio.Semaphore(5)
+
+    async def score_earnings(entry):
+        async with scan_semaphore:
+            try:
+                sentiment = await get_sentiment(entry["ticker"])
+                entry["score"] = sentiment["score"]
+                entry["sentiment"] = sentiment["sentiment"]
+                entry["source"] = "earnings"
+                entry["recommendation"] = (
+                    "BUY" if sentiment["score"] >= scan_buy_threshold else
+                    "SELL" if sentiment["score"] <= 30 else "HOLD"
+                )
+                return entry
+            except Exception as e:
+                logger.warning(f"[EARNINGS] Score failed for {entry['ticker']}: {e}")
+                return None
+
+    raw_results = await asyncio.gather(*[score_earnings(e) for e in ordered])
+    results = [r for r in raw_results if r is not None and r["score"] >= 70]
+
+    for r in results:
+        _add_to_dynamic_watchlist(r["ticker"], r["score"])
+
+    # LLM re-score for tickers passing keyword gate
+    if results:
+        llm_semaphore = asyncio.Semaphore(3)
+
+        async def llm_rescore(entry):
+            async with llm_semaphore:
+                try:
+                    llm_data = await get_sentiment(entry["ticker"], use_llm=True)
+                    if not llm_data.get("llm_enhanced"):
+                        entry["llm_enhanced"] = False
+                        entry["keyword_score"] = entry["score"]
+                        logger.info(f"[EARNINGS] LLM unavailable for {entry['ticker']} (cap/stub) — keeping keyword score {entry['score']:.1f}")
+                        return
+                    old_score = entry["score"]
+                    entry["score"] = llm_data["score"]
+                    entry["sentiment"] = llm_data["sentiment"]
+                    entry["llm_enhanced"] = True
+                    entry["keyword_score"] = old_score
+                    entry["recommendation"] = (
+                        "BUY" if llm_data["score"] >= scan_buy_threshold else
+                        "SELL" if llm_data["score"] <= 30 else "HOLD"
+                    )
+                    logger.info(f"[EARNINGS] LLM rescore {entry['ticker']}: {old_score:.1f} -> {llm_data['score']:.1f}")
+                except Exception as e:
+                    logger.warning(f"[EARNINGS] LLM rescore failed for {entry['ticker']}: {e}")
+
+        await asyncio.gather(*[llm_rescore(r) for r in results])
+
+    results = [r for r in results if r["score"] >= 70]
+    results.sort(key=lambda x: x["score"], reverse=True)
+    results = results[:10]
+
+    logger.info(f"[EARNINGS] Discovered {len(results)} earnings tickers scoring 70+ from {len(candidates)} reporting")
+
+    response = {
+        "scan_time": now.isoformat(),
+        "discovered": len(results),
+        "total_reporting": len(candidates),
         "results": results,
     }
     _scan_cache[cache_key] = (response, now)

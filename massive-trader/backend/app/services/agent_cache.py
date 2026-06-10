@@ -10,6 +10,7 @@ LLMs should only run when there is new information or a strong reason.
 """
 import logging
 import hashlib
+import os
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, field
@@ -87,8 +88,8 @@ class AgentCache:
         # noise does not justify re-running LLMs every 5 minutes.
         self.config = {
             AgentType.NEWS: {
-                "max_age_minutes": 10,       # Re-check news every 10 min
-                "min_interval_seconds": 120,  # At most once per 2 min — speed matters for fresh catalysts
+                "max_age_minutes": 30,       # Re-check news every 30 min (was 10 — budget)
+                "min_interval_seconds": 600,  # At most once per 10 min per ticker (was 120 — budget)
             },
             AgentType.EARNINGS: {
                 "max_age_minutes": 120,      # Earnings don't change often
@@ -141,6 +142,37 @@ class AgentCache:
             "cache_misses": 0,
             "llm_calls_saved": 0,
         }
+
+        # === DAILY LLM CALL CAP (budget guard) ===
+        # Hard ceiling on real LLM invocations across the whole app per ET trading day.
+        # When exceeded, callers receive a stub result (score=50, llm_enhanced=False)
+        # so the system degrades to keyword-only mode without crashing.
+        try:
+            self._llm_daily_cap = int(os.getenv("LLM_DAILY_CALL_CAP", "120"))
+        except (TypeError, ValueError):
+            self._llm_daily_cap = 120
+        self._llm_call_log: Dict[str, int] = {}  # {YYYY-MM-DD: count}
+
+    def _today_key(self) -> str:
+        try:
+            from zoneinfo import ZoneInfo
+            return datetime.now(ZoneInfo("America/New_York")).strftime("%Y-%m-%d")
+        except Exception:
+            return datetime.utcnow().strftime("%Y-%m-%d")
+
+    def llm_calls_today(self) -> int:
+        return self._llm_call_log.get(self._today_key(), 0)
+
+    def llm_cap(self) -> int:
+        return self._llm_daily_cap
+
+    def can_call_llm(self) -> bool:
+        return self.llm_calls_today() < self._llm_daily_cap
+
+    def record_llm_call(self) -> int:
+        key = self._today_key()
+        self._llm_call_log[key] = self._llm_call_log.get(key, 0) + 1
+        return self._llm_call_log[key]
 
     def _get_ticker_cache(self, ticker: str) -> Dict[AgentType, CachedSignal]:
         """Get or create cache dict for a ticker."""
@@ -280,13 +312,12 @@ class AgentCache:
         cached = cache[AgentType.NEWS]
         age_seconds = cached.age_seconds()
 
-        # NEW NEWS BEATS MIN INTERVAL — this is critical for early entry.
-        # If breaking news arrived since the last LLM run, re-score immediately
-        # (only enforce a short floor of 30s to avoid hammering the API).
+        # NEW NEWS BEATS MIN INTERVAL — but with a 4-min floor (was 30s) to control cost.
+        # Breaking news still triggers a fresh score, just not multiple times within minutes.
         if latest_news_ts:
             last_run_news_ts = upstream.news_timestamp
             if last_run_news_ts is None or latest_news_ts > last_run_news_ts:
-                if age_seconds >= 30:
+                if age_seconds >= 240:
                     logger.info(
                         f"News agent for {ticker}: New news detected, re-scoring now"
                     )
@@ -294,7 +325,7 @@ class AgentCache:
                     return True
                 else:
                     logger.debug(
-                        f"News agent for {ticker}: New news but too soon ({age_seconds:.0f}s < 30s)"
+                        f"News agent for {ticker}: New news but too soon ({age_seconds:.0f}s < 240s)"
                     )
                     return False
 

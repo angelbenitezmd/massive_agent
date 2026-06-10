@@ -38,8 +38,9 @@ interface AIAgentsPanelProps {
 
 function scoreToDirection(score: number | undefined): Direction {
   if (score === undefined) return "neutral";
-  if (score >= 60) return "bullish";
-  if (score <= 40) return "bearish";
+  // SACRED RULE: 70+ = bullish (BUY), 30-69 = neutral (HOLD), <30 = bearish (SELL)
+  if (score >= 70) return "bullish";
+  if (score < 30) return "bearish";
   return "neutral";
 }
 

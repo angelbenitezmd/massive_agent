@@ -104,19 +104,15 @@ class BenzingaClient:
         date_lte: Optional[str] = None,
         importance_gte: Optional[int] = None,
         limit: int = 100,
-        sort: str = "date.desc"
+        sort: str = "date.desc",
     ) -> Dict[str, Any]:
-        """Fetch earnings data via Massive."""
-        params = self._build_params(
-            ticker=ticker,
-            date_gte=date_gte,
-            date_lte=date_lte,
-            importance_gte=importance_gte,
-            limit=limit,
-            sort=sort
-        )
-        url = f"{self.base_url}/benzinga/v1/earnings"
-        return await self._request(url, params, f"earnings/{ticker or 'all'}")
+        """Earnings — disabled. Subscription dropped (low signal value).
+
+        Scoring code in main.py only appends earnings to the weighted average
+        when `earnings_items` is non-empty, so returning [] cleanly removes
+        the category and the shrinkage logic re-weights the remaining ones.
+        """
+        return {"status": "OK", "results": [], "source": "disabled"}
 
     async def get_ratings(
         self,
@@ -124,21 +120,18 @@ class BenzingaClient:
         date_gte: Optional[str] = None,
         rating_action: Optional[str] = None,
         limit: int = 100,
-        sort: str = "date.desc"
+        sort: str = "date.desc",
     ) -> Dict[str, Any]:
-        """Fetch analyst ratings via Massive."""
-        params = self._build_params(
-            ticker=ticker,
-            date_gte=date_gte,
-            rating_action=rating_action,
-            limit=limit,
-            sort=sort
-        )
-        url = f"{self.base_url}/benzinga/v1/ratings"
-        return await self._request(url, params, f"ratings/{ticker or 'all'}")
+        """Analyst ratings — disabled. Subscription dropped (low signal value).
+
+        Scoring code in main.py only appends ratings to the weighted average
+        when `ratings_items` is non-empty, so returning [] cleanly removes
+        the category and the shrinkage logic re-weights the remaining ones.
+        """
+        return {"status": "OK", "results": [], "source": "disabled"}
 
     async def get_consensus(self, ticker: str) -> Dict[str, Any]:
-        """Fetch consensus ratings for a ticker via Massive."""
+        """Fetch consensus ratings for a ticker via Massive (still active)."""
         params = {"apiKey": self.api_key}
         url = f"{self.base_url}/benzinga/v1/consensus-ratings/{ticker}"
         return await self._request(url, params, f"consensus/{ticker}")

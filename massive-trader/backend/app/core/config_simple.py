@@ -36,7 +36,7 @@ class Settings:
         self.TRADING_HYBRID_INTERVAL_SECONDS = int(os.getenv("TRADING_HYBRID_INTERVAL_SECONDS", "60"))
         self.TRADING_DEFAULT_MAX_POSITION_RISK = float(os.getenv("TRADING_DEFAULT_MAX_POSITION_RISK", "0.01"))
         self.TRADING_DAILY_MAX_DRAWDOWN = float(os.getenv("TRADING_DAILY_MAX_DRAWDOWN", "0.05"))
-        self.TRADING_MIN_SIGNAL_SCORE = float(os.getenv("TRADING_MIN_SIGNAL_SCORE", "70"))
+        self.TRADING_MIN_SIGNAL_SCORE = float(os.getenv("TRADING_MIN_SIGNAL_SCORE", "75"))
         self.TRADING_SCAN_BUY_SCORE = float(os.getenv("TRADING_SCAN_BUY_SCORE", "70"))
         self.TRADING_LLM_RESCORE_MIN_SCORE = float(os.getenv("TRADING_LLM_RESCORE_MIN_SCORE", "60"))
         self.TRADING_ELITE_SIGNAL_SCORE = float(os.getenv("TRADING_ELITE_SIGNAL_SCORE", "80"))

@@ -138,10 +138,17 @@ export const TradeSignalCard = memo(function TradeSignalCard({
     );
   };
 
-  const buy = decisions?.buy ?? [];
-  const hold = decisions?.hold ?? [];
-  const sell = decisions?.sell ?? [];
-  const counts = decisions?.counts ?? { buy: 0, hold: 0, sell: 0 };
+  // SACRED RULE: BUY column = will actually be traded. HOLD = not traded.
+  // The backend's `action` field already encodes this (BUY only when the
+  // execution gate passes), so trust it as the source of truth here.
+  // Score is sorted desc within each column for visibility.
+  const sortByScore = (items: TradeDecisionItem[]) =>
+    [...items].sort((a, b) => (b.combinedScore ?? 0) - (a.combinedScore ?? 0));
+
+  const buy = sortByScore(decisions?.buy ?? []);
+  const hold = sortByScore(decisions?.hold ?? []);
+  const sell = sortByScore(decisions?.sell ?? []);
+  const counts = { buy: buy.length, hold: hold.length, sell: sell.length };
 
   return (
     <Card className="overflow-hidden">

@@ -259,8 +259,28 @@ Based on ALL the data above, provide your trading analysis in this JSON format:
                 logger.info(f"NewsAgent for {ticker}: Using cached result")
                 return cached
 
+        # === Daily LLM cap guard ===
+        # If we've burned the day's call budget, return a neutral stub instead of
+        # calling the LLM. Caller checks `_skipped_reason` / `llm_enhanced=False`
+        # and falls through to keyword scoring — and the trade gate (which requires
+        # llm_enhanced=True) will block any execution until the budget resets.
+        if not agent_cache.can_call_llm():
+            used = agent_cache.llm_calls_today()
+            cap = agent_cache.llm_cap()
+            logger.warning(
+                f"NewsAgent for {ticker}: daily LLM cap reached ({used}/{cap}), returning stub"
+            )
+            return {
+                "score": 50,
+                "confidence": "low",
+                "llm_enhanced": False,
+                "summary": "LLM daily cap reached — using keyword fallback",
+                "_skipped_reason": "llm_daily_cap",
+            }
+
         # Run the agent with all available data (news, earnings, ratings, consensus, market context)
         logger.info(f"NewsAgent for {ticker}: Running LLM analysis")
+        agent_cache.record_llm_call()
         result = await NewsIntelligenceAgent.analyze(
             news_items, ticker,
             earnings_data=earnings_data,

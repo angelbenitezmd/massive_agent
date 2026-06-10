@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { Order } from "@/types";
 import { API_BASE, getClosedTrades, type ClosedTrade, type ClosedTradesResponse } from "@/lib/api";
+import { formatCurrency, formatPercent } from "@/lib/utils";
 
 type TimePeriod = "today" | "yesterday" | "week" | "month" | "all";
 
@@ -75,6 +76,48 @@ export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading,
   // Use closed trades data for summary
   const summary = closedTrades?.summary || { total_trades: 0, wins: 0, losses: 0, win_rate: 0, total_pnl_pct: 0 };
   const trades = closedTrades?.trades || [];
+  const qualityNote = useMemo(() => {
+    if (!summary.total_trades) return null;
+
+    const payoffRatio = summary.payoff_ratio ?? 0;
+    const netPnl = summary.total_pnl_dollars ?? 0;
+
+    if (summary.win_rate < 40 && payoffRatio < 1) {
+      return "Trade quality is weak right now: the average winner is smaller than the average loser.";
+    }
+    if (summary.win_rate < 40 && payoffRatio >= 1.5) {
+      return "Win rate is rough, but larger winners are still offsetting misses. Keep an eye on whether that payoff holds.";
+    }
+    if (netPnl > 0 && (summary.profit_factor ?? 0) >= 1.2) {
+      return "The book is earning more on winners than it is giving back on losers.";
+    }
+    if (netPnl < 0 && payoffRatio >= 1) {
+      return "Winners are large enough, but there are still too many misses or not enough follow-through yet.";
+    }
+    return "Use win rate with payoff and profit factor together. Low hit rate alone does not tell the whole story.";
+  }, [summary]);
+
+  const profitFactorLabel = useMemo(() => {
+    const profitFactor = summary.profit_factor;
+    if (profitFactor !== null && profitFactor !== undefined) {
+      return `${profitFactor.toFixed(2)}x`;
+    }
+    if (summary.losses === 0 && summary.wins > 0) {
+      return "∞";
+    }
+    return "—";
+  }, [summary]);
+
+  const payoffLabel = useMemo(() => {
+    const payoffRatio = summary.payoff_ratio;
+    if (payoffRatio !== null && payoffRatio !== undefined) {
+      return `${payoffRatio.toFixed(2)}x`;
+    }
+    if (summary.losses === 0 && summary.wins > 0) {
+      return "∞";
+    }
+    return "—";
+  }, [summary]);
 
   const handleCancelAllOrders = async () => {
     if (!confirm(`Cancel all ${pendingOrders.length} pending orders?`)) return;
@@ -111,11 +154,12 @@ export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading,
             <TooltipContent side="bottom" className="max-w-[280px] p-3">
               <div className="space-y-2 text-xs">
                 <p className="font-semibold">Trade Journal</p>
-                <p><strong>Recent orders</strong> mirrors Alpaca (all fills &amp; statuses). <strong>Round trips</strong> below pairs buy/sell FIFO for a simple P&amp;L log — it will not match every broker row.</p>
+                <p><strong>Recent orders</strong> mirrors Alpaca (all fills &amp; statuses). <strong>Round trips</strong> below use FIFO-matched filled quantities for a trade-quality journal, not a broker tax-lot statement.</p>
                 <div className="space-y-1 pt-1">
                   <p><strong>Win Rate:</strong> Percentage of profitable closed trades</p>
-                  <p><strong>Total P&L:</strong> Cumulative P&L percentage</p>
-                  <p><strong>W/L:</strong> Wins vs losses count</p>
+                  <p><strong>Net P&amp;L:</strong> Dollar P&amp;L plus weighted return on matched closed capital</p>
+                  <p><strong>Profit Factor:</strong> Gross profits divided by gross losses</p>
+                  <p><strong>Payoff:</strong> Average winner size divided by average loser size</p>
                 </div>
               </div>
             </TooltipContent>
@@ -228,7 +272,7 @@ export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading,
             </Badge>
           )}
         </div>
-        <div className="grid grid-cols-3 gap-2 mb-4 text-center">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3 text-center">
           <div className="bg-muted/50 rounded-lg p-2">
             <div className="text-xs text-muted-foreground">Win Rate</div>
             <div
@@ -238,26 +282,51 @@ export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading,
             >
               {summary.win_rate.toFixed(0)}%
             </div>
-          </div>
-          <div className="bg-muted/50 rounded-lg p-2">
-            <div className="text-xs text-muted-foreground">Total P&L</div>
-            <div
-              className={`text-sm font-semibold ${
-                summary.total_pnl_pct >= 0 ? "text-green-500" : "text-red-500"
-              }`}
-            >
-              {summary.total_pnl_pct >= 0 ? "+" : ""}{summary.total_pnl_pct.toFixed(1)}%
+            <div className="text-[10px] text-muted-foreground">
+              {summary.wins}W / {summary.losses}L{summary.breakeven ? ` / ${summary.breakeven} flat` : ""}
             </div>
           </div>
           <div className="bg-muted/50 rounded-lg p-2">
-            <div className="text-xs text-muted-foreground">W/L</div>
-            <div className="text-sm font-semibold">
-              <span className="text-green-500">{summary.wins}</span>
-              <span className="text-muted-foreground">/</span>
-              <span className="text-red-500">{summary.losses}</span>
+            <div className="text-xs text-muted-foreground">Net P&amp;L</div>
+            <div
+              className={`text-sm font-semibold ${
+                (summary.total_pnl_dollars ?? 0) >= 0 ? "text-green-500" : "text-red-500"
+              }`}
+            >
+              {formatCurrency(summary.total_pnl_dollars ?? 0)}
+            </div>
+            <div className="text-[10px] text-muted-foreground">
+              {formatPercent(summary.total_pnl_pct)}
+            </div>
+          </div>
+          <div className="bg-muted/50 rounded-lg p-2">
+            <div className="text-xs text-muted-foreground">Profit Factor</div>
+            <div className={`text-sm font-semibold ${
+              (summary.profit_factor ?? 0) >= 1 ? "text-green-500" : summary.total_trades > 0 ? "text-red-500" : "text-muted-foreground"
+            }`}>
+              {profitFactorLabel}
+            </div>
+            <div className="text-[10px] text-muted-foreground">
+              GP {formatCurrency(summary.gross_profit_dollars ?? 0)} / GL {formatCurrency(summary.gross_loss_dollars ?? 0)}
+            </div>
+          </div>
+          <div className="bg-muted/50 rounded-lg p-2">
+            <div className="text-xs text-muted-foreground">Payoff</div>
+            <div className={`text-sm font-semibold ${
+              (summary.payoff_ratio ?? 0) >= 1 ? "text-green-500" : summary.total_trades > 0 ? "text-red-500" : "text-muted-foreground"
+            }`}>
+              {payoffLabel}
+            </div>
+            <div className="text-[10px] text-muted-foreground">
+              Avg W {formatCurrency(summary.avg_win_dollars ?? 0)} / Avg L {formatCurrency(summary.avg_loss_dollars ?? 0)}
             </div>
           </div>
         </div>
+        {qualityNote && (
+          <div className="mb-4 rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-[11px] text-muted-foreground">
+            {qualityNote}
+          </div>
+        )}
 
         {/* Trade List */}
         <ScrollArea className="h-[110px]">
@@ -301,6 +370,12 @@ export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading,
                           <span>{formatPrice(trade.entry_price)}</span>
                           <span>→</span>
                           <span>{formatPrice(trade.exit_price)}</span>
+                          {trade.quantity !== undefined && (
+                            <>
+                              <span>•</span>
+                              <span>{trade.quantity.toFixed(trade.quantity % 1 === 0 ? 0 : 2)} sh</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -310,6 +385,11 @@ export const TradeJournal = memo(function TradeJournal({ orders = [], isLoading,
                           isProfit ? "text-green-500" : "text-red-500"
                         }`}
                       >
+                        {formatCurrency(trade.pnl_dollars ?? 0)}
+                      </div>
+                      <div className={`text-xs ${
+                        isProfit ? "text-green-500" : "text-red-500"
+                      }`}>
                         {isProfit ? "+" : ""}{trade.pnl_pct?.toFixed(1)}%
                       </div>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">

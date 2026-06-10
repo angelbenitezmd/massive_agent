@@ -77,6 +77,9 @@ class PositionState:
     last_analysis_time: Optional[datetime] = None
     trailing_stop_active: bool = False
     trailing_stop_price: Optional[float] = None
+    # Adaptive exit state
+    breakeven_armed: bool = False  # stop moved to entry once +0.8% reached
+    partial_taken: bool = False    # 50% scale-out at first profit target executed
     # Trading intelligence fields
     atr: Optional[float] = None
     score_at_entry: Optional[float] = None
@@ -455,11 +458,43 @@ class PositionManager:
                 await self._close_position(symbol, position, f"Emergency stop: {pnl_pct:.1f}% loss")
                 return
 
-        # Minimum hold time: 1 hour before any non-emergency exit
-        if mins_held < 60:
+        # ===== BREAKEVEN ARM (works inside the 60-min min-hold window) =====
+        # Once a long is up +0.8% (or short up +0.8%), shift effective stop to entry.
+        # Protects against giving back early gains while waiting for the full thesis to play out.
+        if not pos_state.breakeven_armed and current_price and entry_price:
+            arm_threshold = 0.8
+            if (not is_short and pnl_pct >= arm_threshold) or (is_short and pnl_pct >= arm_threshold):
+                pos_state.breakeven_armed = True
+                logger.info(f"{symbol}: Breakeven armed at {pnl_pct:+.1f}% — stop now ${entry_price:.2f}")
+
+        # If breakeven armed and we slip back to entry-or-worse, exit (preserves the won 0.8% as flat).
+        if pos_state.breakeven_armed and current_price and entry_price:
+            if not is_short and current_price <= entry_price:
+                logger.info(f"{symbol}: Breakeven stop hit at ${current_price:.2f}")
+                await self._close_position(symbol, position, f"Breakeven stop: {pnl_pct:+.1f}%")
+                return
+            if is_short and current_price >= entry_price:
+                logger.info(f"{symbol}: Breakeven stop (short) hit at ${current_price:.2f}")
+                await self._close_position(symbol, position, f"Breakeven stop (short): {pnl_pct:+.1f}%")
+                return
+
+        # Minimum hold time: 30 min before any non-emergency exit (was 60).
+        # Tighter window prevents winners from EOD-decaying and lets stops act faster on losers.
+        if mins_held < 30:
             if pnl_pct < -3:
-                logger.info(f"{symbol}: Down {pnl_pct:.1f}% but only {mins_held:.0f}min held - holding (min 60min)")
+                logger.info(f"{symbol}: Down {pnl_pct:.1f}% but only {mins_held:.0f}min held - holding (min 30min)")
             return
+
+        # ===== PARTIAL SCALE-OUT @ +1R (locks half the win, lets rest ride trailing stop) =====
+        if not pos_state.partial_taken and current_price and entry_price:
+            # Use ATR-implied 1R if available, else +1.2% as proxy
+            r_distance_pct = (atr / entry_price * 100) if atr else 1.2
+            tp1_threshold = max(1.2, min(2.5, r_distance_pct))
+            if (not is_short and pnl_pct >= tp1_threshold) or (is_short and pnl_pct >= tp1_threshold):
+                logger.info(f"{symbol}: TP1 scale-out 50% at {pnl_pct:+.1f}% (threshold {tp1_threshold:.1f}%)")
+                await self._partial_exit(symbol, position, 50.0, f"TP1 scale-out at {pnl_pct:+.1f}%")
+                pos_state.partial_taken = True
+                return
 
         # ===== PROFIT TAKING (fallback when no ATR TP hit) =====
 
@@ -470,11 +505,13 @@ class PositionManager:
                 return
 
         # ===== TRAILING STOP (ATR-based width when available) =====
-        trail_width = atr / current_price if atr and current_price else 0.02  # ATR-based or 2%
+        # Activates earlier (+1.5% instead of +2%) so we capture more on quick movers.
+        trail_width = atr / current_price if atr and current_price else 0.015  # ATR-based or 1.5%
+        trail_arm_pct = 1.5
 
         if is_short:
-            # Short trailing: activate when price drops 2%+ below entry (profitable)
-            if pnl_pct >= 2 and not pos_state.trailing_stop_active and current_price and entry_price:
+            # Short trailing: activate when price drops trail_arm_pct%+ below entry (profitable)
+            if pnl_pct >= trail_arm_pct and not pos_state.trailing_stop_active and current_price and entry_price:
                 pos_state.trailing_stop_active = True
                 pos_state.trailing_stop_price = current_price * (1 + trail_width)
                 logger.info(f"{symbol}: Trailing stop (short) activated at ${pos_state.trailing_stop_price:.2f}")
@@ -490,7 +527,7 @@ class PositionManager:
                     logger.info(f"{symbol}: Trailing stop (short) lowered to ${new_trail:.2f}")
         else:
             # Long trailing
-            if pnl_pct >= 2 and not pos_state.trailing_stop_active and current_price and entry_price:
+            if pnl_pct >= trail_arm_pct and not pos_state.trailing_stop_active and current_price and entry_price:
                 pos_state.trailing_stop_active = True
                 pos_state.trailing_stop_price = current_price * (1 - trail_width)
                 logger.info(f"{symbol}: Trailing stop activated at ${pos_state.trailing_stop_price:.2f}")

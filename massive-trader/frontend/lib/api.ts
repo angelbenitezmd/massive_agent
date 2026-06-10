@@ -22,18 +22,34 @@ export const API_BASE =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "/api/backend";
 
 async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  let res: Response;
-  try {
-    res = await fetch(`${API_BASE}${endpoint}`, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-      },
-    });
-  } catch (err) {
+  // One automatic retry on transient network failures (covers backend restart blips).
+  const maxAttempts = 2;
+  let res: Response | null = null;
+  let lastErr: unknown = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      res = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          ...options?.headers,
+        },
+      });
+      lastErr = null;
+      break;
+    } catch (err) {
+      lastErr = err;
+      const isNetwork =
+        err instanceof TypeError && err.message === "Failed to fetch";
+      if (!isNetwork || attempt === maxAttempts) break;
+      await new Promise((r) => setTimeout(r, 600));
+    }
+  }
+
+  if (!res) {
     const isNetwork =
-      err instanceof TypeError && err.message === "Failed to fetch";
+      lastErr instanceof TypeError && lastErr.message === "Failed to fetch";
     if (isNetwork) {
       const baseHint = API_BASE.startsWith("http")
         ? API_BASE
@@ -44,7 +60,7 @@ async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> 
       );
     }
     throw new Error(
-      err instanceof Error ? err.message : "Network request failed"
+      lastErr instanceof Error ? lastErr.message : "Network request failed"
     );
   }
 
@@ -326,11 +342,24 @@ export async function runAnalysis(ticker: string): Promise<AnalysisResponse> {
         entryPrice: signal?.entry_price || dashboard.market?.quote?.price || 0,
         quantity: signal?.quantity || 10,
         contributingAgents: ["News Agent", "Earnings Agent", "Technical Agent"],
-        // Score breakdown from best-signal
+        // Score breakdown from best-signal. Each is an independent 0-100 score.
         combinedScore: signal?.combined_score,
         aiScore: signal?.ai_score,
+        sentimentScore: agents.news?.score,
         momentumScore: signal?.momentum_score,
+        technicalScore: signal?.technical_score ?? agents.technical?.score,
+        timingScore: signal?.entry_timing_score,
+        keywordScore: signal?.keyword_score,
+        llmEnhanced: signal?.llm_enhanced,
+        entryTimingState: signal?.entry_timing_state,
+        freshCatalyst: signal?.fresh_catalyst,
+        technicalRegime: signal?.technical_regime,
+        technicalRsi: signal?.technical_rsi,
+        momentumBoost: signal?.momentum_boost,
+        newsAgeHours: signal?.newest_article_age_hours,
+        priceChangePct: signal?.price_change_pct,
         strategy: signal?.strategy,
+        buyGate: signal?.buy_gate,
       },
       technicals,
       raw: dashboard, // Keep raw response for debugging
@@ -560,9 +589,13 @@ export interface ClosedTrade {
   symbol: string;
   side: string;
   timestamp: string;
+  entry_timestamp?: string;
+  exit_timestamp?: string;
   entry_price: number;
   exit_price: number;
+  quantity?: number;
   pnl_pct: number;
+  pnl_dollars?: number;
   reason: string;
   status: string;
 }
@@ -574,8 +607,19 @@ export interface ClosedTradesResponse {
     total_trades: number;
     wins: number;
     losses: number;
+    breakeven?: number;
     win_rate: number;
     total_pnl_pct: number;
+    total_pnl_dollars?: number;
+    gross_profit_dollars?: number;
+    gross_loss_dollars?: number;
+    avg_win_dollars?: number;
+    avg_loss_dollars?: number;
+    avg_win_pct?: number;
+    avg_loss_pct?: number;
+    profit_factor?: number | null;
+    payoff_ratio?: number | null;
+    expectancy_dollars?: number;
   };
 }
 

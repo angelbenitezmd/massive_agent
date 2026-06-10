@@ -1,886 +1,7430 @@
 [
   {
-    "id": "accab5b8",
-    "timestamp": "2026-02-03T20:38:26.931417",
-    "type": "AUTO_TRADE",
-    "ticker": "AAPL",
-    "action": "BUY",
+    "id": "85e6865d",
+    "timestamp": "2026-06-10T15:31:23.057031",
+    "type": "TRADE_BLOCKED",
+    "ticker": "DDOG",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 64.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 71.5,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
     }
   },
   {
-    "id": "1a18e1d0",
-    "timestamp": "2026-02-03T20:28:05.339184",
-    "type": "AUTO_TRADE",
-    "ticker": "ROSS",
-    "action": "BUY",
+    "id": "7e75eaeb",
+    "timestamp": "2026-06-10T15:24:32.911012",
+    "type": "TRADE_BLOCKED",
+    "ticker": "DDOG",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 75.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 94.7,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
     }
   },
   {
-    "id": "4503b3ec",
-    "timestamp": "2026-02-03T20:13:56.158073",
-    "type": "AUTO_TRADE",
-    "ticker": "ROSS",
-    "action": "BUY",
+    "id": "07c963d5",
+    "timestamp": "2026-06-10T15:18:46.952217",
+    "type": "TRADE_BLOCKED",
+    "ticker": "DDOG",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 75.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 97.8,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
     }
   },
   {
-    "id": "fdc6d5c0",
-    "timestamp": "2026-02-03T20:11:27.590754",
-    "type": "AUTO_TRADE",
-    "ticker": "AMZN",
-    "action": "BUY",
+    "id": "92730c66",
+    "timestamp": "2026-06-10T15:14:32.665986",
+    "type": "TRADE_BLOCKED",
+    "ticker": "DDOG",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.3,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 94.9,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
     }
   },
   {
-    "id": "093c9153",
-    "timestamp": "2026-02-03T20:09:36.936534",
-    "type": "AUTO_TRADE",
-    "ticker": "BRK-B",
-    "action": "BUY",
+    "id": "57583c31",
+    "timestamp": "2026-06-10T14:38:39.212376",
+    "type": "TRADE_BLOCKED",
+    "ticker": "QCOM",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 63.7,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 84.1,
+      "reason": "action=WAIT (buy_gate: technical_score_below_threshold, bearish_regime, resistance_too_close)",
+      "source": "news_push"
     }
   },
   {
-    "id": "d33680c6",
-    "timestamp": "2026-02-03T19:55:08.467678",
-    "type": "AUTO_TRADE",
-    "ticker": "AMZN",
-    "action": "BUY",
+    "id": "f972e0fe",
+    "timestamp": "2026-06-10T14:23:04.511389",
+    "type": "TRADE_BLOCKED",
+    "ticker": "AAOI",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.3,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 76.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
     }
   },
   {
-    "id": "f539a0bd",
-    "timestamp": "2026-02-03T19:45:01.990395",
-    "type": "AUTO_TRADE",
-    "ticker": "AMZN",
-    "action": "BUY",
+    "id": "42bc51a9",
+    "timestamp": "2026-06-10T14:23:03.306606",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CASY",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.3,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
     }
   },
   {
-    "id": "7ce97722",
-    "timestamp": "2026-02-03T19:25:40.282565",
-    "type": "AUTO_TRADE",
-    "ticker": "BRK-B",
-    "action": "BUY",
+    "id": "c30c1b94",
+    "timestamp": "2026-06-10T14:20:44.183933",
+    "type": "TRADE_BLOCKED",
+    "ticker": "AAOI",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 76.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
     }
   },
   {
-    "id": "2cc519d2",
-    "timestamp": "2026-02-03T19:14:54.881666",
-    "type": "AUTO_TRADE",
-    "ticker": "V",
-    "action": "BUY",
+    "id": "508d6bac",
+    "timestamp": "2026-06-10T14:20:31.417664",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CASY",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 63.6,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
     }
   },
   {
-    "id": "0c76ad30",
-    "timestamp": "2026-02-03T18:57:58.832860",
-    "type": "AUTO_TRADE",
-    "ticker": "AMZN",
-    "action": "BUY",
+    "id": "1ccf733d",
+    "timestamp": "2026-06-10T14:17:39.347528",
+    "type": "TRADE_BLOCKED",
+    "ticker": "AAOI",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.3,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 76.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
     }
   },
   {
-    "id": "590ce7bc",
-    "timestamp": "2026-02-03T18:18:25.032078",
-    "type": "AUTO_TRADE",
-    "ticker": "META",
-    "action": "BUY",
+    "id": "0063f73f",
+    "timestamp": "2026-06-10T14:17:21.910415",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CASY",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.3,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
     }
   },
   {
-    "id": "8f53605a",
-    "timestamp": "2026-02-03T18:06:33.336161",
-    "type": "AUTO_TRADE",
-    "ticker": "AMZN",
-    "action": "BUY",
+    "id": "5864811a",
+    "timestamp": "2026-06-10T14:10:51.818232",
+    "type": "TRADE_BLOCKED",
+    "ticker": "YB",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.6,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 76.0,
+      "reason": "price=$16.56<min=$25",
+      "source": "trending"
     }
   },
   {
-    "id": "e9feba5c",
-    "timestamp": "2026-02-03T18:00:52.227777",
-    "type": "AUTO_TRADE",
+    "id": "ca64a493",
+    "timestamp": "2026-06-10T14:10:05.708876",
+    "type": "TRADE_BLOCKED",
+    "ticker": "AAOI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "85d1f2c1",
+    "timestamp": "2026-06-10T14:09:18.697223",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CASY",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d8c91f52",
+    "timestamp": "2026-06-10T14:03:13.709583",
+    "type": "TRADE_BLOCKED",
+    "ticker": "AAOI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "cd8696c9",
+    "timestamp": "2026-06-10T14:02:54.270587",
+    "type": "TRADE_BLOCKED",
+    "ticker": "YB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$16.56<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "13f458c6",
+    "timestamp": "2026-06-10T14:01:38.756228",
+    "type": "TRADE_BLOCKED",
+    "ticker": "AAOI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "94d73746",
+    "timestamp": "2026-06-10T14:01:07.507060",
+    "type": "TRADE_BLOCKED",
+    "ticker": "YB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$16.56<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "b921c313",
+    "timestamp": "2026-06-10T13:56:59.715892",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CAVA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "6edb4a99",
+    "timestamp": "2026-06-10T13:56:25.804569",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c0f82c59",
+    "timestamp": "2026-06-10T13:53:39.260134",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CAVA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e7614d7a",
+    "timestamp": "2026-06-10T13:53:37.542706",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "6bd1885c",
+    "timestamp": "2026-06-10T13:50:12.592812",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CAVA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "7da02789",
+    "timestamp": "2026-06-10T13:50:11.310362",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "b868c4e7",
+    "timestamp": "2026-06-10T13:48:56.608708",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CAVA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "0ff705e8",
+    "timestamp": "2026-06-10T13:48:34.892729",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "cf23cf23",
+    "timestamp": "2026-06-10T13:46:00.672351",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CAVA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e8a86efe",
+    "timestamp": "2026-06-10T13:45:59.103723",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "f661939d",
+    "timestamp": "2026-06-10T13:45:06.601689",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CAVA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "102e23aa",
+    "timestamp": "2026-06-10T13:43:49.662657",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RNR",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e6e09bd6",
+    "timestamp": "2026-06-10T13:43:19.789174",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "40bec4b0",
+    "timestamp": "2026-06-10T13:41:35.706346",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CAVA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "f7341f95",
+    "timestamp": "2026-06-10T13:40:36.718863",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RNR",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c160735f",
+    "timestamp": "2026-06-10T13:40:05.125178",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NET",
+    "action": "BLOCKED",
+    "details": {
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "bc5919e5",
+    "timestamp": "2026-06-10T13:39:22.237109",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "786ee8ac",
+    "timestamp": "2026-06-10T13:35:37.706591",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TSM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "ai_score=69.7<min=70.0",
+      "source": "bell_rush"
+    }
+  },
+  {
+    "id": "683a5099",
+    "timestamp": "2026-06-10T13:35:35.748419",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MU",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "ai_score=68.2<min=70.0",
+      "source": "bell_rush"
+    }
+  },
+  {
+    "id": "d440ec95",
+    "timestamp": "2026-06-10T13:35:33.308495",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TOYO",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$13.15<min=$25",
+      "source": "bell_rush"
+    }
+  },
+  {
+    "id": "daad6c7a",
+    "timestamp": "2026-06-10T13:35:32.264008",
+    "type": "TRADE_BLOCKED",
+    "ticker": "POWI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "bell_rush"
+    }
+  },
+  {
+    "id": "2f3fe097",
+    "timestamp": "2026-06-10T13:35:31.213025",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RNR",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "bell_rush"
+    }
+  },
+  {
+    "id": "ae4b7a14",
+    "timestamp": "2026-06-10T13:35:29.100801",
+    "type": "TRADE_BLOCKED",
+    "ticker": "DVN",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "bell_rush"
+    }
+  },
+  {
+    "id": "f04c29f9",
+    "timestamp": "2026-06-10T13:35:25.669820",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NET",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "ai_score=68.2<min=70.0",
+      "source": "bell_rush"
+    }
+  },
+  {
+    "id": "8cd45100",
+    "timestamp": "2026-06-10T13:34:50.105708",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "bell_rush"
+    }
+  },
+  {
+    "id": "6ff5e162",
+    "timestamp": "2026-06-10T13:31:19.400144",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MU",
+    "action": "BLOCKED",
+    "details": {
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "67657abc",
+    "timestamp": "2026-06-09T14:46:42.686640",
+    "type": "TRADE_BLOCKED",
+    "ticker": "STAK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$6.10<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "7765ff59",
+    "timestamp": "2026-06-09T14:37:44.279271",
+    "type": "TRADE_BLOCKED",
+    "ticker": "STAK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$7.79<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "82699654",
+    "timestamp": "2026-06-09T14:34:19.562804",
+    "type": "TRADE_BLOCKED",
+    "ticker": "STAK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$7.91<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "9d77ee5a",
+    "timestamp": "2026-06-09T14:29:55.723752",
+    "type": "TRADE_BLOCKED",
+    "ticker": "STAK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$8.18<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e5d66547",
+    "timestamp": "2026-06-09T14:29:51.361503",
+    "type": "TRADE_BLOCKED",
+    "ticker": "PLTR",
+    "action": "BLOCKED",
+    "details": {
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: technical_score_below_threshold, bearish_regime, resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "55173c13",
+    "timestamp": "2026-06-09T14:25:42.621406",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "af7dc747",
+    "timestamp": "2026-06-09T14:24:34.523932",
+    "type": "TRADE_BLOCKED",
+    "ticker": "WST",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "fa83e4f4",
+    "timestamp": "2026-06-09T14:22:55.431970",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGNI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$15.49<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "adfdd76f",
+    "timestamp": "2026-06-09T14:22:23.138976",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FVR",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$19.76<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "44aa492d",
+    "timestamp": "2026-06-09T14:21:44.148736",
+    "type": "TRADE_BLOCKED",
+    "ticker": "UCTT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "6d9c7e55",
+    "timestamp": "2026-06-09T14:13:28.661679",
+    "type": "TRADE_BLOCKED",
+    "ticker": "JPM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.8,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "770e778b",
+    "timestamp": "2026-06-09T14:12:21.931637",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MPTI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "0745abcc",
+    "timestamp": "2026-06-09T14:11:51.807587",
+    "type": "TRADE_BLOCKED",
+    "ticker": "WST",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,rsi_too_hot",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "6ff9e076",
+    "timestamp": "2026-06-09T14:11:22.435262",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "07def2c6",
+    "timestamp": "2026-06-09T14:09:40.950313",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGNI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$15.61<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "25b7b264",
+    "timestamp": "2026-06-09T14:07:32.240629",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FVR",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$19.71<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "eae1f7dc",
+    "timestamp": "2026-06-09T14:05:28.091598",
+    "type": "TRADE_BLOCKED",
+    "ticker": "ZVRA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$13.65<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d706f994",
+    "timestamp": "2026-06-09T13:59:58.753958",
+    "type": "TRADE_BLOCKED",
+    "ticker": "WST",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "99fabc4b",
+    "timestamp": "2026-06-09T13:59:57.859103",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e73baf34",
+    "timestamp": "2026-06-09T13:59:55.973981",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGNI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$15.86<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "a150a95e",
+    "timestamp": "2026-06-09T13:59:40.266961",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FVR",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$19.71<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "9070ef49",
+    "timestamp": "2026-06-09T13:59:04.663300",
+    "type": "TRADE_BLOCKED",
+    "ticker": "ZVRA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$13.31<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "8c9f1178",
+    "timestamp": "2026-06-09T13:56:36.716870",
+    "type": "TRADE_BLOCKED",
+    "ticker": "WST",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "b130da28",
+    "timestamp": "2026-06-09T13:56:32.696844",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "06f602b7",
+    "timestamp": "2026-06-09T13:56:30.004843",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGNI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$15.93<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "fa2ee2a0",
+    "timestamp": "2026-06-09T13:56:28.997857",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FVR",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$19.70<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "fdbd0df3",
+    "timestamp": "2026-06-09T13:56:27.499671",
+    "type": "TRADE_BLOCKED",
+    "ticker": "ZVRA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$13.35<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c8fb8b5e",
+    "timestamp": "2026-06-09T13:56:26.693360",
+    "type": "TRADE_BLOCKED",
     "ticker": "NVDA",
-    "action": "BUY",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 64.5,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
     }
   },
   {
-    "id": "11086ea7",
-    "timestamp": "2026-02-03T17:54:07.883691",
-    "type": "AUTO_TRADE",
-    "ticker": "NVDA",
-    "action": "BUY",
+    "id": "d9010113",
+    "timestamp": "2026-06-09T13:53:09.806951",
+    "type": "TRADE_BLOCKED",
+    "ticker": "WST",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 64.5,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
     }
   },
   {
-    "id": "56d30fb7",
-    "timestamp": "2026-02-03T17:43:09.379400",
-    "type": "AUTO_TRADE",
-    "ticker": "BRK-B",
-    "action": "BUY",
+    "id": "96567ff9",
+    "timestamp": "2026-06-09T13:53:06.023812",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BRC",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
     }
   },
   {
-    "id": "9a7b5e67",
-    "timestamp": "2026-02-03T17:11:23.861177",
-    "type": "AUTO_TRADE",
-    "ticker": "AMZN",
-    "action": "BUY",
+    "id": "13d67391",
+    "timestamp": "2026-06-09T13:52:45.326612",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGNI",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.3,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.0,
+      "reason": "price=$15.77<min=$25",
+      "source": "trending"
     }
   },
   {
-    "id": "793f3eb3",
-    "timestamp": "2026-02-03T17:05:48.027293",
-    "type": "AUTO_TRADE",
-    "ticker": "META",
-    "action": "BUY",
+    "id": "49384e06",
+    "timestamp": "2026-06-09T13:52:27.196590",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FVR",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.3,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.0,
+      "reason": "price=$19.70<min=$25",
+      "source": "trending"
     }
   },
   {
-    "id": "885c28ab",
-    "timestamp": "2026-02-03T17:02:27.355257",
-    "type": "AUTO_TRADE",
-    "ticker": "AMZN",
-    "action": "BUY",
+    "id": "f9a7d4cb",
+    "timestamp": "2026-06-09T13:51:35.397535",
+    "type": "TRADE_BLOCKED",
+    "ticker": "ZVRA",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.3,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.0,
+      "reason": "price=$13.02<min=$25",
+      "source": "trending"
     }
   },
   {
-    "id": "2434a099",
-    "timestamp": "2026-02-03T16:42:40.199819",
-    "type": "AUTO_TRADE",
-    "ticker": "NVDA",
-    "action": "BUY",
+    "id": "b32d1127",
+    "timestamp": "2026-06-09T13:49:22.858864",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CLF",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 64.5,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 76.0,
+      "reason": "price=$13.06<min=$25",
+      "source": "trending"
     }
   },
   {
-    "id": "4705b377",
-    "timestamp": "2026-02-03T16:40:25.323352",
-    "type": "AUTO_TRADE",
-    "ticker": "META",
-    "action": "BUY",
+    "id": "3536907a",
+    "timestamp": "2026-06-09T13:49:09.700013",
+    "type": "TRADE_BLOCKED",
+    "ticker": "WST",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.3,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
     }
   },
   {
-    "id": "dd8540e3",
-    "timestamp": "2026-02-03T16:32:02.314841",
-    "type": "AUTO_TRADE",
-    "ticker": "AMD",
-    "action": "BUY",
+    "id": "050ffb31",
+    "timestamp": "2026-06-09T13:48:54.357760",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BRC",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 60.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
     }
   },
   {
-    "id": "bf6fcfcb",
-    "timestamp": "2026-02-03T16:21:12.368204",
-    "type": "AUTO_TRADE",
-    "ticker": "AMD",
-    "action": "BUY",
+    "id": "3d9c7bce",
+    "timestamp": "2026-06-09T13:48:36.264502",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGNI",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 60.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.0,
+      "reason": "price=$15.59<min=$25",
+      "source": "trending"
     }
   },
   {
-    "id": "2ad58440",
-    "timestamp": "2026-02-03T16:17:56.846207",
-    "type": "AUTO_TRADE",
-    "ticker": "AMD",
-    "action": "BUY",
+    "id": "24377fab",
+    "timestamp": "2026-06-09T13:48:12.906382",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FVR",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 60.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.0,
+      "reason": "price=$19.64<min=$25",
+      "source": "trending"
     }
   },
   {
-    "id": "1a81568b",
-    "timestamp": "2026-02-03T16:15:07.614659",
-    "type": "AUTO_TRADE",
-    "ticker": "INTC",
-    "action": "BUY",
+    "id": "df08ba36",
+    "timestamp": "2026-06-09T13:47:39.284682",
+    "type": "TRADE_BLOCKED",
+    "ticker": "ZVRA",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 60.8,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.0,
+      "reason": "price=$12.98<min=$25",
+      "source": "trending"
     }
   },
   {
-    "id": "5d89a4ad",
-    "timestamp": "2026-02-03T16:09:57.138132",
-    "type": "AUTO_TRADE",
-    "ticker": "AMD",
-    "action": "BUY",
+    "id": "53026486",
+    "timestamp": "2026-06-09T13:43:53.546906",
+    "type": "TRADE_BLOCKED",
+    "ticker": "PAR",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 60.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 76.0,
+      "reason": "price=$14.01<min=$25",
+      "source": "trending"
     }
   },
   {
-    "id": "609d84f0",
-    "timestamp": "2026-02-03T16:07:15.195702",
-    "type": "AUTO_TRADE",
-    "ticker": "AMD",
-    "action": "BUY",
+    "id": "5b2d0005",
+    "timestamp": "2026-06-09T13:43:43.478765",
+    "type": "TRADE_BLOCKED",
+    "ticker": "STRL",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 60.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 76.0,
+      "reason": "momentum_below_threshold,relative_volume_too_low,resistance_too_close",
+      "source": "trending"
     }
   },
   {
-    "id": "b409bbad",
-    "timestamp": "2026-02-03T15:58:27.708527",
-    "type": "AUTO_TRADE",
-    "ticker": "AMD",
-    "action": "BUY",
+    "id": "708837c5",
+    "timestamp": "2026-06-09T13:43:09.226488",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MPTI",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 60.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
     }
   },
   {
-    "id": "0deb80ec",
-    "timestamp": "2026-02-03T15:56:06.439687",
-    "type": "AUTO_TRADE",
-    "ticker": "AVGO",
-    "action": "BUY",
+    "id": "fdbf67e9",
+    "timestamp": "2026-06-09T13:42:25.582922",
+    "type": "TRADE_BLOCKED",
+    "ticker": "WST",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 60.5,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
     }
   },
   {
-    "id": "06b29411",
-    "timestamp": "2026-02-03T15:40:16.034842",
-    "type": "AUTO_TRADE",
-    "ticker": "ROSS",
-    "action": "BUY",
-    "details": {
-      "price": null,
-      "quantity": null,
-      "score": 75.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
-    }
-  },
-  {
-    "id": "97ac31d3",
-    "timestamp": "2026-02-03T15:32:43.527047",
-    "type": "AUTO_TRADE",
+    "id": "d7065000",
+    "timestamp": "2026-06-09T13:40:15.678744",
+    "type": "TRADE_BLOCKED",
     "ticker": "AAPL",
-    "action": "BUY",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 60.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: technical_score_below_threshold, bearish_regime, resistance_too_close)",
+      "source": "news_push"
     }
   },
   {
-    "id": "7248d155",
-    "timestamp": "2026-02-03T15:30:39.495719",
-    "type": "AUTO_TRADE",
-    "ticker": "BRK-B",
-    "action": "BUY",
+    "id": "61c446c1",
+    "timestamp": "2026-06-09T13:37:19.365767",
+    "type": "TRADE_BLOCKED",
+    "ticker": "PAR",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 76.0,
+      "reason": "price=$13.30<min=$25",
+      "source": "bell_rush"
     }
   },
   {
-    "id": "34364a73",
-    "timestamp": "2026-02-03T15:14:48.053976",
-    "type": "AUTO_TRADE",
-    "ticker": "AAPL",
-    "action": "BUY",
+    "id": "7ee9f0d0",
+    "timestamp": "2026-06-09T13:36:44.277633",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BRC",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 60.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 76.0,
+      "reason": "score_below_threshold,too_far_above_vwap,relative_volume_too_low",
+      "source": "bell_rush"
     }
   },
   {
-    "id": "86987b88",
-    "timestamp": "2026-02-03T15:12:57.239503",
-    "type": "AUTO_TRADE",
-    "ticker": "AAPL",
-    "action": "BUY",
+    "id": "3d39e5cf",
+    "timestamp": "2026-06-09T13:36:20.214566",
+    "type": "TRADE_BLOCKED",
+    "ticker": "STRL",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 60.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 76.0,
+      "reason": "score_below_threshold,too_far_above_vwap,relative_volume_too_low",
+      "source": "bell_rush"
     }
   },
   {
-    "id": "cef6ba57",
-    "timestamp": "2026-02-03T14:52:11.767884",
-    "type": "AUTO_TRADE",
+    "id": "85c74648",
+    "timestamp": "2026-06-09T13:35:32.779851",
+    "type": "TRADE_BLOCKED",
+    "ticker": "WST",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "bell_rush"
+    }
+  },
+  {
+    "id": "628f7dd7",
+    "timestamp": "2026-06-09T13:35:08.840231",
+    "type": "TRADE_BLOCKED",
+    "ticker": "ESQ",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "bell_rush"
+    }
+  },
+  {
+    "id": "daf9ac02",
+    "timestamp": "2026-06-09T13:34:08.676705",
+    "type": "TRADE_BLOCKED",
     "ticker": "ORCL",
-    "action": "BUY",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.3,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
     }
   },
   {
-    "id": "6a997cb6",
-    "timestamp": "2026-02-03T14:49:29.152842",
-    "type": "AUTO_TRADE",
-    "ticker": "BRK-B",
-    "action": "BUY",
+    "id": "a90babd9",
+    "timestamp": "2026-06-09T13:34:08.665605",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NVDA",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 60.9,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.4,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
     }
   },
   {
-    "id": "d8ac2a5c",
-    "timestamp": "2026-02-03T14:44:06.697323",
-    "type": "AUTO_TRADE",
-    "ticker": "AAPL",
-    "action": "BUY",
+    "id": "6ef1d76a",
+    "timestamp": "2026-06-08T19:16:02.856186",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 66.5,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 75.0,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
     }
   },
   {
-    "id": "0b4dfe9f",
-    "timestamp": "2026-02-03T14:36:40.320743",
-    "type": "AUTO_TRADE",
-    "ticker": "AAPL",
-    "action": "BUY",
+    "id": "da6e1078",
+    "timestamp": "2026-06-08T19:16:01.542559",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GOOG",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 66.5,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
     }
   },
   {
-    "id": "461dfecf",
-    "timestamp": "2026-02-02T19:12:05.880702",
-    "type": "AUTO_TRADE",
-    "ticker": "BRK-B",
-    "action": "BUY",
+    "id": "a6e9c369",
+    "timestamp": "2026-06-08T19:15:59.572533",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 63.6,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
     }
   },
   {
-    "id": "db2eb599",
-    "timestamp": "2026-02-02T19:09:12.768980",
-    "type": "AUTO_TRADE",
-    "ticker": "CSCO",
-    "action": "BUY",
+    "id": "dbc76d73",
+    "timestamp": "2026-06-08T19:10:28.631252",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GOOG",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 64.9,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
     }
   },
   {
-    "id": "add31008",
-    "timestamp": "2026-02-02T18:21:46.471058",
-    "type": "AUTO_TRADE",
-    "ticker": "AAPL",
-    "action": "BUY",
+    "id": "f1b8d291",
+    "timestamp": "2026-06-08T19:10:26.843012",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 60.4,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
     }
   },
   {
-    "id": "29a85e6b",
-    "timestamp": "2026-02-02T16:45:48.404204",
-    "type": "AUTO_TRADE",
+    "id": "57374b70",
+    "timestamp": "2026-06-08T19:10:24.530574",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "9d3d24e5",
+    "timestamp": "2026-06-08T19:07:16.192050",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GOOG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "1b81d35e",
+    "timestamp": "2026-06-08T19:07:14.383918",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "84fa1ddb",
+    "timestamp": "2026-06-08T19:07:12.651161",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "f2dd6614",
+    "timestamp": "2026-06-08T19:04:17.434542",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GOOG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "1945102e",
+    "timestamp": "2026-06-08T19:04:15.522494",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "a64f8a47",
+    "timestamp": "2026-06-08T19:04:14.091519",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "55bd3af8",
+    "timestamp": "2026-06-08T19:00:57.633847",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "2e8a5e9a",
+    "timestamp": "2026-06-08T19:00:56.060713",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "523d6049",
+    "timestamp": "2026-06-08T18:57:57.328314",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "f06b5da5",
+    "timestamp": "2026-06-08T18:57:56.347726",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e2b908d0",
+    "timestamp": "2026-06-08T18:54:52.952153",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "91eac169",
+    "timestamp": "2026-06-08T18:54:51.398053",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "72fbbcb2",
+    "timestamp": "2026-06-08T18:51:55.956941",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "3898ee8a",
+    "timestamp": "2026-06-08T18:51:55.017644",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "70c17300",
+    "timestamp": "2026-06-08T18:48:47.321489",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "78a80ce5",
+    "timestamp": "2026-06-08T18:48:46.498393",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "17a6a82b",
+    "timestamp": "2026-06-08T18:45:46.330808",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "47b465a2",
+    "timestamp": "2026-06-08T18:45:45.386541",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "33af7e18",
+    "timestamp": "2026-06-08T18:42:42.933081",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "1b65425c",
+    "timestamp": "2026-06-08T18:42:39.920236",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "eaeeadf2",
+    "timestamp": "2026-06-08T18:39:38.277748",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d48a518d",
+    "timestamp": "2026-06-08T18:39:36.075625",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "cd884b15",
+    "timestamp": "2026-06-08T18:36:33.462599",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GOOG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "3f9b6d88",
+    "timestamp": "2026-06-08T18:36:31.247288",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "250f24c1",
+    "timestamp": "2026-06-08T18:36:29.258360",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e5846797",
+    "timestamp": "2026-06-08T18:33:27.792462",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GOOG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "5f6bb595",
+    "timestamp": "2026-06-08T18:33:23.098681",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "9b19c12f",
+    "timestamp": "2026-06-08T18:33:22.201324",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "45a348f6",
+    "timestamp": "2026-06-08T18:30:20.001539",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GOOG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "aadef334",
+    "timestamp": "2026-06-08T18:30:17.932585",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "f0a9c49b",
+    "timestamp": "2026-06-08T18:30:15.144142",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "4566bbe5",
+    "timestamp": "2026-06-08T18:27:09.712062",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GOOG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "83e65b1e",
+    "timestamp": "2026-06-08T18:27:07.527831",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "163d694d",
+    "timestamp": "2026-06-08T18:27:06.745059",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "957a66c9",
+    "timestamp": "2026-06-08T18:24:06.423414",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NICE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "1079160c",
+    "timestamp": "2026-06-08T18:24:05.075156",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GOOG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "7f629b12",
+    "timestamp": "2026-06-08T18:24:00.603904",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e4124cfb",
+    "timestamp": "2026-06-08T18:23:58.640156",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 84.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "4e7e704d",
+    "timestamp": "2026-06-08T18:20:58.422580",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NICE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "0090d9d5",
+    "timestamp": "2026-06-08T18:20:57.384509",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GOOG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e75ec5c6",
+    "timestamp": "2026-06-08T18:20:54.954853",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "8a0aaa78",
+    "timestamp": "2026-06-08T18:20:53.369797",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 84.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e8cc1455",
+    "timestamp": "2026-06-08T18:17:50.623802",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NICE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "16c25856",
+    "timestamp": "2026-06-08T18:17:47.484342",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "01561f34",
+    "timestamp": "2026-06-08T18:17:45.576786",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VOYA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "relative_volume_too_low,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "71bae115",
+    "timestamp": "2026-06-08T18:17:43.883882",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "3ba81dd5",
+    "timestamp": "2026-06-08T18:17:42.032085",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 84.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "fc7850c4",
+    "timestamp": "2026-06-08T18:14:48.179745",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NICE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "214d3cee",
+    "timestamp": "2026-06-08T18:14:45.056196",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d29b90da",
+    "timestamp": "2026-06-08T18:14:41.559873",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VOYA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "relative_volume_too_low,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "4d2065db",
+    "timestamp": "2026-06-08T18:14:36.578102",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d5d7351e",
+    "timestamp": "2026-06-08T18:14:33.605230",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 84.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e0a4b6a1",
+    "timestamp": "2026-06-08T18:11:39.031976",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NICE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "409a1ebf",
+    "timestamp": "2026-06-08T18:11:34.807134",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "053a196b",
+    "timestamp": "2026-06-08T18:11:28.715466",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VOYA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "relative_volume_too_low,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "60347a48",
+    "timestamp": "2026-06-08T18:11:25.024759",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c0506403",
+    "timestamp": "2026-06-08T18:11:19.985906",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 84.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "194a2d88",
+    "timestamp": "2026-06-08T18:08:20.880059",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NICE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "4f759a1a",
+    "timestamp": "2026-06-08T18:08:20.157279",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "921c3ed8",
+    "timestamp": "2026-06-08T18:08:19.167903",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VOYA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "relative_volume_too_low,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "db9c9ff0",
+    "timestamp": "2026-06-08T18:08:18.011253",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e487d194",
+    "timestamp": "2026-06-08T18:08:16.999221",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 84.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "286e8701",
+    "timestamp": "2026-06-08T18:05:19.985706",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c1331939",
+    "timestamp": "2026-06-08T18:05:18.958067",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VOYA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "relative_volume_too_low,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "f39bc660",
+    "timestamp": "2026-06-08T18:05:14.725873",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "3b88a413",
+    "timestamp": "2026-06-08T18:02:15.049681",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "ee43478b",
+    "timestamp": "2026-06-08T18:02:13.056806",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VOYA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "relative_volume_too_low,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c50dc338",
+    "timestamp": "2026-06-08T18:02:11.812921",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "eef89e37",
+    "timestamp": "2026-06-08T17:59:12.480001",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VOYA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "relative_volume_too_low,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c8a75f0e",
+    "timestamp": "2026-06-08T17:59:11.400925",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "4de9b5c6",
+    "timestamp": "2026-06-08T17:59:08.494121",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "266c8bbb",
+    "timestamp": "2026-06-08T17:56:14.884833",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VOYA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "f7a143b6",
+    "timestamp": "2026-06-08T17:56:14.050234",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "60f4b933",
+    "timestamp": "2026-06-08T17:56:13.043812",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 84.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "75760f41",
+    "timestamp": "2026-06-08T17:53:19.254787",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c565b289",
+    "timestamp": "2026-06-08T17:53:15.371740",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VOYA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "relative_volume_too_low,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "a15cc261",
+    "timestamp": "2026-06-08T17:53:13.836933",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,timing_score_too_low",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "4cf359d1",
+    "timestamp": "2026-06-08T17:50:47.141120",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TFX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "076d4797",
+    "timestamp": "2026-06-08T17:50:45.288271",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VOYA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "relative_volume_too_low,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "bb6bef90",
+    "timestamp": "2026-06-08T17:50:43.860343",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,timing_score_too_low",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e2457933",
+    "timestamp": "2026-06-08T17:50:39.910321",
+    "type": "TRADE_BLOCKED",
     "ticker": "AMZN",
-    "action": "BUY",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 60.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
     }
   },
   {
-    "id": "01b70941",
-    "timestamp": "2026-02-02T16:16:34.578696",
-    "type": "AUTO_TRADE",
-    "ticker": "AAPL",
-    "action": "BUY",
+    "id": "2d7902c5",
+    "timestamp": "2026-06-08T17:47:03.915207",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 60.4,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,timing_score_too_low",
+      "source": "trending"
     }
   },
   {
-    "id": "6b3cab1d",
-    "timestamp": "2026-02-02T15:37:09.867278",
-    "type": "AUTO_TRADE",
+    "id": "ba1845c1",
+    "timestamp": "2026-06-08T17:44:22.954859",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c9aeecb2",
+    "timestamp": "2026-06-08T17:40:57.670259",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MPAA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$13.66<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "2f5cc1c3",
+    "timestamp": "2026-06-08T17:40:55.715855",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "a491ff05",
+    "timestamp": "2026-06-08T17:38:20.715663",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MPAA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$13.66<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "5d04e117",
+    "timestamp": "2026-06-08T17:38:12.147304",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "5cea5d07",
+    "timestamp": "2026-06-08T17:35:07.317601",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "43093ab4",
+    "timestamp": "2026-06-08T17:32:19.611266",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,timing_score_too_low,too_far_above_vwap",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e415cc50",
+    "timestamp": "2026-06-08T17:29:31.760944",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "9ec8954f",
+    "timestamp": "2026-06-08T17:26:30.141616",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c0984cd7",
+    "timestamp": "2026-06-08T17:23:48.219970",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "ai_score=68.2<min=70.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "718d6f2b",
+    "timestamp": "2026-06-08T17:20:53.850885",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "5941566b",
+    "timestamp": "2026-06-08T17:17:53.975703",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "57c7de94",
+    "timestamp": "2026-06-08T17:15:55.798880",
+    "type": "TRADE_BLOCKED",
     "ticker": "AMZN",
-    "action": "BUY",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
     }
   },
   {
-    "id": "8d1819de",
-    "timestamp": "2026-02-02T15:02:42.221632",
-    "type": "AUTO_TRADE",
-    "ticker": "V",
-    "action": "BUY",
+    "id": "89a81ecf",
+    "timestamp": "2026-06-08T17:15:14.525702",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 60.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 82.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
     }
   },
   {
-    "id": "721becf7",
-    "timestamp": "2026-02-02T14:55:31.917241",
-    "type": "AUTO_TRADE",
-    "ticker": "BRK-B",
-    "action": "BUY",
+    "id": "1a37bbb8",
+    "timestamp": "2026-06-08T17:11:41.853882",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 60.2,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 76.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
     }
   },
   {
-    "id": "4e4eb4c0",
-    "timestamp": "2026-02-02T14:50:59.935815",
-    "type": "AUTO_TRADE",
-    "ticker": "V",
-    "action": "BUY",
+    "id": "3d55cf3d",
+    "timestamp": "2026-06-08T17:11:39.701070",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 82.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
     }
   },
   {
-    "id": "474d5f05",
-    "timestamp": "2026-02-02T14:49:15.397876",
-    "type": "AUTO_TRADE",
-    "ticker": "V",
-    "action": "BUY",
+    "id": "e60643f2",
+    "timestamp": "2026-06-08T17:11:37.176290",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 82.0,
+      "reason": "price=$2.44<min=$25",
+      "source": "trending"
     }
   },
   {
-    "id": "15129a68",
-    "timestamp": "2026-02-02T14:47:55.779017",
-    "type": "AUTO_TRADE",
-    "ticker": "V",
-    "action": "BUY",
+    "id": "9b5314b8",
+    "timestamp": "2026-06-08T17:10:33.169478",
+    "type": "TRADE_BLOCKED",
+    "ticker": "AMZN",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 94.6,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
     }
   },
   {
-    "id": "7e8e3951",
-    "timestamp": "2026-02-02T14:46:18.734598",
-    "type": "AUTO_TRADE",
-    "ticker": "V",
-    "action": "BUY",
+    "id": "3adc4afa",
+    "timestamp": "2026-06-08T17:08:19.011499",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 76.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
     }
   },
   {
-    "id": "c283f0ed",
-    "timestamp": "2026-02-02T14:44:40.011892",
-    "type": "AUTO_TRADE",
-    "ticker": "V",
-    "action": "BUY",
+    "id": "0cc12d8c",
+    "timestamp": "2026-06-08T17:07:40.522835",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MPAA",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.0,
+      "reason": "price=$14.87<min=$25",
+      "source": "trending"
     }
   },
   {
-    "id": "09c20692",
-    "timestamp": "2026-02-02T14:42:59.179482",
-    "type": "AUTO_TRADE",
-    "ticker": "V",
-    "action": "BUY",
+    "id": "de35de88",
+    "timestamp": "2026-06-08T17:06:46.802476",
+    "type": "TRADE_BLOCKED",
+    "ticker": "LAB",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.0,
+      "reason": "price=$0.86<min=$25",
+      "source": "trending"
     }
   },
   {
-    "id": "31684923",
-    "timestamp": "2026-02-02T14:41:27.269108",
-    "type": "AUTO_TRADE",
-    "ticker": "V",
-    "action": "BUY",
+    "id": "6292d09e",
+    "timestamp": "2026-06-08T17:06:37.361105",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 88.0,
+      "reason": "price=$2.55<min=$25",
+      "source": "trending"
     }
   },
   {
-    "id": "861050fc",
-    "timestamp": "2026-02-02T14:39:50.121712",
-    "type": "AUTO_TRADE",
-    "ticker": "BRK-B",
-    "action": "BUY",
+    "id": "b2cd7ac3",
+    "timestamp": "2026-06-08T17:03:36.661032",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 60.7,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 76.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
     }
   },
   {
-    "id": "62cff31e",
-    "timestamp": "2026-02-02T14:37:45.910875",
-    "type": "AUTO_TRADE",
-    "ticker": "V",
-    "action": "BUY",
+    "id": "72250240",
+    "timestamp": "2026-06-08T17:03:35.511889",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MPAA",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.0,
+      "reason": "price=$14.87<min=$25",
+      "source": "trending"
     }
   },
   {
-    "id": "c6703fcc",
-    "timestamp": "2026-02-02T14:35:57.708174",
-    "type": "AUTO_TRADE",
-    "ticker": "V",
-    "action": "BUY",
+    "id": "24cbe479",
+    "timestamp": "2026-06-08T17:03:33.988714",
+    "type": "TRADE_BLOCKED",
+    "ticker": "LAB",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.0,
+      "reason": "price=$0.85<min=$25",
+      "source": "trending"
     }
   },
   {
-    "id": "b40dd29c",
-    "timestamp": "2026-02-02T14:34:04.441056",
-    "type": "AUTO_TRADE",
+    "id": "cc579ea4",
+    "timestamp": "2026-06-08T17:03:33.031333",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.0,
+      "reason": "price=$2.49<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "bd97cd96",
+    "timestamp": "2026-06-08T17:00:46.092190",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "aea7b30c",
+    "timestamp": "2026-06-08T17:00:29.997842",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MPAA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$14.87<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "6771f99a",
+    "timestamp": "2026-06-08T17:00:27.593512",
+    "type": "TRADE_BLOCKED",
+    "ticker": "LAB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$0.85<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "bb42c691",
+    "timestamp": "2026-06-08T17:00:24.937566",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "0f17e34c",
+    "timestamp": "2026-06-08T17:00:22.505701",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.0,
+      "reason": "price=$2.51<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "2d08bad8",
+    "timestamp": "2026-06-08T17:00:11.737564",
+    "type": "TRADE_BLOCKED",
+    "ticker": "AMZN",
+    "action": "BLOCKED",
+    "details": {
+      "score": 95.0,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "45dc6a8d",
+    "timestamp": "2026-06-08T16:57:53.187692",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "4ccba90d",
+    "timestamp": "2026-06-08T16:57:51.341868",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MPAA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$14.87<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "1b1b6158",
+    "timestamp": "2026-06-08T16:57:48.774384",
+    "type": "TRADE_BLOCKED",
+    "ticker": "LAB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$0.86<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e3aa536f",
+    "timestamp": "2026-06-08T16:57:48.104197",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,rsi_too_hot",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "74441b15",
+    "timestamp": "2026-06-08T16:57:47.422729",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.0,
+      "reason": "price=$2.38<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "bc12ac74",
+    "timestamp": "2026-06-08T16:54:26.014191",
+    "type": "TRADE_BLOCKED",
+    "ticker": "LAB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$0.84<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "b2c6c5a2",
+    "timestamp": "2026-06-08T16:54:22.315053",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,rsi_too_hot",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "0ebd7e78",
+    "timestamp": "2026-06-08T16:54:20.497091",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.0,
+      "reason": "price=$2.36<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "3df31b1f",
+    "timestamp": "2026-06-08T16:52:01.320920",
+    "type": "TRADE_BLOCKED",
+    "ticker": "LAB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$0.83<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "1f9d2890",
+    "timestamp": "2026-06-08T16:52:00.035376",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "8add3b69",
+    "timestamp": "2026-06-08T16:51:59.286730",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.0,
+      "reason": "price=$2.36<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "89139d31",
+    "timestamp": "2026-06-08T16:48:53.260844",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MPAA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$14.87<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d70723ef",
+    "timestamp": "2026-06-08T16:48:47.809968",
+    "type": "TRADE_BLOCKED",
+    "ticker": "LAB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$0.82<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "eea8ea1a",
+    "timestamp": "2026-06-08T16:48:13.941146",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,rsi_too_hot,timing_score_too_low",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e44051d1",
+    "timestamp": "2026-06-08T16:47:53.147343",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.0,
+      "reason": "price=$2.34<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "07445212",
+    "timestamp": "2026-06-08T16:43:19.134004",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.0,
+      "reason": "price=$2.32<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "bddc8ad4",
+    "timestamp": "2026-06-08T16:40:33.960533",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.0,
+      "reason": "price=$2.38<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "20b55f55",
+    "timestamp": "2026-06-08T16:39:48.117022",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GOOGL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.9,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "3b8dfaa3",
+    "timestamp": "2026-06-08T16:37:57.621601",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GOOGL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 86.0,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "a3c06647",
+    "timestamp": "2026-06-08T16:37:26.869791",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.0,
+      "reason": "price=$2.31<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "1e77b7e4",
+    "timestamp": "2026-06-08T16:34:33.887996",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.0,
+      "reason": "price=$2.35<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e00b8160",
+    "timestamp": "2026-06-08T16:31:43.395906",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.0,
+      "reason": "price=$2.32<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "b867527d",
+    "timestamp": "2026-06-08T16:31:11.479741",
+    "type": "TRADE_BLOCKED",
+    "ticker": "DDOG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 70.9,
+      "reason": "action=WAIT (buy_gate: score_below_threshold, momentum_below_threshold, resistance_too_close, momentum_warning)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "5c64800a",
+    "timestamp": "2026-06-08T16:28:37.542166",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.0,
+      "reason": "price=$2.38<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "90ad83e7",
+    "timestamp": "2026-06-08T16:26:39.997256",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.0,
+      "reason": "price=$2.38<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "63ac5096",
+    "timestamp": "2026-06-08T16:26:31.008528",
+    "type": "TRADE_BLOCKED",
+    "ticker": "AMZN",
+    "action": "BLOCKED",
+    "details": {
+      "score": 94.4,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "05fa6adc",
+    "timestamp": "2026-06-08T16:26:31.001367",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GOOGL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.9,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "fd5aec2d",
+    "timestamp": "2026-06-08T16:26:30.992962",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MSFT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.5,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "5ac8a8ec",
+    "timestamp": "2026-06-08T16:23:01.194970",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.0,
+      "reason": "price=$2.38<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d0795cb8",
+    "timestamp": "2026-06-08T16:22:58.577503",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SNOW",
+    "action": "BLOCKED",
+    "details": {
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "8fb02046",
+    "timestamp": "2026-06-08T16:20:15.164886",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.0,
+      "reason": "price=$2.44<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "76702dbc",
+    "timestamp": "2026-06-08T16:18:30.387816",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.0,
+      "reason": "price=$2.46<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "eca49ae6",
+    "timestamp": "2026-06-08T16:14:50.005250",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 77.8,
+      "reason": "action=WAIT (buy_gate: momentum_below_threshold, resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "7fe418fd",
+    "timestamp": "2026-06-08T15:49:41.739330",
+    "type": "TRADE_BLOCKED",
+    "ticker": "AVGO",
+    "action": "BLOCKED",
+    "details": {
+      "score": 71.2,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "84fc21b9",
+    "timestamp": "2026-06-08T15:49:41.733214",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MSFT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 97.8,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "1c724989",
+    "timestamp": "2026-06-08T15:49:41.723986",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GOOGL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.5,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "8aa976a3",
+    "timestamp": "2026-06-08T15:31:34.677957",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CMI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "technical_score_below_threshold,bearish_regime,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "154aa306",
+    "timestamp": "2026-06-08T15:31:33.947196",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FRVO",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=29.7<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "a53b6b63",
+    "timestamp": "2026-06-08T15:29:00.284564",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CMI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "fdc2ebd6",
+    "timestamp": "2026-06-08T15:28:52.331775",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FRVO",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=30.6<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "a3ca20fb",
+    "timestamp": "2026-06-08T15:26:06.922313",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CMI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "a704f8c5",
+    "timestamp": "2026-06-08T15:26:03.730865",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FRVO",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=29.3<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "f968fd91",
+    "timestamp": "2026-06-08T15:22:52.309361",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CMI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "b5008ef2",
+    "timestamp": "2026-06-08T15:22:02.126261",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FRVO",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=32.5<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "404dcaf2",
+    "timestamp": "2026-06-08T15:18:37.811135",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FRVO",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=35.2<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "1e9baea1",
+    "timestamp": "2026-06-08T15:18:36.301908",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CMI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "05684be4",
+    "timestamp": "2026-06-08T15:18:33.757993",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NVDA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 75.3,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "d6583a7c",
+    "timestamp": "2026-06-08T15:18:33.751529",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GOOGL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 95.4,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "e5a7fd80",
+    "timestamp": "2026-06-08T15:16:02.161188",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FRVO",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=35.4<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "558c62bc",
+    "timestamp": "2026-06-08T15:16:01.250207",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CMI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "b6c64e10",
+    "timestamp": "2026-06-08T15:12:33.405965",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CLYM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$11.71<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "4db30943",
+    "timestamp": "2026-06-08T15:12:00.880912",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CMI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "56baa2ee",
+    "timestamp": "2026-06-08T15:09:49.586448",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CLYM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$11.64<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "8e7983a4",
+    "timestamp": "2026-06-08T15:09:10.400856",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CMI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d4af7086",
+    "timestamp": "2026-06-08T15:08:06.941686",
+    "type": "TRADE_BLOCKED",
+    "ticker": "AMZN",
+    "action": "BLOCKED",
+    "details": {
+      "score": 95.5,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "a53fe600",
+    "timestamp": "2026-06-08T15:08:06.936942",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GOOGL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 94.1,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "70436186",
+    "timestamp": "2026-06-08T15:08:06.930548",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MSFT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 99.6,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "2129493a",
+    "timestamp": "2026-06-08T15:07:00.851595",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGEE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "score_below_threshold,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "be6d5cee",
+    "timestamp": "2026-06-08T15:06:11.446743",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CROX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "739527e1",
+    "timestamp": "2026-06-08T15:05:51.796273",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CMI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "2152e5f8",
+    "timestamp": "2026-06-08T15:05:35.240518",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INTC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,too_far_above_vwap,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "13db18cb",
+    "timestamp": "2026-06-08T15:02:28.055956",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGEE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "score_below_threshold,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "01a7f263",
+    "timestamp": "2026-06-08T15:02:27.041579",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CROX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "a4dd0c23",
+    "timestamp": "2026-06-08T15:02:25.957907",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CMI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "507f129a",
+    "timestamp": "2026-06-08T15:02:25.028159",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INTC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "60e2a531",
+    "timestamp": "2026-06-08T14:59:24.952281",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGEE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "score_below_threshold,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "ba2c6e11",
+    "timestamp": "2026-06-08T14:59:23.788460",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CMI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "9753daf9",
+    "timestamp": "2026-06-08T14:59:22.758634",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CROX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "ai_score=56.9<min=70.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "3e34974b",
+    "timestamp": "2026-06-08T14:59:21.497251",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INTC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c75dd696",
+    "timestamp": "2026-06-08T14:56:50.419234",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGEE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "score_below_threshold,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "fc7f4a68",
+    "timestamp": "2026-06-08T14:56:42.192000",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CMI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "95712e73",
+    "timestamp": "2026-06-08T14:56:40.741992",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INTC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "72834d61",
+    "timestamp": "2026-06-08T14:53:55.749635",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGEE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "score_below_threshold,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "da7561b9",
+    "timestamp": "2026-06-08T14:53:53.661974",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CMI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "7a17e003",
+    "timestamp": "2026-06-08T14:53:52.708451",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INTC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c41cd461",
+    "timestamp": "2026-06-08T14:51:24.909816",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BIIB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "b5d26a6b",
+    "timestamp": "2026-06-08T14:51:24.080365",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d74b1493",
+    "timestamp": "2026-06-08T14:51:22.500636",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGEE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "2f658446",
+    "timestamp": "2026-06-08T14:51:20.789386",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INHD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$3.73<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "6209fec4",
+    "timestamp": "2026-06-08T14:51:18.666834",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CMI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c91146a4",
+    "timestamp": "2026-06-08T14:50:56.469586",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INTC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "a91560a8",
+    "timestamp": "2026-06-08T14:47:50.251819",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BIIB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "98ac1dde",
+    "timestamp": "2026-06-08T14:46:57.687397",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "fbc1d012",
+    "timestamp": "2026-06-08T14:46:48.359550",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGEE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "4a7d8d72",
+    "timestamp": "2026-06-08T14:46:39.577258",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INHD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$3.61<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "72dfe2ef",
+    "timestamp": "2026-06-08T14:46:38.692155",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CMI",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "45cbd733",
+    "timestamp": "2026-06-08T14:46:37.202355",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INTC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,too_far_above_vwap,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c573dc44",
+    "timestamp": "2026-06-08T14:44:09.429759",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "fa55973e",
+    "timestamp": "2026-06-08T14:44:08.426660",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BIIB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "63596500",
+    "timestamp": "2026-06-08T14:44:06.181667",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGEE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "22c7b488",
+    "timestamp": "2026-06-08T14:44:04.909443",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INHD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$3.82<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "cec71b99",
+    "timestamp": "2026-06-08T14:43:55.899786",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INTC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "5e43f142",
+    "timestamp": "2026-06-08T14:41:20.709992",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "1f9b8ea7",
+    "timestamp": "2026-06-08T14:41:19.924783",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BIIB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "5c65f35d",
+    "timestamp": "2026-06-08T14:41:17.563066",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGEE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "b2051469",
+    "timestamp": "2026-06-08T14:40:43.287355",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INHD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$3.72<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "caf234dc",
+    "timestamp": "2026-06-08T14:40:26.190810",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INTC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "0eeca90b",
+    "timestamp": "2026-06-08T14:36:44.152058",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "50707bb2",
+    "timestamp": "2026-06-08T14:36:42.993299",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BIIB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "b23b08dc",
+    "timestamp": "2026-06-08T14:36:41.579962",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGEE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "6ddb188d",
+    "timestamp": "2026-06-08T14:36:40.748561",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INHD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$4.23<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "095efc9b",
+    "timestamp": "2026-06-08T14:36:40.490782",
+    "type": "TRADE_BLOCKED",
+    "ticker": "JPM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "1f4cdc88",
+    "timestamp": "2026-06-08T14:36:40.482997",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 86.0,
+      "reason": "action=WAIT (buy_gate: technical_score_below_threshold, bearish_regime, resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "d324dc58",
+    "timestamp": "2026-06-08T14:36:39.752894",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INTC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "f6125389",
+    "timestamp": "2026-06-08T14:35:50.548084",
+    "type": "TRADE_BLOCKED",
     "ticker": "AAPL",
-    "action": "BUY",
+    "action": "BLOCKED",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 60.4,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
+      "score": 78.8,
+      "reason": "action=WAIT (buy_gate: technical_score_below_threshold, bearish_regime, resistance_too_close)",
+      "source": "news_push"
     }
   },
   {
-    "id": "7dbccfc7",
-    "timestamp": "2026-02-02T14:32:06.768332",
+    "id": "50c6493b",
+    "timestamp": "2026-06-08T14:35:50.540487",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GOOGL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 80.2,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "746975f2",
+    "timestamp": "2026-06-08T14:35:50.528610",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NVDA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.1,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "0388ec1d",
+    "timestamp": "2026-06-08T14:34:19.007734",
+    "type": "TRADE_BLOCKED",
+    "ticker": "AAPL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 79.2,
+      "reason": "action=WAIT (buy_gate: technical_score_below_threshold, bearish_regime, resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "4d080550",
+    "timestamp": "2026-06-08T14:34:19.002889",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GOOGL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 80.2,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "04b5cdf4",
+    "timestamp": "2026-06-08T14:34:18.997984",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MSFT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 97.7,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "71a2623d",
+    "timestamp": "2026-06-08T14:34:18.990387",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NVDA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.8,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "703950a6",
+    "timestamp": "2026-06-08T14:30:20.964873",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BIIB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "877808ad",
+    "timestamp": "2026-06-08T14:30:19.359750",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGEE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "60ed394c",
+    "timestamp": "2026-06-08T14:30:14.547296",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d02cfc54",
+    "timestamp": "2026-06-08T14:30:09.369986",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INHD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$4.29<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "df4e123e",
+    "timestamp": "2026-06-08T14:30:06.137412",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.0,
+      "reason": "price=$2.66<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c6865461",
+    "timestamp": "2026-06-08T14:27:23.520922",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BIIB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "fc36b10e",
+    "timestamp": "2026-06-08T14:27:22.687670",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGEE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "4d890a25",
+    "timestamp": "2026-06-08T14:27:21.930991",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "76a24f73",
+    "timestamp": "2026-06-08T14:27:20.448001",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INHD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$4.14<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "3f614ed5",
+    "timestamp": "2026-06-08T14:27:19.022966",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.0,
+      "reason": "price=$2.70<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "1851d758",
+    "timestamp": "2026-06-08T14:25:22.509243",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BIIB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "1eca14b3",
+    "timestamp": "2026-06-08T14:24:50.607443",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGEE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "7a908594",
+    "timestamp": "2026-06-08T14:24:40.852825",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SRAD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$14.99<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c0cee395",
+    "timestamp": "2026-06-08T14:24:39.850515",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "a2911331",
+    "timestamp": "2026-06-08T14:24:30.786645",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INHD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$3.52<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c5807358",
+    "timestamp": "2026-06-08T14:24:28.115237",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.0,
+      "reason": "price=$2.82<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c2aa397c",
+    "timestamp": "2026-06-08T14:21:51.313142",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BIIB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "68e113bb",
+    "timestamp": "2026-06-08T14:21:50.046949",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGEE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e5f80164",
+    "timestamp": "2026-06-08T14:21:48.890976",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SRAD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$15.09<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "6b36d5bb",
+    "timestamp": "2026-06-08T14:21:46.998970",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "b29821c7",
+    "timestamp": "2026-06-08T14:21:28.106996",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INHD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$3.37<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d0d8875c",
+    "timestamp": "2026-06-08T14:21:01.121033",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SUNE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.0,
+      "reason": "price=$2.69<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "3aed3b89",
+    "timestamp": "2026-06-08T14:17:19.328226",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BIIB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "cdee20a0",
+    "timestamp": "2026-06-08T14:17:16.617794",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RTX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "6425ec77",
+    "timestamp": "2026-06-08T14:17:16.611957",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MU",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.6,
+      "reason": "action=WAIT (buy_gate: momentum_below_threshold, resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "18ebbdb3",
+    "timestamp": "2026-06-08T14:17:16.603261",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NVDA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 75.2,
+      "reason": "action=WAIT (buy_gate: resistance_too_close, llm_confirmation_required)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "37604788",
+    "timestamp": "2026-06-08T14:17:16.162984",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGEE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "12a4615d",
+    "timestamp": "2026-06-08T14:17:06.189755",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SRAD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$15.34<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "a1cb791c",
+    "timestamp": "2026-06-08T14:17:04.333249",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "952a8c58",
+    "timestamp": "2026-06-08T14:17:02.939926",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "19d7a136",
+    "timestamp": "2026-06-08T14:16:59.350526",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INTC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "momentum_score=39.8<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "4033768d",
+    "timestamp": "2026-06-08T14:14:54.749090",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BIIB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "44a50c57",
+    "timestamp": "2026-06-08T14:14:53.206602",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MGEE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,near_session_high_chase,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "adccf24e",
+    "timestamp": "2026-06-08T14:14:52.341047",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SRAD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$15.31<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "80a98bb0",
+    "timestamp": "2026-06-08T14:14:51.566282",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d455906c",
+    "timestamp": "2026-06-08T14:14:50.651932",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "4496e986",
+    "timestamp": "2026-06-08T14:14:49.762034",
+    "type": "TRADE_BLOCKED",
+    "ticker": "INTC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "momentum_score=43.7<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d55f9197",
+    "timestamp": "2026-06-08T14:12:54.063163",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BIIB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "50717216",
+    "timestamp": "2026-06-08T14:12:44.178318",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SRAD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$15.31<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "0249b0dd",
+    "timestamp": "2026-06-08T14:12:25.702870",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "ae046097",
+    "timestamp": "2026-06-08T14:12:15.426099",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "12a7f05f",
+    "timestamp": "2026-06-08T14:09:36.206266",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BIIB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "5c1ab773",
+    "timestamp": "2026-06-08T14:09:34.233037",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SRAD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$15.18<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "1adb10aa",
+    "timestamp": "2026-06-08T14:09:22.475560",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d423cb63",
+    "timestamp": "2026-06-08T14:09:19.468275",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "48b081a6",
+    "timestamp": "2026-06-08T14:09:07.994626",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MU",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.0,
+      "reason": "action=WAIT (buy_gate: momentum_below_threshold, resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "d355a80a",
+    "timestamp": "2026-06-08T14:07:24.120859",
+    "type": "TRADE_BLOCKED",
+    "ticker": "BIIB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "9dd530a5",
+    "timestamp": "2026-06-08T14:07:20.152327",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SRAD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$15.38<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "89c2f924",
+    "timestamp": "2026-06-08T14:07:18.889585",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "ee960117",
+    "timestamp": "2026-06-08T14:07:17.436951",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "2ef48f56",
+    "timestamp": "2026-06-08T14:04:48.097106",
+    "type": "TRADE_BLOCKED",
+    "ticker": "ABAT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$3.79<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "4655d46f",
+    "timestamp": "2026-06-08T14:04:39.161093",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SRAD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$15.38<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "343f8dff",
+    "timestamp": "2026-06-08T14:04:38.927166",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RTX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "83bf33fb",
+    "timestamp": "2026-06-08T14:04:37.645381",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "bb2344d9",
+    "timestamp": "2026-06-08T14:04:23.122507",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "b536fba9",
+    "timestamp": "2026-06-08T14:04:04.718077",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MRVL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 83.7,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "786c1164",
+    "timestamp": "2026-06-08T14:02:14.288374",
+    "type": "TRADE_BLOCKED",
+    "ticker": "ABAT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$3.83<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "7e72bacf",
+    "timestamp": "2026-06-08T14:02:12.756664",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SRAD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$15.36<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "866df540",
+    "timestamp": "2026-06-08T14:02:10.733371",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,near_session_high_chase,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "ef592e16",
+    "timestamp": "2026-06-08T14:02:09.225927",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e31d5a37",
+    "timestamp": "2026-06-08T13:59:21.252565",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "b9fe7878",
+    "timestamp": "2026-06-08T13:59:19.667470",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SRAD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$15.30<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "43808e0d",
+    "timestamp": "2026-06-08T13:59:11.199211",
+    "type": "TRADE_BLOCKED",
+    "ticker": "ABAT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$3.78<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c3d04422",
+    "timestamp": "2026-06-08T13:59:08.963529",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "5cf85870",
+    "timestamp": "2026-06-08T13:56:45.443394",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,too_far_above_vwap,near_session_high_chase",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "2ee06157",
+    "timestamp": "2026-06-08T13:56:44.734346",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SRAD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$15.28<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "07f5b5bf",
+    "timestamp": "2026-06-08T13:56:44.046762",
+    "type": "TRADE_BLOCKED",
+    "ticker": "ABAT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$3.81<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d098e299",
+    "timestamp": "2026-06-08T13:56:43.230793",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "397c7b17",
+    "timestamp": "2026-06-08T13:54:20.844822",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "82e1c0bc",
+    "timestamp": "2026-06-08T13:54:18.872729",
+    "type": "TRADE_BLOCKED",
+    "ticker": "ABAT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$3.81<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "7d07da31",
+    "timestamp": "2026-06-08T13:51:42.434493",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CTSH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "45e090c6",
+    "timestamp": "2026-06-08T13:51:40.983221",
+    "type": "TRADE_BLOCKED",
+    "ticker": "ABAT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$3.67<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "f5f6c17f",
+    "timestamp": "2026-06-08T13:49:24.288021",
+    "type": "TRADE_BLOCKED",
+    "ticker": "ABAT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$3.69<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "592d7a57",
+    "timestamp": "2026-06-08T13:46:54.210122",
+    "type": "TRADE_BLOCKED",
+    "ticker": "ABAT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$3.67<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c7b87549",
+    "timestamp": "2026-06-08T13:44:39.910690",
+    "type": "TRADE_BLOCKED",
+    "ticker": "ABAT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$3.62<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d3aba3af",
+    "timestamp": "2026-06-08T13:42:28.021430",
+    "type": "TRADE_BLOCKED",
+    "ticker": "ABAT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$3.56<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "485797d2",
+    "timestamp": "2026-06-08T13:40:19.111110",
+    "type": "TRADE_BLOCKED",
+    "ticker": "ABAT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$3.52<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "89d657b1",
+    "timestamp": "2026-06-08T13:38:10.411432",
+    "type": "TRADE_BLOCKED",
+    "ticker": "ABAT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$3.48<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "87f83b5c",
+    "timestamp": "2026-06-08T13:36:12.037371",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NBIX",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "resistance_too_close",
+      "source": "bell_rush"
+    }
+  },
+  {
+    "id": "8bd65e83",
+    "timestamp": "2026-06-08T13:36:07.718223",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CBRS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "ai_score=69.7<min=70.0",
+      "source": "bell_rush"
+    }
+  },
+  {
+    "id": "5ff8eefe",
+    "timestamp": "2026-06-08T13:36:06.502644",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FTXL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=32.8<min=55.0",
+      "source": "bell_rush"
+    }
+  },
+  {
+    "id": "aac5f220",
+    "timestamp": "2026-06-08T13:35:46.284991",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VOR",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$13.46<min=$25",
+      "source": "bell_rush"
+    }
+  },
+  {
+    "id": "bb8b4c79",
+    "timestamp": "2026-06-08T13:34:39.398277",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MRVL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "ai_score=56.9<min=70.0",
+      "source": "bell_rush"
+    }
+  },
+  {
+    "id": "c312a773",
+    "timestamp": "2026-06-08T13:34:17.314653",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TSLA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "d9b23479",
+    "timestamp": "2026-06-08T13:34:08.209797",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FRVO",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "momentum_score=37.1<min=55.0",
+      "source": "bell_rush"
+    }
+  },
+  {
+    "id": "a31f3b61",
+    "timestamp": "2026-06-08T13:32:56.480726",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TSLA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "f7879693",
+    "timestamp": "2026-06-05T15:22:49.298081",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FORM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=47.6<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "81c4d64c",
+    "timestamp": "2026-06-05T15:22:44.997102",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MRLN",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$8.88<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "0fa3328a",
+    "timestamp": "2026-06-05T15:19:47.156650",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FORM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=47.6<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "3b4286e8",
+    "timestamp": "2026-06-05T15:19:46.333592",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MRLN",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$8.97<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "53084fa8",
+    "timestamp": "2026-06-05T15:16:17.451169",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FORM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=49.5<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "ae77656d",
+    "timestamp": "2026-06-05T15:16:14.360180",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MRLN",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$8.90<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "3cc1e49a",
+    "timestamp": "2026-06-05T15:13:30.385688",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FORM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=49.5<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "41011c09",
+    "timestamp": "2026-06-05T15:13:29.243050",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MRLN",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$8.88<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "90ac0f2d",
+    "timestamp": "2026-06-05T15:10:17.445668",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FORM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=49.5<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d4b3dfc0",
+    "timestamp": "2026-06-05T15:09:28.182561",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MRLN",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$8.79<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "4e248fe5",
+    "timestamp": "2026-06-05T15:06:36.099126",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FORM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "technical_score_below_threshold,bearish_regime,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "3c25f5ff",
+    "timestamp": "2026-06-05T15:06:31.795429",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MRLN",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$8.89<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "29d731b7",
+    "timestamp": "2026-06-05T15:02:59.708721",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FORM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "technical_score_below_threshold,bearish_regime,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c2a77f3c",
+    "timestamp": "2026-06-05T15:02:44.168910",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MRLN",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$8.99<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "13915415",
+    "timestamp": "2026-06-05T14:59:28.242565",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FORM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "technical_score_below_threshold,bearish_regime,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c478aa21",
+    "timestamp": "2026-06-05T14:59:14.782546",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IOT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=42.4<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "02580c98",
+    "timestamp": "2026-06-05T14:55:58.745377",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FORM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "technical_score_below_threshold,bearish_regime,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "da113997",
+    "timestamp": "2026-06-05T14:55:57.917531",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IOT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=44.2<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d0aed8d7",
+    "timestamp": "2026-06-05T14:52:25.232183",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FORM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "technical_score_below_threshold,bearish_regime,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "635c2bd8",
+    "timestamp": "2026-06-05T14:52:22.813568",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IOT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=44.6<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "cf8e2bfb",
+    "timestamp": "2026-06-05T14:49:27.916439",
+    "type": "TRADE_BLOCKED",
+    "ticker": "FORM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=51.0<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e23f1930",
+    "timestamp": "2026-06-05T14:49:26.819864",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IOT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=38.0<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "2ab021cd",
+    "timestamp": "2026-06-05T14:45:26.081213",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IOT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=41.2<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "acbd46ca",
+    "timestamp": "2026-06-05T14:42:55.138451",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IOT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=48.5<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "25a596ff",
+    "timestamp": "2026-06-05T14:39:04.167640",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IOT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "f0ea1138",
+    "timestamp": "2026-06-05T14:38:41.045056",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RBRK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "momentum_score=38.0<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "269db44f",
+    "timestamp": "2026-06-05T14:35:29.228969",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RBRK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "momentum_score=32.7<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "293a3302",
+    "timestamp": "2026-06-05T14:33:29.735352",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RBRK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "momentum_score=31.2<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "30929e2c",
+    "timestamp": "2026-06-05T14:32:36.722574",
+    "type": "TRADE_BLOCKED",
+    "ticker": "AAPL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 98.5,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "4e3dfb89",
+    "timestamp": "2026-06-05T14:30:58.251828",
+    "type": "TRADE_BLOCKED",
+    "ticker": "JPM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "75572648",
+    "timestamp": "2026-06-05T14:30:14.792259",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RBRK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "momentum_score=28.5<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "552051f1",
+    "timestamp": "2026-06-05T14:27:24.365721",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RBRK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "momentum_score=28.9<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "06bdabc7",
+    "timestamp": "2026-06-05T14:24:45.520621",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RBRK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "momentum_score=31.0<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "693f67e7",
+    "timestamp": "2026-06-05T14:23:31.772810",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RBRK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "momentum_score=34.0<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "54626b2b",
+    "timestamp": "2026-06-05T14:21:11.799567",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RBRK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "momentum_score=35.0<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d2ce1c49",
+    "timestamp": "2026-06-05T14:18:15.988103",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RBRK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "momentum_score=29.8<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "2556c0a1",
+    "timestamp": "2026-06-05T14:16:40.425617",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RBRK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "momentum_score=31.9<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e8052b44",
+    "timestamp": "2026-06-05T14:14:00.033412",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RBRK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "momentum_score=30.6<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "cfb4d58e",
+    "timestamp": "2026-06-05T14:11:07.092544",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RBRK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "momentum_score=31.6<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "8c64d4d0",
+    "timestamp": "2026-06-05T14:09:13.193787",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RBRK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "momentum_score=34.1<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "7d260019",
+    "timestamp": "2026-06-05T14:06:59.348054",
+    "type": "TRADE_BLOCKED",
+    "ticker": "UNH",
+    "action": "BLOCKED",
+    "details": {
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "16fc6a78",
+    "timestamp": "2026-06-05T14:05:56.567961",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RBRK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=32.8<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "db34c3b0",
+    "timestamp": "2026-06-05T14:03:25.493192",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RBRK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=30.8<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "79df46e5",
+    "timestamp": "2026-06-05T13:59:35.652787",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SURG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "price=$0.56<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "7db1a514",
+    "timestamp": "2026-06-05T13:59:17.473803",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RBRK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=37.0<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c8a2b5ee",
+    "timestamp": "2026-06-05T13:56:53.113481",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SURG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "price=$0.56<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "f4e36915",
+    "timestamp": "2026-06-05T13:56:48.978959",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RBRK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=38.7<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e5513a83",
+    "timestamp": "2026-06-05T13:54:26.709100",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SURG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "price=$0.56<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "ee9cb6b4",
+    "timestamp": "2026-06-05T13:52:19.602024",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SURG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "price=$0.56<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "18ab85c8",
+    "timestamp": "2026-06-05T13:49:09.758463",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SURG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "price=$0.56<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "2cc1c8f2",
+    "timestamp": "2026-06-05T13:46:04.430464",
+    "type": "TRADE_BLOCKED",
+    "ticker": "UUP",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "fae6dce7",
+    "timestamp": "2026-06-05T13:45:41.073566",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SURG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "price=$0.56<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c796a98b",
+    "timestamp": "2026-06-05T13:43:25.215010",
+    "type": "TRADE_BLOCKED",
+    "ticker": "UUP",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "score_below_threshold,technical_score_below_threshold,bearish_regime",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e732f277",
+    "timestamp": "2026-06-05T13:43:15.662302",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SURG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "price=$0.56<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "ed3acdcb",
+    "timestamp": "2026-06-05T13:38:43.031700",
+    "type": "TRADE_BLOCKED",
+    "ticker": "UUP",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "technical_score_below_threshold,bearish_regime,relative_volume_too_low",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "bd3fedc2",
+    "timestamp": "2026-06-05T13:38:41.536523",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SURG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "price=$0.56<min=$25",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "de7dd51f",
+    "timestamp": "2026-06-05T13:38:31.162486",
+    "type": "TRADE_BLOCKED",
+    "ticker": "RBRK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "momentum_score=43.2<min=55.0",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "80c91ef8",
+    "timestamp": "2026-06-05T13:37:29.356958",
+    "type": "TRADE_BLOCKED",
+    "ticker": "PLTR",
+    "action": "BLOCKED",
+    "details": {
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: technical_score_below_threshold, bearish_regime, resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "274cefdc",
+    "timestamp": "2026-06-05T13:34:59.008301",
+    "type": "TRADE_BLOCKED",
+    "ticker": "UUP",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.0,
+      "reason": "technical_score_below_threshold,bearish_regime,relative_volume_too_low",
+      "source": "bell_rush"
+    }
+  },
+  {
+    "id": "c93ec1f7",
+    "timestamp": "2026-06-05T13:34:56.014650",
+    "type": "TRADE_BLOCKED",
+    "ticker": "GASS",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "price=$9.25<min=$25",
+      "source": "bell_rush"
+    }
+  },
+  {
+    "id": "159a8e52",
+    "timestamp": "2026-06-05T13:34:32.656050",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TTAN",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "momentum_score=41.2<min=55.0",
+      "source": "bell_rush"
+    }
+  },
+  {
+    "id": "7cbcbb76",
+    "timestamp": "2026-06-05T13:34:32.199270",
+    "type": "TRADE_BLOCKED",
+    "ticker": "PANW",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.1,
+      "reason": "action=WAIT (buy_gate: technical_score_below_threshold, bearish_regime, resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "7b84ec39",
+    "timestamp": "2026-06-05T13:34:32.195953",
+    "type": "TRADE_BLOCKED",
+    "ticker": "PLTR",
+    "action": "BLOCKED",
+    "details": {
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: technical_score_below_threshold, bearish_regime, resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "868bf897",
+    "timestamp": "2026-06-05T13:34:07.804294",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MRLN",
+    "action": "BLOCKED",
+    "details": {
+      "score": 82.0,
+      "reason": "price=$9.69<min=$25",
+      "source": "bell_rush"
+    }
+  },
+  {
+    "id": "431edc8a",
+    "timestamp": "2026-06-04T19:30:53.178184",
+    "type": "TRADE_BLOCKED",
+    "ticker": "HSBC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "950f78ad",
+    "timestamp": "2026-06-04T19:30:49.951102",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "442afdf9",
+    "timestamp": "2026-06-04T19:30:21.827671",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MDT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c007b309",
+    "timestamp": "2026-06-04T19:28:38.975448",
+    "type": "TRADE_BLOCKED",
+    "ticker": "SHOP",
+    "action": "BLOCKED",
+    "details": {
+      "score": 96.7,
+      "reason": "action=WAIT (buy_gate: resistance_too_close, llm_confirmation_required)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "c31b436f",
+    "timestamp": "2026-06-04T19:27:11.358024",
+    "type": "TRADE_BLOCKED",
+    "ticker": "HSBC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "362fd3e1",
+    "timestamp": "2026-06-04T19:27:10.266456",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "616e14b9",
+    "timestamp": "2026-06-04T19:27:08.759607",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MDT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "2c24f7c9",
+    "timestamp": "2026-06-04T19:27:05.503817",
+    "type": "TRADE_BLOCKED",
+    "ticker": "ABNB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 73.3,
+      "reason": "action=WAIT (buy_gate: momentum_below_threshold, resistance_too_close, llm_confirmation_required)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "9165e701",
+    "timestamp": "2026-06-04T19:23:24.771727",
+    "type": "TRADE_BLOCKED",
+    "ticker": "HSBC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "0f2cbd58",
+    "timestamp": "2026-06-04T19:23:22.526605",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "a148ec35",
+    "timestamp": "2026-06-04T19:22:57.426896",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MDT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d06f442c",
+    "timestamp": "2026-06-04T19:19:51.827705",
+    "type": "TRADE_BLOCKED",
+    "ticker": "HSBC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "2c544343",
+    "timestamp": "2026-06-04T19:19:50.200463",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "b2f97f99",
+    "timestamp": "2026-06-04T19:19:49.068669",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MDT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "ae03cf9f",
+    "timestamp": "2026-06-04T19:16:10.348360",
+    "type": "TRADE_BLOCKED",
+    "ticker": "HSBC",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "2a41c03f",
+    "timestamp": "2026-06-04T19:16:04.433241",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MDT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "b42b3c41",
+    "timestamp": "2026-06-04T19:15:46.555401",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "ad46214c",
+    "timestamp": "2026-06-04T19:12:31.663806",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "7548ba43",
+    "timestamp": "2026-06-04T19:12:06.092046",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MDT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "ac974583",
+    "timestamp": "2026-06-04T19:08:59.290556",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "64287102",
+    "timestamp": "2026-06-04T19:08:55.373118",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MDT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e37d1f06",
+    "timestamp": "2026-06-04T19:05:10.432694",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e421169a",
+    "timestamp": "2026-06-04T19:04:47.517321",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MDT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "3ca29faf",
+    "timestamp": "2026-06-04T19:01:38.764113",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "78f70742",
+    "timestamp": "2026-06-04T19:01:35.435902",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MDT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e203ad13",
+    "timestamp": "2026-06-04T18:57:39.009679",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MDT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "1b760723",
+    "timestamp": "2026-06-04T18:54:19.342920",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MDT",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "3ad9ae6d",
+    "timestamp": "2026-06-04T18:50:23.769045",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "976751d6",
+    "timestamp": "2026-06-04T18:46:49.060057",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "8fd0fcf0",
+    "timestamp": "2026-06-04T18:43:20.867302",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "7944aec5",
+    "timestamp": "2026-06-04T18:39:37.027240",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "20331e87",
+    "timestamp": "2026-06-04T18:36:07.651803",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "90eac0d4",
+    "timestamp": "2026-06-04T18:32:27.564704",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "268dd033",
+    "timestamp": "2026-06-04T18:28:55.859365",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "729527f0",
+    "timestamp": "2026-06-04T18:25:05.961607",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "179f29e2",
+    "timestamp": "2026-06-04T18:21:28.938165",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 84.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "f6541b2c",
+    "timestamp": "2026-06-04T18:17:56.582658",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 84.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "ef21fd1e",
+    "timestamp": "2026-06-04T18:14:24.779523",
+    "type": "TRADE_BLOCKED",
+    "ticker": "HUM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "1be4f991",
+    "timestamp": "2026-06-04T18:14:16.312934",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 84.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "3edd5efb",
+    "timestamp": "2026-06-04T18:10:46.344993",
+    "type": "TRADE_BLOCKED",
+    "ticker": "HUM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c017b3ca",
+    "timestamp": "2026-06-04T18:10:45.516700",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 84.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "cab38b90",
+    "timestamp": "2026-06-04T18:07:00.327982",
+    "type": "TRADE_BLOCKED",
+    "ticker": "HUM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "b9598366",
+    "timestamp": "2026-06-04T18:06:51.784742",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 84.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "dff3fe1b",
+    "timestamp": "2026-06-04T18:03:11.727954",
+    "type": "TRADE_BLOCKED",
+    "ticker": "PAGP",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "457d8905",
+    "timestamp": "2026-06-04T18:03:10.498748",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 84.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "a509ff80",
+    "timestamp": "2026-06-04T18:03:07.987598",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IBB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c5992bb8",
+    "timestamp": "2026-06-04T18:02:52.104026",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "619342a0",
+    "timestamp": "2026-06-04T17:59:13.518951",
+    "type": "TRADE_BLOCKED",
+    "ticker": "PAGP",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "b3c54e58",
+    "timestamp": "2026-06-04T17:59:11.696605",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 84.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c05ddaf0",
+    "timestamp": "2026-06-04T17:59:10.027702",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IBB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "78f2f20a",
+    "timestamp": "2026-06-04T17:59:09.320049",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "a0557e10",
+    "timestamp": "2026-06-04T17:55:16.928597",
+    "type": "TRADE_BLOCKED",
+    "ticker": "PAGP",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "3570ad47",
+    "timestamp": "2026-06-04T17:55:15.879312",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 84.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "ccff0554",
+    "timestamp": "2026-06-04T17:55:14.287078",
+    "type": "TRADE_BLOCKED",
+    "ticker": "PAA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "4b76dbf2",
+    "timestamp": "2026-06-04T17:55:10.796402",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IBB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "5880c7f3",
+    "timestamp": "2026-06-04T17:55:09.475590",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "87052245",
+    "timestamp": "2026-06-04T17:54:50.351726",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NTSK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 94.8,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "927c0636",
+    "timestamp": "2026-06-04T17:51:15.833043",
+    "type": "TRADE_BLOCKED",
+    "ticker": "PAGP",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "48d9d972",
+    "timestamp": "2026-06-04T17:51:15.047858",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 84.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "add96f1f",
+    "timestamp": "2026-06-04T17:51:13.783128",
+    "type": "TRADE_BLOCKED",
+    "ticker": "PAA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "31699f41",
+    "timestamp": "2026-06-04T17:51:12.236480",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IBB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "a37e7bad",
+    "timestamp": "2026-06-04T17:51:09.697447",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "5d1d0293",
+    "timestamp": "2026-06-04T17:51:08.554909",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NTSK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 94.8,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "4db7538c",
+    "timestamp": "2026-06-04T17:47:15.920380",
+    "type": "TRADE_BLOCKED",
+    "ticker": "PAGP",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "8917e535",
+    "timestamp": "2026-06-04T17:47:14.863901",
+    "type": "TRADE_BLOCKED",
+    "ticker": "PAA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "97b570ee",
+    "timestamp": "2026-06-04T17:47:06.079483",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IBB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "f30ce959",
+    "timestamp": "2026-06-04T17:46:46.079602",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "eb96feef",
+    "timestamp": "2026-06-04T17:43:15.614212",
+    "type": "TRADE_BLOCKED",
+    "ticker": "PAGP",
+    "action": "BLOCKED",
+    "details": {
+      "score": 81.7,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "88a1cf54",
+    "timestamp": "2026-06-04T17:43:14.231878",
+    "type": "TRADE_BLOCKED",
+    "ticker": "PAA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "1053f61a",
+    "timestamp": "2026-06-04T17:43:13.253023",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IBB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d9c85e66",
+    "timestamp": "2026-06-04T17:43:11.583797",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "40992e82",
+    "timestamp": "2026-06-04T17:39:16.170977",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "ec093898",
+    "timestamp": "2026-06-04T17:39:15.186472",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IBB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d4ea154d",
+    "timestamp": "2026-06-04T17:39:06.400095",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "bfc39bc7",
+    "timestamp": "2026-06-04T17:38:53.446905",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NTSK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.8,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "41272986",
+    "timestamp": "2026-06-04T17:35:40.766041",
+    "type": "TRADE_BLOCKED",
+    "ticker": "QCOM",
+    "action": "BLOCKED",
+    "details": {
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: resistance_too_close, llm_confirmation_required)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "73a881a6",
+    "timestamp": "2026-06-04T17:35:16.042969",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "cf88243d",
+    "timestamp": "2026-06-04T17:35:14.491207",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IBB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d2cbbc4e",
+    "timestamp": "2026-06-04T17:35:12.869988",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e88ec610",
+    "timestamp": "2026-06-04T17:35:11.953445",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NTSK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.8,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "0d3a0e87",
+    "timestamp": "2026-06-04T17:31:21.194876",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "0996ff26",
+    "timestamp": "2026-06-04T17:31:19.580079",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IBB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "fb6c95d4",
+    "timestamp": "2026-06-04T17:31:18.182083",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "24a67ecb",
+    "timestamp": "2026-06-04T17:31:12.234272",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NTSK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.8,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "3a2c78fd",
+    "timestamp": "2026-06-04T17:27:31.620585",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VEEV",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "241a0e77",
+    "timestamp": "2026-06-04T17:27:27.830174",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IBB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "26d83828",
+    "timestamp": "2026-06-04T17:27:24.699755",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "4b60fb9b",
+    "timestamp": "2026-06-04T17:27:23.031066",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NTSK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.8,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "2c752c3d",
+    "timestamp": "2026-06-04T17:23:19.506515",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VERU",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "199c99da",
+    "timestamp": "2026-06-04T17:23:14.394895",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c80c13d4",
+    "timestamp": "2026-06-04T17:23:04.155878",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NTSK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 94.8,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "fecd11bb",
+    "timestamp": "2026-06-04T17:19:23.777099",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VERU",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "005d14a1",
+    "timestamp": "2026-06-04T17:19:22.729056",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "4dde603e",
+    "timestamp": "2026-06-04T17:19:20.916591",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NTSK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 94.8,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "3d9ce9be",
+    "timestamp": "2026-06-04T17:15:31.587805",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VERU",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d0ec4aee",
+    "timestamp": "2026-06-04T17:15:26.735917",
+    "type": "TRADE_BLOCKED",
+    "ticker": "KRE",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.6,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "861354bb",
+    "timestamp": "2026-06-04T17:15:14.185941",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NTSK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 94.8,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "14678851",
+    "timestamp": "2026-06-04T17:11:37.580707",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VERU",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "a0c20e37",
+    "timestamp": "2026-06-04T17:11:28.221690",
+    "type": "TRADE_BLOCKED",
+    "ticker": "PAA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "24848863",
+    "timestamp": "2026-06-04T17:11:09.199092",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NTSK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 94.8,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "215a8e22",
+    "timestamp": "2026-06-04T17:07:30.233465",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VERU",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c93feb33",
+    "timestamp": "2026-06-04T17:07:28.303653",
+    "type": "TRADE_BLOCKED",
+    "ticker": "PAA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "130d5300",
+    "timestamp": "2026-06-04T17:07:27.118692",
+    "type": "TRADE_BLOCKED",
+    "ticker": "NTSK",
+    "action": "BLOCKED",
+    "details": {
+      "score": 94.8,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "6f2adf47",
+    "timestamp": "2026-06-04T17:02:58.731029",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "37399186",
+    "timestamp": "2026-06-04T16:59:20.284314",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "3f9b0d7d",
+    "timestamp": "2026-06-04T16:55:47.856659",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "2c6a16c9",
+    "timestamp": "2026-06-04T16:51:30.728214",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "e98c0674",
+    "timestamp": "2026-06-04T16:51:00.106044",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IBB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "749ffa05",
+    "timestamp": "2026-06-04T16:47:43.002333",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "d7ef9260",
+    "timestamp": "2026-06-04T16:47:41.909836",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IBB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "dc57881b",
+    "timestamp": "2026-06-04T16:43:40.405688",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "b8140236",
+    "timestamp": "2026-06-04T16:43:02.654845",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IBB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "7d5a7409",
+    "timestamp": "2026-06-04T16:39:48.420282",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "7db7bfc0",
+    "timestamp": "2026-06-04T16:39:47.623882",
+    "type": "TRADE_BLOCKED",
+    "ticker": "IBB",
+    "action": "BLOCKED",
+    "details": {
+      "score": 91.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "0f4ae2e6",
+    "timestamp": "2026-06-04T16:35:53.545898",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VERU",
+    "action": "BLOCKED",
+    "details": {
+      "score": 80.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "2fe2aebe",
+    "timestamp": "2026-06-04T16:35:43.813405",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "8225483a",
+    "timestamp": "2026-06-04T16:32:06.170621",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VERU",
+    "action": "BLOCKED",
+    "details": {
+      "score": 80.9,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "377369b9",
+    "timestamp": "2026-06-04T16:31:58.943198",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "413a7786",
+    "timestamp": "2026-06-04T16:27:49.895235",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "3303c5cc",
+    "timestamp": "2026-06-04T16:24:12.515531",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "4069f80b",
+    "timestamp": "2026-06-04T16:19:49.710430",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c85f009f",
+    "timestamp": "2026-06-04T16:16:18.069167",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "eaba53df",
+    "timestamp": "2026-06-04T16:12:10.523755",
+    "type": "TRADE_BLOCKED",
+    "ticker": "VG",
+    "action": "BLOCKED",
+    "details": {
+      "score": 88.2,
+      "reason": "LLM unavailable (cap/stub)",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "30dc0edf",
+    "timestamp": "2026-06-04T15:35:32.878605",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TSLA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 85.9,
+      "reason": "action=WAIT (buy_gate: technical_score_below_threshold, bearish_regime, resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "74efd763",
+    "timestamp": "2026-06-04T15:03:10.729802",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MXL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c384840c",
+    "timestamp": "2026-06-04T14:59:55.246579",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MXL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,momentum_warning",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "b3e90529",
+    "timestamp": "2026-06-04T14:57:15.305115",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MXL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,momentum_warning,llm_confirmation_required",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "de34cc72",
+    "timestamp": "2026-06-04T14:55:07.837683",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MXL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,momentum_warning,llm_confirmation_required",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "17be6c4f",
+    "timestamp": "2026-06-04T14:51:06.143173",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TSLA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: technical_score_below_threshold, bearish_regime, resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "09656c86",
+    "timestamp": "2026-06-04T14:51:04.955158",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MXL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,momentum_warning",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "c35de394",
+    "timestamp": "2026-06-04T14:48:54.715281",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MXL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,momentum_warning",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "5d061078",
+    "timestamp": "2026-06-04T14:45:13.484109",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MXL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,momentum_warning",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "30932deb",
+    "timestamp": "2026-06-04T14:42:04.164393",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MXL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "416ecd97",
+    "timestamp": "2026-06-04T14:41:43.469817",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CRWD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 76.5,
+      "reason": "already have position",
+      "source": "auto"
+    }
+  },
+  {
+    "id": "cab7fadd",
+    "timestamp": "2026-06-04T14:38:30.002056",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MXL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "0468de05",
+    "timestamp": "2026-06-04T14:38:26.328822",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CRWD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 96.0,
+      "reason": "already have position",
+      "source": "auto"
+    }
+  },
+  {
+    "id": "864898c4",
+    "timestamp": "2026-06-04T14:36:07.107096",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MXL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "90bf48e8",
+    "timestamp": "2026-06-04T14:34:37.589400",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CRWD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 100.0,
+      "reason": "already have position",
+      "source": "auto"
+    }
+  },
+  {
+    "id": "5bb7045d",
+    "timestamp": "2026-06-04T14:33:58.333328",
+    "type": "TRADE_BLOCKED",
+    "ticker": "TSLA",
+    "action": "BLOCKED",
+    "details": {
+      "score": 100.0,
+      "reason": "action=WAIT (buy_gate: resistance_too_close)",
+      "source": "news_push"
+    }
+  },
+  {
+    "id": "b49827a6",
+    "timestamp": "2026-06-04T14:32:28.115639",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MXL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "276c2d0b",
+    "timestamp": "2026-06-04T14:32:08.667158",
+    "type": "TRADE_BLOCKED",
+    "ticker": "CRWD",
+    "action": "BLOCKED",
+    "details": {
+      "score": 100.0,
+      "reason": "already have position",
+      "source": "auto"
+    }
+  },
+  {
+    "id": "58680eb8",
+    "timestamp": "2026-06-04T14:29:15.186118",
+    "type": "TRADE_BLOCKED",
+    "ticker": "MXL",
+    "action": "BLOCKED",
+    "details": {
+      "score": 78.0,
+      "reason": "score_below_threshold,timing_score_too_low,resistance_too_close",
+      "source": "trending"
+    }
+  },
+  {
+    "id": "910b7b25",
+    "timestamp": "2026-06-04T14:28:18.420902",
     "type": "AUTO_TRADE",
-    "ticker": "V",
+    "ticker": "CRWD",
     "action": "BUY",
     "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.0,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
-    }
-  },
-  {
-    "id": "c22fe22a",
-    "timestamp": "2026-02-02T14:30:43.319274",
-    "type": "AUTO_TRADE",
-    "ticker": "V",
-    "action": "BUY",
-    "details": {
-      "price": null,
-      "quantity": null,
-      "score": 65.3,
-      "reasoning": "",
-      "order_id": null,
-      "auto": true
-    }
-  },
-  {
-    "id": "9b7d15d6",
-    "timestamp": "2026-01-27T15:36:02.984766",
-    "type": "AUTO_EXIT",
-    "ticker": "AMAT",
-    "action": "CLOSE",
-    "details": {
-      "reason": "TAKE_PROFIT (5.04%)",
-      "pnl_pct": 5.0386263409752,
-      "entry": 319.73,
-      "exit_price": 335.84,
-      "result": "closed"
-    }
-  }
-]
+      "price": 681.61,
+      "quantity": 2,
+      "score": 100.0,
+      "effective_score": 92.0,
+      "reasoning": "Setup: early_entry_window, fresh_catalyst, very_fresh | Timing early (90)",
+      "order_id": 

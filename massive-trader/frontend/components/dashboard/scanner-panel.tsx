@@ -75,12 +75,10 @@ export function ScannerPanel({
   onRefresh,
   updatedAt,
 }: ScannerPanelProps) {
+  // BUY in scanner = actually tradeable. Trust the backend recommendation;
+  // it already encodes gate evaluation.
   const results: ScanResult[] = watchlistResults || [];
-
-  // Sort by score descending
   const sortedResults = [...results].sort((a, b) => b.score - a.score);
-
-  // Get top opportunities (BUY recommendations with score >= 75)
   const topOpportunities = sortedResults.filter(
     (r) => r.recommendation === "BUY" && r.score >= 75
   );

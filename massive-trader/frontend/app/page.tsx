@@ -10,6 +10,7 @@ import {
   EarningsPanel,
   AIAgentsPanel,
   TradeDecisionPanel,
+  AgentScoresCard,
   RiskPanel,
   ScannerPanel,
   TradeJournal,
@@ -133,17 +134,23 @@ function Dashboard() {
 
   // Day P&L now comes directly from Alpaca account data (equity - last_equity)
 
-  // Get the correct decision for the selected ticker from allDecisions
-  // This ensures consistency between AI Trade Decisions card and Trade Decision panel
+  // Get the correct decision for the selected ticker.
+  // Prefer analysisResult.decision when it matches — it has the full signal
+  // (timing, technical, buy_gate, regime) needed by AgentScoresCard.
+  // Fall back to allDecisions (slim) if no fresh analysis exists.
+  // The backend's `action` is the source of truth — BUY means it will trade.
   const selectedTickerDecision = useMemo(() => {
-    if (!allDecisions) return analysisResult?.decision;
+    const fromAnalysis = analysisResult?.decision;
+    if (fromAnalysis && (fromAnalysis as any).ticker === selectedTicker) {
+      return fromAnalysis;
+    }
 
-    // Search in all groups for the selected ticker
+    if (!allDecisions) return fromAnalysis;
+
     const allItems = [...(allDecisions.buy || []), ...(allDecisions.hold || []), ...(allDecisions.sell || [])];
     const found = allItems.find(d => d.ticker === selectedTicker);
 
     if (found) {
-      // Convert to the TradeDecision format expected by TradeDecisionPanel
       return {
         ticker: found.ticker,
         symbol: found.ticker,
@@ -151,20 +158,22 @@ function Dashboard() {
         confidence: found.confidence,
         combinedScore: found.combinedScore,
         aiScore: found.aiScore,
+        sentimentScore: found.aiScore,
         momentumScore: found.momentumScore,
+        keywordScore: found.keywordScore,
+        llmEnhanced: found.llmEnhanced,
         strategy: found.strategy,
         entryPrice: found.entryPrice,
         stopLoss: found.stopLoss,
         takeProfit: found.takeProfit,
-        quantity: 10, // Default quantity
+        quantity: 10,
         reasoning: `AI Score: ${found.aiScore}/100, Momentum: ${found.momentumScore}/100, Combined: ${found.combinedScore.toFixed(1)}/100`,
         contributingAgents: ["AI Analyst", "Momentum Scanner"],
         timestamp: new Date().toISOString(),
       };
     }
 
-    // Fallback to analysis result if ticker not in allDecisions
-    return analysisResult?.decision;
+    return fromAnalysis;
   }, [allDecisions, selectedTicker, analysisResult?.decision]);
 
   const accountErrorMessage = useMemo(() => {
@@ -386,6 +395,14 @@ function Dashboard() {
             onTrade={manualTradeMutation.mutateAsync}
             isExecuting={manualTradeMutation.isPending}
             tradingMode={status?.tradingMode || "paper"}
+          />
+        </div>
+
+        {/* Agent Scores: per-agent breakdown for the selected ticker */}
+        <div className="mb-3">
+          <AgentScoresCard
+            decision={selectedTickerDecision as any}
+            ticker={selectedTicker}
           />
         </div>
 

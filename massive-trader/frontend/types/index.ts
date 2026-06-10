@@ -118,11 +118,43 @@ export interface TradeDecision {
   reasoning: string;
   contributingAgents: string[];
   timestamp: string;
-  // Score breakdown
-  combinedScore?: number;
-  aiScore?: number;
-  momentumScore?: number;
+  // Score breakdown — each component is an independent 0-100 score.
+  combinedScore?: number;    // Master setup score — drives the top-line BUY/HOLD/SELL verdict.
+  aiScore?: number;          // LLM-enhanced score (sentiment + news intelligence)
+  sentimentScore?: number;   // Raw keyword news sentiment score
+  momentumScore?: number;    // Price/volume momentum
+  technicalScore?: number;   // RSI / MACD / regime composite
+  timingScore?: number;      // Entry timing (early/late/extended)
+  keywordScore?: number;     // Pre-LLM keyword-only score
+  llmEnhanced?: boolean;     // Whether the AI score was LLM-confirmed
+  entryTimingState?: string; // "early" | "standard" | "late" | "extended"
+  freshCatalyst?: boolean;
+  technicalRegime?: string;  // "strong_bullish" | "bullish" | "neutral" | "bearish" | "strong_bearish"
+  technicalRsi?: number;
+  momentumBoost?: number;    // Boost/penalty applied based on price action
+  newsAgeHours?: number;
+  priceChangePct?: number;
   strategy?: string;
+  // Buy-gate sub-check results (populated when a signal exists). Each *_ok flag
+  // mirrors evaluate_buy_gate() in backend/app/services/trade_policy.py.
+  buyGate?: {
+    passed: boolean;
+    reasons?: string[];
+    score_ok?: boolean;
+    ai_ok?: boolean;
+    llm_ok?: boolean;
+    momentum_ok?: boolean;
+    technical_ok?: boolean;
+    regime_ok?: boolean;
+    rsi_ok?: boolean;
+    timing_ok?: boolean;
+    vwap_extension_ok?: boolean;
+    session_position_ok?: boolean;
+    volume_ok?: boolean;
+    resistance_ok?: boolean;
+    risk_reward_ok?: boolean;
+    agreement_ok?: boolean;
+  };
 }
 
 // Account & Risk Types

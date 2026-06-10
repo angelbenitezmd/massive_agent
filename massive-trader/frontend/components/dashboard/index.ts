@@ -5,6 +5,7 @@ export { NewsFeed } from "./news-feed";
 export { EarningsPanel } from "./earnings-panel";
 export { AIAgentsPanel } from "./ai-agents-panel";
 export { TradeDecisionPanel } from "./trade-decision-panel";
+export { AgentScoresCard } from "./agent-scores-card";
 export { RiskPanel } from "./risk-panel";
 export { ScannerPanel } from "./scanner-panel";
 export { TradeJournal } from "./trade-journal";
